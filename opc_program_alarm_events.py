@@ -1,8 +1,11 @@
-from opc_client_manager import OPCClientManager
 from asyncua import ua
 import asyncio
 import logging
 import re
+import config
+
+from models import AlarmDetails
+from state_store import alarm_store
 
 logging.basicConfig(level=logging.WARNING)
 
@@ -43,29 +46,40 @@ class AlarmHandler:
         if hasattr(msg, 'Text'):
             msg = msg.Text
         
-        # 1. Parse and merge the associated values into placeholders
+        # Parse and merge the associated values into placeholders
         final_alarm_text = self.parse_and_replace_placeholders(msg, event)
         
-        # 2. Extract timestamp
         timestamp = getattr(event, 'Time', 'N/A')
         if hasattr(timestamp, 'strftime'):
             timestamp = timestamp.strftime('%Y-%m-%d %H:%M:%S')
+       
+        id = getattr(event, 'ID', None)
+        print(f"Raw ID value: {id}")
+               
+        displayclass = getattr(event, 'DisplayClass', None)
 
-        # 3. Determine Alarm State (Active/Cleared and Acked/Unacked)
         active_state = getattr(event, 'ActiveState/Id', None)
 
-        # 4. Print
-        if active_state == True:
-            print(f"[{timestamp}] ALARM: {final_alarm_text}")
+        if active_state is True:
+            new_alarm = AlarmDetails(
+                ID=id,
+                message=final_alarm_text,
+                timestamp=timestamp,
+                displayClass=displayclass
+            )
+            alarm_store.add_alarm(id, new_alarm)
+          
+        elif active_state is False:
+            alarm_store.remove_alarm(id)
+            
 
     def status_change_notification(self, status):
         pass  
 
 
-async def subscribe_program_alarms():
-    while True:
+async def subscribe_program_alarms(client=None):
+    
         try:
-            client = await OPCClientManager.get_client()
             handler = AlarmHandler()
             subscription = await client.create_subscription(1000, handler)
             
@@ -83,7 +97,7 @@ async def subscribe_program_alarms():
             event_filter.SelectClauses.append(make_select_clause(ua.ObjectIds.BaseEventType, ['Time']))
             event_filter.SelectClauses.append(make_select_clause(ua.ObjectIds.BaseEventType, ['Severity']))
             event_filter.SelectClauses.append(make_select_clause(ua.ObjectIds.BaseEventType, ['EventType']))
-            
+
             # State Fields (Crucial to fetch the Active and Acknowledged states)
             event_filter.SelectClauses.append(make_select_clause(ua.ObjectIds.AlarmConditionType, ['ActiveState', 'Id']))
             event_filter.SelectClauses.append(make_select_clause(ua.ObjectIds.AlarmConditionType, ['AckedState', 'Id']))
@@ -98,20 +112,41 @@ async def subscribe_program_alarms():
                 operand.AttributeId = ua.AttributeIds.Value
                 event_filter.SelectClauses.append(operand)
                 
-            server_node = client.get_node("ns=3;i=1815")
-            handle = await subscription._subscribe(server_node, ua.AttributeIds.EventNotifier, event_filter)
+            # Siemens DisplayClass (to determine if it's a Program Alarm or not)    
+            field_name = f"DisplayClass"
+            operand = ua.SimpleAttributeOperand()
+            operand.TypeDefinitionId = ua.NodeId(ua.ObjectIds.AlarmConditionType, 0, ua.NodeIdType.Numeric)
+            operand.BrowsePath = [ua.QualifiedName(field_name, siemens_ns_index)]
+            operand.AttributeId = ua.AttributeIds.Value
+            event_filter.SelectClauses.append(operand)  
+
+            # Siemens ID (to determine if it's a Program Alarm or not)    
+            field_name = f"ID"
+            operand = ua.SimpleAttributeOperand()
+            operand.TypeDefinitionId = ua.NodeId(ua.ObjectIds.AlarmConditionType, 0, ua.NodeIdType.Numeric)
+            operand.BrowsePath = [ua.QualifiedName(field_name, siemens_ns_index)]
+            operand.AttributeId = ua.AttributeIds.Value
+            event_filter.SelectClauses.append(operand) 
+              
+            server_node = client.get_node(config.SUBSCRIBE_NODES["ProgramAlarms"])
+            await subscription._subscribe(server_node, ua.AttributeIds.EventNotifier, event_filter)
             print(f"✅ Subscribed to Program Alarms with States. Monitoring active...")
             
+            # Base ConditionType Node ID is fixed across ALL OPC UA servers worldwide (ns=0;i=2782)
+            condition_type_node = client.get_node("ns=0;i=2782")
+            
+            # Execute the method on the server, passing your specific Subscription ID
+            await condition_type_node.call_method(
+                "0:ConditionRefresh", 
+                ua.Variant(subscription.subscription_id, ua.VariantType.UInt32)
+            )
+
+
             while True:
                 await asyncio.sleep(1)
 
-        except (asyncio.TimeoutError, Exception) as e:
-            print(f"\n❌ Connection lost: {e}. Reconnecting in 5 seconds...")
-            await OPCClientManager.close()
-            await asyncio.sleep(5)
-            
-        except asyncio.CancelledError:
-            break
+        except (Exception) as e:
+            print(f"\n❌ Error in alarm event handling: {e}.")
 
 if __name__ == "__main__":
     try:
