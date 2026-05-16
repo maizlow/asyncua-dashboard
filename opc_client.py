@@ -43,7 +43,4 @@ async def handle_new_alarm(event_id: str, alarm: AlarmDetails):
 @alarm_store.on_remove
 async def handle_cleared_alarm(event_id: str, alarm: AlarmDetails):
     print(f"✅ EVENT TRIGGERED: Alarm Cleared! -> ID: {event_id} was resolved.")    
-
-if __name__ == "__main__":    
-    asyncio.run(main())
     
