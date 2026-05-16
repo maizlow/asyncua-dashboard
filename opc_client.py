@@ -1,46 +1,52 @@
-from opc_client_manager import OPCClientManager
 import asyncio
+from asyncua import ua
+import config
 
-from state_store import alarm_store
-from models import AlarmDetails
+from opc_client_manager import OPCClientManager
+from opc_screen_handler import subscribe_and_sync_tags
 from opc_program_alarm_events import subscribe_program_alarms
-
-active_alarm_list = []  # Global list to track active alarms
+from state_store import alarm_store, general_store
 
 async def main():
     while True:
         try:
+            # 1. Establish core client connection instance
             client = await OPCClientManager.get_client()
             print("Client is ready to use!")
 
-            await subscribe_program_alarms(client)    
+            # 2. Flush caches on startup/reconnect to prevent ghost records
+            alarm_store.clear_store()
+            general_store.clear()
 
-            print("Program is running. Press Ctrl+C to exit.")
+            # Create a synchronization lock to prevent PLC network collisions
+            sync_lock = asyncio.Event()
 
-            # You can add test code here to read/write nodes or subscribe to events
-        except KeyboardInterrupt:
-            await OPCClientManager.close()
-            print("\nApplication closed.")
-            break  # Exit the loop on Ctrl+C
+            # Pass the lock into both sub-engines
+            alarm_task = asyncio.create_task(subscribe_program_alarms(client, sync_lock))
+            tag_sync_task = asyncio.create_task(subscribe_and_sync_tags(client, sync_lock))  
 
-        except asyncio.CancelledError:
-            break  # Exit the loop if the task is cancelled
+            print("🚀 Monitoring sub-engines engaged. Awaiting sync completion...")
+
+            print("🚀 Monitoring sub-engines engaged successfully.")
+
+            # 3. Main wrapper loop acting as our network circuit-breaker
+            try:
+                while True:
+                    await asyncio.sleep(1)
+                    await client.check_connection()
+            finally:
+                # Cleanly cancel and unwind background workers if check_connection drops
+                alarm_task.cancel()
+                tag_sync_task.cancel()
+                await asyncio.gather(alarm_task, tag_sync_task, return_exceptions=True)
 
         except Exception as e:
             print(f"\n❌ Connection lost: {e}. Reconnecting in 5 seconds...")
             await OPCClientManager.close()
             await asyncio.sleep(5)
-    
 
-
-# Register an async listener for when an alarm is added
-@alarm_store.on_add
-async def handle_new_alarm(event_id: str, alarm: AlarmDetails):
-    print(f"🚨 EVENT TRIGGERED: New Alarm Added! -> ID: {event_id} | {alarm.message}")
-    # Here you could push data to a websocket, send a slack alert, etc.
-
-# Register a listener for when an alarm is cleared
-@alarm_store.on_remove
-async def handle_cleared_alarm(event_id: str, alarm: AlarmDetails):
-    print(f"✅ EVENT TRIGGERED: Alarm Cleared! -> ID: {event_id} was resolved.")    
-    
+if __name__ == "__main__":
+    try:
+        asyncio.run(main())
+    except KeyboardInterrupt:
+        print("\nApplication closed by user.")

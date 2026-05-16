@@ -77,7 +77,7 @@ class AlarmHandler:
         pass  
 
 
-async def subscribe_program_alarms(client=None):
+async def subscribe_program_alarms(client=None, sync_lock=None):
     
         try:
             handler = AlarmHandler()
@@ -128,12 +128,12 @@ async def subscribe_program_alarms(client=None):
             operand.AttributeId = ua.AttributeIds.Value
             event_filter.SelectClauses.append(operand) 
               
-            server_node = client.get_node(config.SUBSCRIBE_NODES["ProgramAlarms"])
+            server_node = client.get_node(config.DEFAULT_NODES["ProgramAlarms"])
             await subscription._subscribe(server_node, ua.AttributeIds.EventNotifier, event_filter)
             print(f"✅ Subscribed to Program Alarms with States. Monitoring active...")
             
             # Base ConditionType Node ID is fixed across ALL OPC UA servers worldwide (ns=0;i=2782)
-            condition_type_node = client.get_node("ns=0;i=2782")
+            condition_type_node = client.get_node(config.DEFAULT_NODES["ConditionType"])
             
             # Execute the method on the server, passing your specific Subscription ID
             await condition_type_node.call_method(
@@ -141,12 +141,24 @@ async def subscribe_program_alarms(client=None):
                 ua.Variant(subscription.subscription_id, ua.VariantType.UInt32)
             )
 
+            # Give the PLC a 3-second buffer to flush all active alarms over the network
+            await asyncio.sleep(3)
+            
+            # GREEN LIGHT: Unlock the tag engine so it can safely subscribe!
+            if sync_lock:
+                sync_lock.set()
+
 
             while True:
                 await asyncio.sleep(1)
-
+                
+                # The official asyncua method to poll the server connection health.
+                # If the server is offline or drops, this will automatically raise an exception.
+                await client.check_connection()
+                
         except (Exception) as e:
             print(f"\n❌ Error in alarm event handling: {e}.")
+            raise  # Re-raise to let opc_client.py handle reconnection logic
 
 if __name__ == "__main__":
     try:
