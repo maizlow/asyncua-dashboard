@@ -1,0 +1,45 @@
+<div class="industrial-dashboard-container">
+    
+    <div class="dashboard-header">
+        <img src="/app/static/customerLogo.png?v=fresh" class="header-logo" alt="Customer Logo">
+        <div class="header-clock" id="factory-live-clock">{{CLOCK}}</div>
+        
+        <div class="header-logo-wrapper abece-vector-logo">
+            {{ABECE_LOGO_SVG}}
+        </div>
+    </div>
+
+    <div class="metrics-container">
+        
+        <div class="metric-card">
+            <div class="metric-label">Target production</div>
+            <div class="metric-value">{{TARGET}}</div>
+            <div class="delta-positive">STABLE</div>
+        </div>
+
+        <div class="metric-card">
+            <div class="metric-label">Current Rate</div>
+            <div class="metric-value">{{RATE}}</div>
+            <div class="{{RATE_CLASS}}">{{RATE_DELTA}}</div>
+        </div>
+
+        <div class="metric-card">
+            <div class="metric-label">OEE Efficiency</div>
+            <div class="metric-value">{{OEE}}</div>
+            <div class="{{OEE_CLASS}}">{{OEE_DELTA}}</div>
+        </div>
+
+        <div class="metric-card">
+            <div class="metric-label">Scrap rate</div>
+            <div class="metric-value">{{SCRAP}}</div>
+            <div class="{{SCRAP_CLASS}}">{{SCRAP_DELTA}}</div>
+        </div>
+
+        <div class="metric-card">
+            <div class="metric-label">Scrap rate</div>
+            <div class="metric-value">{{SCRAP}}</div>
+            <div class="{{SCRAP_CLASS}}">{{SCRAP_DELTA}}</div>
+        </div>
+
+    </div>
+</div>

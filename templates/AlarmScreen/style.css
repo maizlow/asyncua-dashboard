@@ -1,0 +1,32 @@
+/* 🎬 Fixed Full-Screen Edge Pulse Animation */
+@keyframes screen-pulse {
+    0% { border-color: rgba(183, 211, 243, 0.1); box-shadow: inset 0 0 20px rgba(183, 211, 243, 0.1); }
+    50% { border-color: rgba(0, 140, 255, 0.6); box-shadow: inset 0 0 60px rgba(0, 140, 255, 0.6); }
+    100% { border-color: rgba(183, 211, 243, 0.1); box-shadow: inset 0 0 20px rgba(183, 211, 243, 0.1); }
+}
+
+.fullscreen-flashing-frame {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100vw;
+    height: 100vh;
+    border: 36px solid transparent;
+    box-sizing: border-box;
+    z-index: 999999;
+    pointer-events: none;
+    animation: screen-pulse 2.5s infinite ease-in-out;
+}
+
+/* 🚨 Clear, flattened row container for 4K display walls */
+.alarm-row {
+    background-color: #19212e;
+    border-left: 12px solid #6ba4f3;
+    padding: 2rem 3.5rem;
+    margin-bottom: 1rem;
+    border-radius: 12px;
+    font-size: 156px;
+    font-weight: 600;
+    color: #ffffff;
+    line-height: 1.3;
+}

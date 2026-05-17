@@ -9,11 +9,17 @@ from models import AlarmDetails
 # This prevents Streamlit hot reloads from wiping your active data!
 if not hasattr(sys, "_INDUSTRIAL_ALARM_CACHE"):
     sys._INDUSTRIAL_ALARM_CACHE = {}
+
+if not hasattr(sys, "_INDUSTRIAL_GENERAL_CACHE"):
     sys._INDUSTRIAL_GENERAL_CACHE = {}
+
+if not hasattr(sys, "_INDUSTRIAL_DATA_CACHE"):
+    sys._INDUSTRIAL_DATA_CACHE = {}
 
 # Bind our internal variables directly to the protected system-level memory
 _SHARED_ALARM_CACHE: dict[str, AlarmDetails] = sys._INDUSTRIAL_ALARM_CACHE
 _SHARED_GENERAL_CACHE: dict[str, any] = sys._INDUSTRIAL_GENERAL_CACHE
+_SHARED_DATA_CACHE: dict[str, any] = sys._INDUSTRIAL_DATA_CACHE
 
 class AlarmStore:
     """An in-memory state store tracking AlarmDetails that triggers events on changes."""
@@ -56,6 +62,30 @@ class AlarmStore:
     def get_active_alarms(self) -> dict[str, AlarmDetails]:
         return self._active_alarms.copy()
 
+class DataStore:
+    """A simple in-memory key-value store with change event support."""
+    def __init__(self):
+        self._data = _SHARED_DATA_CACHE
+        self._on_change_callbacks = []
+
+    def on_change(self, callback):
+        self._on_change_callbacks.append(callback)
+        return callback
+
+    def set(self, key: str, value):
+        self._data[key] = value
+        
+        for callback in self._on_change_callbacks:
+            if inspect.iscoroutinefunction(callback):
+                asyncio.create_task(callback(key, value))
+            else:
+                callback(key, value)
+
+    def get(self, key: str, default=None):
+        return self._data.get(key, default)
+
+    def clear(self):
+        self._data.clear()
 
 class GeneralStore:
     """A more generic state store for other types of data (not just alarms)."""
@@ -86,3 +116,4 @@ class GeneralStore:
 # Global tracking instances exposed to your application modules
 alarm_store = AlarmStore()
 general_store = GeneralStore()
+data_store = DataStore()  

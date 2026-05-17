@@ -8,6 +8,7 @@ textColor = "#ffffff"
 [server]
 runOnSave = true
 fileWatcherType = "auto"
+enableStaticServing = true
 
 [browser]
 gatherUsageStats = false

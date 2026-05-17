@@ -1,8 +1,7 @@
-# opc_screen_handler.py
+# opc_data_tags.py
 import asyncio
-from asyncua import ua
 import config
-from state_store import general_store
+from state_store import data_store
 
 class TagChangeHandler:
     """Central handler that processes all live data-change stream alerts for this subscription."""
@@ -17,32 +16,49 @@ class TagChangeHandler:
             node_key = str(node.nodeid)
             alias = self.node_map.get(node_key, "Unknown")
             
-            # Cast the raw variant value to an integer for safety
-            int_val = int(val)
-            general_store.set(alias, int_val)
-            print(f"📡 [Tag Sync]: {alias} updated on server -> Stored value: {int_val}")
+            # 🛡️ Extract the raw value if it arrives wrapped inside an asyncua Variant object
+            if hasattr(val, "Value"):
+                processed_val = val.Value
+            else:
+                processed_val = val
+
+            # 🛠️ Sanitize based on data type group
+            if isinstance(processed_val, bool):
+                final_val = processed_val
+            elif isinstance(processed_val, float):
+                # 🎯 Lock floats down to 2 decimal points instantly
+                final_val = round(processed_val, 2)
+            elif isinstance(processed_val, int):
+                final_val = processed_val
+            else:
+                final_val = str(processed_val).strip()
+
+            # Store the polished value into the global memory cache
+            data_store.set(alias, final_val)
+            print(f"📡 [Data Tag Sync]: {alias} updated on server -> Stored value: {final_val} ({type(final_val).__name__})")
             
+    def status_change_notification(self, status):
+        """Fires when the server status changes (e.g. drops offline)."""
+        print(f"⚠️ [OPC UA Connection Status Event]: {status}")
 
-
-async def subscribe_screen_tags(client, sync_lock=None):
+async def subscribe_data_tags(client, sync_lock=None):
     """
     Sets up DataChange subscriptions correctly using a single subscription handler
-    and manages the bidirectional write-back loop.
     """
     if sync_lock:
         print("⏳ Tags waiting for Alarm Engine to clear the PLC network buffer...")
         await sync_lock.wait()
 
-    print("🚀 Initializing Screen Tag PubSub subscription pipeline...")
+    print("🚀 Initializing Data Tag PubSub subscription pipeline...")
     
     # 1. Create ONE central handler instance to manage all nodes in this subscription
     handler_instance = TagChangeHandler()
     
     # 2. Spin up the base subscription framework passing our central handler
-    subscription = await client.create_subscription(1000, handler_instance)
+    subscription = await client.create_subscription(2000, handler_instance)
     
     # Loop through the config dictionary to subscribe to your target nodes dynamically
-    for alias, node_string in config.SCREEN_NODES.items():
+    for alias, node_string in config.DASHBOARD_DATA_NODES.items():
         try:
             target_node = client.get_node(node_string)
             
@@ -50,42 +66,18 @@ async def subscribe_screen_tags(client, sync_lock=None):
             handler_instance.node_map[node_string] = alias
             handler_instance.node_map[str(target_node.nodeid)] = alias
             
-            # ✅ FIXED: Call with only the target_node. The second parameter defaults 
-            # to ua.AttributeIds.Value automatically, keeping the binary packet clean.
             await subscription.subscribe_data_change(target_node)
             print(f"✅ DataChange monitoring active for node alias: {alias}")
-            # GREEN LIGHT: Unlock the tag engine so it can safely subscribe!
-            if sync_lock:
-                sync_lock.set()
-
+            
         except Exception as e:
             print(f"❌ CRITICAL: Failed to subscribe to node '{alias}' ({node_string}): {e}")
             raise e
-
-    # 3. Bidirectional Write-Back Monitoring Loop
-    node_active_out = client.get_node(config.SCREEN_NODES["ActiveScreenNr"])
-
-    # 🛡️ Local safety track: What did we actually send to the PLC?
-    # This prevents infinite spam without altering or "faking" general_store values!
-    last_sent_screen = None
 
     while True:
         try:
             await asyncio.sleep(0.5)
             await client.check_connection()
          
-            web_active_screen = general_store.get("ActiveScreenNr")
-
-            if web_active_screen is not None and web_active_screen != last_sent_screen:
-                # Write the updated screen number back to the PLC whenever it changes in our general store
-                await node_active_out.write_value(
-                    ua.DataValue(ua.Variant(web_active_screen, ua.VariantType.Int16))
-                )
-                # Lock it in locally so we don't repeat this write on the next iteration
-                last_sent_screen = web_active_screen
-
-                print(f"🔄 [Handshake]: Wrote Active Screen {web_active_screen} back to PLC.")
-                
         except asyncio.CancelledError:
             break
         except Exception as e:
