@@ -58,19 +58,20 @@ async def subscribe_data_tags(client, sync_lock=None):
     subscription = await client.create_subscription(2000, handler_instance)
     
     # Loop through the config dictionary to subscribe to your target nodes dynamically
-    for alias, node_string in config.DASHBOARD_DATA_NODES.items():
+    for item in config.DASHBOARD_DATA_NODES:
         try:
-            target_node = client.get_node(node_string)
-            
+            target_node = client.get_node(item["nodeid"])
+            alias = item["alias"]
+
             # Map both variations of the node string so the handler can match it perfectly
-            handler_instance.node_map[node_string] = alias
+            handler_instance.node_map[item["nodeid"]] = alias
             handler_instance.node_map[str(target_node.nodeid)] = alias
             
             await subscription.subscribe_data_change(target_node)
             print(f"✅ DataChange monitoring active for node alias: {alias}")
             
         except Exception as e:
-            print(f"❌ CRITICAL: Failed to subscribe to node '{alias}' ({node_string}): {e}")
+            print(f"❌ CRITICAL: Failed to subscribe to node '{alias}' ({item['nodeid']}): {e}")
             raise e
 
     while True:

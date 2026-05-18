@@ -1,7 +1,10 @@
+from collections import deque
+from datetime import datetime
 import sys
 import asyncio
 import inspect  
 from models import AlarmDetails
+import config
 
 # 🛡️ THE HOT-RELOAD SHIELD:
 # Instead of creating a new dict on every re-import, we check if our unique cache 
@@ -15,6 +18,10 @@ if not hasattr(sys, "_INDUSTRIAL_GENERAL_CACHE"):
 
 if not hasattr(sys, "_INDUSTRIAL_DATA_CACHE"):
     sys._INDUSTRIAL_DATA_CACHE = {}
+
+if not hasattr(sys, "_INDUSTRIAL_HISTORY_CACHE"):
+    sys._INDUSTRIAL_HISTORY_CACHE = {}
+
 
 # Bind our internal variables directly to the protected system-level memory
 _SHARED_ALARM_CACHE: dict[str, AlarmDetails] = sys._INDUSTRIAL_ALARM_CACHE
@@ -64,16 +71,46 @@ class AlarmStore:
 
 class DataStore:
     """A simple in-memory key-value store with change event support."""
-    def __init__(self):
+    def __init__(self, history_seconds: int = 300, sample_interval: int = 2):
         self._data = _SHARED_DATA_CACHE
+        self._history: dict[str, deque] = sys._INDUSTRIAL_HISTORY_CACHE
         self._on_change_callbacks = []
+
+        self._maxlen = int(history_seconds / sample_interval)
 
     def on_change(self, callback):
         self._on_change_callbacks.append(callback)
         return callback
 
     def set(self, key: str, value):
+        # Find the config item for this key (if it exists)
+        item_config = next(
+            (item for item in config.DASHBOARD_DATA_NODES if item.get("alias") == key), 
+            None
+        )
+
+        # Only record history if the item has "historical": True
+        if not item_config or not item_config.get("historical"):
+            self._data[key] = value
+            return
+        
+        # Only apply reset logic for numeric values
+        if isinstance(value, (int, float)):
+            if key in self._history and len(self._history[key]) > 0:
+                # Get all values from current history
+                current_values = [v for _, v in self._history[key]]
+                max_value = max(current_values)
+
+                # If new value is smaller than the previous maximum, reset history
+                #if value < max_value:                    
+                #    self._history[key].clear()
+
         self._data[key] = value
+        
+        # Save to rolling history
+        if key not in self._history:
+            self._history[key] = deque(maxlen=self._maxlen)
+        self._history[key].append((datetime.now(), value))
         
         for callback in self._on_change_callbacks:
             if inspect.iscoroutinefunction(callback):
@@ -81,6 +118,10 @@ class DataStore:
             else:
                 callback(key, value)
 
+    def get_history(self, key: str):
+        """Returns list of values (newest last)."""
+        return [v for _, v in self._history.get(key, [])]
+    
     def get(self, key: str, default=None):
         return self._data.get(key, default)
 

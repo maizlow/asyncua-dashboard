@@ -15,7 +15,7 @@
     box-sizing: border-box;
     z-index: 999999;
     pointer-events: none;
-    animation: screen-pulse 2.5s infinite ease-in-out;
+    animation: screen-pulse 0.5s infinite ease-in-out;
 }
 
 /* 🚨 Clear, flattened row container for 4K display walls */
