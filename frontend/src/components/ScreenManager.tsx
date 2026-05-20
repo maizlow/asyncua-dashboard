@@ -7,11 +7,28 @@ export function ScreenManager() {
   const [currentScreen, setCurrentScreen] = useState<number>(1);
   const lastMessage = useWebSocket();
 
-  // React to screen change messages
   useEffect(() => {
+    fetch("/api/general")
+      .then((res) => res.json())
+      .then((data) => {
+        console.log("📊 Initial screen from backend:", data.ActiveScreenNr);
+        setCurrentScreen(data.ActiveScreenNr);
+      });
+
     if (lastMessage?.type === "screen_change" && typeof lastMessage.screen === "number") {
-      console.log("📺 Screen changed to:", lastMessage.screen);
-      setCurrentScreen(lastMessage.screen);
+      const newScreen = lastMessage.screen;
+      console.log("📺 Switching to screen:", newScreen);
+
+      setCurrentScreen(newScreen);
+      // === Confirm to backend that we switched ===
+      fetch("/api/general", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          key: "ActiveScreenNr",
+          value: newScreen
+        })
+      }).catch(console.error);
     }
   }, [lastMessage]);
 

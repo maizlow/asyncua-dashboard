@@ -1,18 +1,16 @@
 
 import { ReactNode } from "react";
 import { Line, LineChart, ResponsiveContainer } from "recharts";
-import { isValidNumber } from "@/lib/utils";
 
 interface MetricCardProps {
   label: string;
-  value: number | string;
-  stringValueColor?: string | undefined;
+  value: number;
   unit?: string;
   delta?: number | null;
   deltaUnit?: string;
   sparklineData?: number[];
   showSparkline?: boolean;
-  sparklineDataAsDelta?: boolean;
+  sparklineDateAsDelta?: boolean;
   progressTarget?: number;
   progressTargetUnit?: string;
   showProgressBar?: boolean;
@@ -22,27 +20,17 @@ interface MetricCardProps {
 export function MetricCard({
   label,
   value,
-  stringValueColor,
   unit,
-  delta: externalDelta,
+  delta,
   deltaUnit = "%",
   sparklineData,
   showSparkline = false,
-  sparklineDataAsDelta = false,
+  sparklineDateAsDelta = false,
   progressTarget,
   progressTargetUnit,
   showProgressBar = false,
   children,
 }: MetricCardProps) {
-
-  // Calculate delta from sparklineData when sparklineDataAsDelta is true
-  let delta = externalDelta;
-
-  if (sparklineDataAsDelta && sparklineData && sparklineData.length >= 2) {
-    const last = sparklineData[sparklineData.length - 1];
-    const secondLast = sparklineData[sparklineData.length - 2];
-    delta = last - secondLast;
-  }
 
   const deltaColor = (delta === null || delta === undefined)
     ? "text-zinc-400"
@@ -78,31 +66,28 @@ export function MetricCard({
       {/* Main Value */}
       <div className="px-8 pb-12">
         <span className="text-14xl leading-none font-mono font-semibold tracking-[-4px]">
-          {isValidNumber(value) !== false && value }
-          {isValidNumber(value) === false && (
-            <span className={`${stringValueColor} flex justify-center mt-30`}> {value} </span>
-          )}
+          {value}
         </span>
         {unit && <span className="text-8xl text-zinc-400 ml-3 align-super">{unit}</span>}
       </div>
 
       {/* Delta + Chart */}
-      <div className="px-8 pb-6 text-9xl font-mono font-medium leading-none tracking-[-4px]">
+      <div className="px-8 pb-6">
           {/* Delta */}
-          {delta !== undefined && delta !== null && sparklineDataAsDelta === false && (
-            <div className={`${deltaColor}`}>
+          {delta !== undefined && delta !== null && sparklineDateAsDelta === false && (
+            <div className={`text-8xl font-medium ${deltaColor}`}>
               {deltaArrow} {deltaUnit === "%" ? Math.abs(delta).toFixed(2) : Math.abs(delta)}
               {deltaUnit === "%" ? " %" : " " + deltaUnit}
             </div>
           )}
-          {delta === undefined && progressTarget !== undefined && sparklineDataAsDelta === false && (
-            <div className="text-zinc-400 flex justify-end">
+          {delta === undefined && progressTarget !== undefined && sparklineDateAsDelta === false && (
+            <div className="text-9xl font-medium text-zinc-400 leading-none font-mono tracking-[-4px] flex justify-end">
               {progressTarget}
               {progressTargetUnit && <span className="text-6xl ml-3 align-super">{progressTargetUnit}</span>}
             </div>
           )}
-          {sparklineDataAsDelta === true && chartData && chartData.length > 2 && delta !== undefined && delta !== null && (
-            <div className={`${deltaColor}`}>
+          {sparklineDateAsDelta === true && chartData && chartData.length > 2 && delta !== undefined && delta !== null && (
+            <div className={`text-8xl font-medium ${deltaColor}`}>
               {deltaArrow} {parseFloat(Math.abs(delta).toFixed(1)).toString().replace(/\.0$/, '')}
               {deltaUnit === "%" ? " %" : " " + deltaUnit}
             </div>
@@ -110,14 +95,14 @@ export function MetricCard({
 
       </div>
 
-      <div className="px-8 pb-12 w-full h-52"> 
+      <div className="px-8 pb-12 w-full h-50"> {/* Spacer to push content up */}
           {/* Sparkline */}
           {showSparkline && chartData && chartData.length > 3 && (
-            <div className="w-full h-34 mt-4">          
+            <div className="w-full h-24 mt-4">           {/* ← Proper height */}
               <ResponsiveContainer width="100%" height="100%">
                 <LineChart 
                   data={normalizeSparklineData(sparklineData)} 
-                  margin={{ top: 10, right: 10, bottom: 10, left: 10 }}
+                  margin={{ top: 10, right: 10, bottom: 5, left: 10 }}
                 >
                   <Line
                     type="natural"
@@ -132,7 +117,7 @@ export function MetricCard({
           )}
 
           {/* Progress Bar */}
-          {showProgressBar && progressTarget !== undefined && isValidNumber(value) && (
+          {showProgressBar && progressTarget !== undefined && (
             <div className="h-40 bg-zinc-800 rounded-2xl mt-4">
               <div className="bg-green-500 h-40 rounded-2xl" style={{ width: `${Math.min(100, (value / progressTarget) * 100)}%` }} />
             </div>

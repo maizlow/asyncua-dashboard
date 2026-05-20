@@ -14,6 +14,21 @@
   animation: alarm-pulse 1400ms infinite;
 }
 
+.text-10xl {
+    font-size: 10rem /* 8rem = 128px */;
+    line-height: var(--tw-leading, var(--text-9xl--line-height) /* 1 */);
+}
+
+.text-12xl {
+    font-size: 12rem /* 8rem = 128px */;
+    line-height: var(--tw-leading, var(--text-9xl--line-height) /* 1 */);
+}
+
+.text-14xl {
+    font-size: 14rem /* 8rem = 128px */;
+    line-height: var(--tw-leading, var(--text-9xl--line-height) /* 1 */);
+}
+
 :root {
   font-family: system-ui, Avenir, Helvetica, Arial, sans-serif;
   line-height: 1.5;
