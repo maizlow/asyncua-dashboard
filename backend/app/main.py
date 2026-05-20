@@ -4,15 +4,34 @@ from fastapi import FastAPI
 
 from backend.opc import opc_client
 from backend.app import api_server
-from backend.app.routers import metrics, websocket
+from backend.app.routers import metrics, websocket, alarms
+from backend.opc.state_store import alarm_store
 
 
 def create_app() -> FastAPI:
-    """Create and configure the FastAPI application."""
-    app = FastAPI(title="Production Dashboard API", version="1.0")
+    app = FastAPI(title="Production Dashboard API")
 
-    # Include routers
+    # ===================== CORS =====================
+    from fastapi.middleware.cors import CORSMiddleware
+
+    # Allow common development origins + production later
+    origins = [
+        "http://localhost:5173",      # Vite dev server
+        "http://127.0.0.1:5173",
+        "http://localhost:3000",      # Alternative React port
+    ]
+
+    app.add_middleware(
+        CORSMiddleware,
+        allow_origins=origins,
+        allow_credentials=True,
+        allow_methods=["*"],
+        allow_headers=["*"],
+    )
+
+    # ===================== Routers =====================
     app.include_router(metrics.router)
+    app.include_router(alarms.router)
     app.include_router(websocket.router)
 
     @app.get("/")
@@ -22,35 +41,22 @@ def create_app() -> FastAPI:
     return app
 
 
-# ------------------------------------------------------------------
-# 🧵 1. THE BACKGROUND COMMUNICATION THREAD WORKER
-# ------------------------------------------------------------------
 def run_opc_background_engine():
-    """
-    Target function for our background thread.
-    Creates a fresh, isolated asyncio event loop and executes your 
-    existing opc_client pipeline within it.
-    """
     loop = asyncio.new_event_loop()
     asyncio.set_event_loop(loop)
-    
     try:
-        print("🔌 [Engine Init]: Launching background OPC-UA process loops...")
         loop.run_until_complete(opc_client.main())
     except Exception as e:
-        print(f"❌ CRITICAL ERROR IN BACKGROUND OPC ENGINE: {e}")
+        print(f"❌ OPC Background Error: {e}")
     finally:
         loop.close()
 
 
-# ------------------------------------------------------------------
-# 🚀 2. UNIFIED APP RUNTIME ENTRY POINT
-# ------------------------------------------------------------------
 if __name__ == "__main__":
     if threading.current_thread().name == "MainThread":
-        print("🧵 [System]: Spawning background industrial communications thread...")
+        print("🧵 Starting background OPC-UA thread...")
 
-        # Start OPC UA in background thread
+        # Start OPC UA
         opc_thread = threading.Thread(
             target=run_opc_background_engine,
             name="OPC_UA_Background_Worker",
@@ -58,22 +64,40 @@ if __name__ == "__main__":
         )
         opc_thread.start()
 
-        # Create FastAPI app with routers
+        # Create FastAPI app
         app = create_app()
 
-        # Start FastAPI server in its own thread
-        # We pass the app we just created
+        # === Connect AlarmStore to WebSocket broadcast ===
+        from backend.app.routers.websocket import broadcast
+
+        def broadcast_alarm_added(alarm_id, alarm):
+            asyncio.create_task(broadcast({
+                "type": "alarm_added",
+                "alarm_id": alarm_id,
+                "alarm": alarm
+            }))
+
+        def broadcast_alarm_removed(alarm_id, alarm):
+            asyncio.create_task(broadcast({
+                "type": "alarm_removed",
+                "alarm_id": alarm_id,
+                "alarm": alarm
+            }))
+
+        alarm_store.on_add(broadcast_alarm_added)
+        alarm_store.on_remove(broadcast_alarm_removed)
+
+        # Start FastAPI
         api_thread = threading.Thread(
             target=api_server.run_fastapi_server,
-            args=(app,),                    # ← Pass the app here
+            args=(app,),
             name="FastAPI_Server",
             daemon=True
         )
         api_thread.start()
 
-        print("✅ [System]: Threads active. API available at http://localhost:8000")
+        print("✅ System running. API + WebSocket ready.")
 
-        # Keep main thread alive
         try:
             while True:
                 threading.Event().wait(1)
