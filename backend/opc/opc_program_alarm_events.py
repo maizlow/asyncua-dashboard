@@ -68,10 +68,10 @@ class AlarmHandler:
                 timestamp=timestamp,
                 displayClass=displayclass
             )
-            alarm_store.add_alarm(id, new_alarm)
+            alarm_store.add(id, new_alarm)
           
         elif active_state is False:
-            alarm_store.remove_alarm(id)
+            alarm_store.remove(id)
             
 
     def status_change_notification(self, status):
