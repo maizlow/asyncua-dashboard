@@ -1,12 +1,10 @@
 import asyncio
-from asyncua import ua
-import config
 
-from opc_client_manager import OPCClientManager
-from opc_screen_handler import subscribe_screen_tags
-from opc_data_tags import subscribe_data_tags
-from opc_program_alarm_events import subscribe_program_alarms
-from state_store import alarm_store, general_store, data_store
+from backend.opc.opc_client_manager import OPCClientManager
+from backend.opc.opc_screen_handler import subscribe_screen_tags
+from backend.opc.opc_data_tags import subscribe_data_tags
+from backend.opc.opc_program_alarm_events import subscribe_program_alarms
+from backend.opc.state_store import alarm_store, general_store, data_store
 
 async def main():
     while True:
@@ -16,7 +14,7 @@ async def main():
             print("Client is ready to use!")
 
             # 2. Flush caches on startup/reconnect to prevent ghost records
-            alarm_store.clear_store()
+            alarm_store.clear()
             general_store.clear()
             data_store.clear()
 

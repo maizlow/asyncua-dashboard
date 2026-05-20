@@ -1,11 +1,13 @@
 # opc_client_manager.py
 from asyncua import Client
 from asyncua.crypto.security_policies import SecurityPolicyBasic256Sha256
-import config
+
 import asyncio
 import logging
 
-logging.basicConfig(level=logging.WARNING)
+from backend.settings import settings
+
+logging.basicConfig(level=settings.log_level)
 
 class OPCClientManager:
     _client = None
@@ -18,7 +20,7 @@ class OPCClientManager:
                 if cls._client is None or not cls._client._connected:
                     # FIX: Relax the watchdog interval and increase the request timeout
                     cls._client = Client(
-                        config.OPC_ENDPOINT_URL, 
+                        settings.opc_endpoint_url, 
                         timeout=10,               # Wait up to 10s for replies before throwing a TimeoutError
                         watchdog_intervall=5.0    # Check server health every 5s instead of every 1s
                     )
@@ -26,11 +28,11 @@ class OPCClientManager:
 
                     await cls._client.set_security(
                         SecurityPolicyBasic256Sha256,
-                        certificate=config.CLIENT_CERT,
-                        private_key=config.CLIENT_KEY
+                        certificate=settings.client_cert_path,
+                        private_key=settings.client_key_path
                     )
-                    cls._client.set_user(config.OPC_USERNAME)
-                    cls._client.set_password(config.OPC_PASSWORD)
+                    cls._client.set_user(settings.opc_username)
+                    cls._client.set_password(settings.opc_password)
 
                     await cls._client.connect()
                     await cls._client.load_data_type_definitions()

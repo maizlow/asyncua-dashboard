@@ -1,3 +1,4 @@
-config.py
+.env
+
 certificates/
 __pycache__

@@ -2,12 +2,13 @@ from asyncua import ua
 import asyncio
 import logging
 import re
-import config
+import backend.config as config
+from backend.settings import settings
 
-from models import AlarmDetails
-from state_store import alarm_store
+from backend.opc.models import AlarmDetails
+from backend.opc.state_store import alarm_store
 
-logging.basicConfig(level=logging.WARNING)
+logging.basicConfig(level=settings.log_level)
 
 class AlarmHandler:
     def get_associated_value(self, event, index):

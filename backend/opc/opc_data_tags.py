@@ -1,7 +1,7 @@
 # opc_data_tags.py
 import asyncio
-import config
-from state_store import data_store
+import backend.config as config
+from backend.opc.state_store import data_store
 
 class TagChangeHandler:
     """Central handler that processes all live data-change stream alerts for this subscription."""

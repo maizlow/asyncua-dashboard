@@ -1,8 +1,8 @@
 # opc_screen_handler.py
 import asyncio
 from asyncua import ua
-import config
-from state_store import general_store
+from backend.opc.state_store import general_store
+import backend.config as config
 
 class TagChangeHandler:
     """Central handler that processes all live data-change stream alerts for this subscription."""
