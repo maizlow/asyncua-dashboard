@@ -30,3 +30,12 @@ async def get_history(key: str):
 async def get_general_data():
     """Returns general store data (e.g. screen number, status, etc)."""
     return general_store._data
+
+@router.post("/general")
+async def set_general_value(payload: dict):
+    key = payload.get("key")
+    value = payload.get("value")
+    if key and value is not None:
+        general_store.set(key, value)
+        return {"status": "ok"}
+    return {"status": "error", "message": "Missing key or value"}

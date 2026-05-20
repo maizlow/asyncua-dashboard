@@ -26,7 +26,7 @@ export function Header() {
   });
 
   return (
-    <header className="w-full bg-zinc-950 border-b border-zinc-800 px-8 py-6">
+    <header className="w-full bg-zinc-950 border-b-4 border-zinc-800 px-8 py-6">
       <div className="flex items-center justify-between max-w-full mx-20">
         
         {/* LEFT: Customer Logo */}

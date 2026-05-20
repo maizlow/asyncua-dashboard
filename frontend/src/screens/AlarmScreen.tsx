@@ -40,7 +40,7 @@ export function AlarmScreen() {
     <div
       className={`flex-1 overflow-hidden transition-all duration-300 ${
         alarms.length !== 0
-          ? "border-64 animate-alarm-pulse"
+          ? "border-42 animate-alarm-pulse"
           : ""
       }`}
     >
