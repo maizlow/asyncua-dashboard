@@ -6,19 +6,18 @@ from backend.opc import opc_client
 from backend.app import api_server
 from backend.app.routers import metrics, websocket, alarms
 from backend.opc.state_store import alarm_store
+from backend.app.routers.websocket import broadcast_full_snapshot, broadcast
 
 
 def create_app() -> FastAPI:
     app = FastAPI(title="Production Dashboard API")
 
-    # ===================== CORS =====================
     from fastapi.middleware.cors import CORSMiddleware
 
-    # Allow common development origins + production later
     origins = [
-        "http://localhost:5173",      # Vite dev server
+        "http://localhost:5173",
         "http://127.0.0.1:5173",
-        "http://localhost:3000",      # Alternative React port
+        "http://localhost:3000",
     ]
 
     app.add_middleware(
@@ -29,7 +28,6 @@ def create_app() -> FastAPI:
         allow_headers=["*"],
     )
 
-    # ===================== Routers =====================
     app.include_router(metrics.router)
     app.include_router(alarms.router)
     app.include_router(websocket.router)
@@ -39,6 +37,12 @@ def create_app() -> FastAPI:
         return {"message": "Production Dashboard API is running"}
 
     return app
+
+
+async def start_periodic_snapshot():
+    while True:
+        await asyncio.sleep(10)                    # every 10 seconds
+        await broadcast_full_snapshot()
 
 
 def run_opc_background_engine():
@@ -67,9 +71,12 @@ if __name__ == "__main__":
         # Create FastAPI app
         app = create_app()
 
-        # === Connect AlarmStore to WebSocket broadcast ===
-        from backend.app.routers.websocket import broadcast
+        # === Start periodic full snapshot (every 10 seconds) ===
+        @app.on_event("startup")
+        async def start_snapshot_task():
+            asyncio.create_task(start_periodic_snapshot())
 
+        # === Connect AlarmStore to WebSocket broadcast ===
         def broadcast_alarm_added(alarm_id, alarm):
             asyncio.create_task(broadcast({
                 "type": "alarm_added",

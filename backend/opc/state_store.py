@@ -11,31 +11,33 @@ class DataStore:
         self._maxlen = int(history_seconds / sample_interval)
         self._on_change_callbacks: list[Callable] = []
 
-    def _normalize_key(self, key: str) -> str:
-        """Normalize key to lowercase for case-insensitive access."""
-        return key.lower()
-
     def set(self, key: str, value: Any):
-        norm_key = self._normalize_key(key)
-        self._data[norm_key] = value
+        self._data[key] = value
 
-        if norm_key not in self._history:
-            self._history[norm_key] = deque(maxlen=self._maxlen)
+        # Save to history
+        if key not in self._history:
+            self._history[key] = deque(maxlen=self._maxlen)
+        self._history[key].append((datetime.now(), value))
 
-        self._history[norm_key].append((datetime.now(), value))
+        # === BROADCAST TO FRONTEND ===
+        history_list = [v for _, v in self._history[key]] if key in self._history else []
+        asyncio.create_task(broadcast({
+            "type": "data_update",
+            "key": key,
+            "value": value,
+            "history": history_list
+        }))
 
+        # Call other callbacks if any
         for callback in self._on_change_callbacks:
             callback(key, value)
 
     def get(self, key: str, default: Any = None) -> Any:
-        norm_key = self._normalize_key(key)
-        return self._data.get(norm_key, default)
+        return self._data.get(key, default)
 
     def get_history(self, key: str) -> list:
-        """Returns list of values (oldest first). Case-insensitive."""
-        norm_key = self._normalize_key(key)
-        if norm_key in self._history:
-            return [v for _, v in self._history[norm_key]]
+        if key in self._history:
+            return [v for _, v in self._history[key]]
         return []
 
     def on_change(self, callback: Callable):
