@@ -1,3 +1,110 @@
+# Using `config.py` – DASHBOARD_DATA_NODES
+
+## Overview
+
+The `config.py` file acts as the central configuration for all OPC UA data points used in the dashboard. The most important part for the dashboard is the `DASHBOARD_DATA_NODES` list.
+
+This list defines **which PLC variables** should be read, how they should be interpreted, and whether historical data should be collected for sparklines.
+
+---
+
+## Purpose of `DASHBOARD_DATA_NODES`
+
+`DASHBOARD_DATA_NODES` tells the OPC client which nodes to subscribe to and how to store them in the `data_store`. The `alias` you define here becomes the key used in the frontend (`MetricCard`, etc.).
+
+---
+
+## Node Definition Structure
+
+Each item in `DASHBOARD_DATA_NODES` is a dictionary with the following fields:
+
+| Field          | Type    | Required | Description |
+|----------------|---------|----------|-----------|
+| `nodeid`       | string  | Yes      | Full OPC UA node ID or browse path |
+| `datatype`     | string  | Yes      | Data type of the PLC variable (`DInt`, `Real`, `Int`, `Time_Of_Day`, etc.) |
+| `alias`        | string  | Yes      | Friendly name used in the frontend and `data_store` |
+| `historical`   | bool    | No       | If `true`, historical values are stored (used for sparklines) |
+
+### Example
+
+```python
+{
+    "nodeid": 'ns=3;s="DB Production TV"."dashboardData"."oee"',
+    "datatype": "Real",
+    "alias": "OEE",
+    "historical": True,
+}
+```
+
+---
+
+## How It Works
+
+1. The OPC client reads the `DASHBOARD_DATA_NODES` list at startup.
+2. It subscribes to each `nodeid`.
+3. When a value changes, it stores the value in `data_store` using the `alias` as the key.
+4. If `historical: true`, the value is also added to the history buffer (used for sparklines in `MetricCard`).
+
+---
+
+## How to Add a New Metric
+
+To display a new value on the dashboard, follow these steps:
+
+### 1. Add the node to `DASHBOARD_DATA_NODES`
+
+```python
+{
+    "nodeid": 'ns=3;s="DB Production TV"."dashboardData"."newMetric"',
+    "datatype": "Real",
+    "alias": "NewMetric",
+    "historical": True,
+}
+```
+
+### 2. Use it in the frontend (`DashboardScreen.tsx`)
+
+```tsx
+<MetricCard
+  label="New Metric"
+  value={metrics["NewMetric"]?.value ?? 0}
+  unit="%"
+  showSparkline={true}
+  sparklineData={metrics["NewMetric"]?.history}
+  sparklineDataAsDelta={true}
+/>
+```
+
+---
+
+## Best Practices
+
+- Use clear, consistent `alias` names (e.g. `OEE`, `TPM`, `ProductionCount`).
+- Set `historical: true` only when you need sparklines or trend data.
+- Keep `datatype` accurate — it helps with correct value handling.
+- Group related nodes logically in the list for readability.
+
+---
+
+## Full Example
+
+```python
+DASHBOARD_DATA_NODES = [
+    {
+        "nodeid": 'ns=3;s="DB Production TV"."dashboardData"."oee"',
+        "datatype": "Real",
+        "alias": "OEE",
+        "historical": True,
+    },
+    {
+        "nodeid": 'ns=3;s="DB Production TV"."dashboardData"."runtime"',
+        "datatype": "Time_Of_Day",
+        "alias": "CurrentRuntime",
+        "historical": False,
+    }
+]
+```
+
 # MetricCard Usage Summary
 
 ## Overview
