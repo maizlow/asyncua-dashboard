@@ -10,6 +10,7 @@ interface MetricCardProps {
   unit?: string;
   delta?: number | null;
   deltaUnit?: string;
+  decimalPlaces?: number;
   sparklineData?: number[];
   showSparkline?: boolean;
   sparklineDataAsDelta?: boolean;
@@ -26,6 +27,7 @@ export function MetricCard({
   unit,
   delta: externalDelta,
   deltaUnit = "%",
+  decimalPlaces = 1,
   sparklineData,
   showSparkline = false,
   sparklineDataAsDelta = false,
@@ -44,27 +46,16 @@ export function MetricCard({
     delta = last - secondLast;
   }
 
-  const deltaColor = (delta === null || delta === undefined)
-    ? "text-zinc-400"
-    : delta >= 0 ? "text-emerald-400" : "text-red-400";
+  const deltaColor =
+  delta === null || delta === undefined
+    ? "text-[var(--color-neutral)]"
+    : delta >= 0
+    ? "text-[var(--color-positive)]"
+    : "text-[var(--color-negative)]";
 
   const deltaArrow = delta === null || delta === undefined ? "" : delta >= 0 ? "↑" : "↓";
 
   const chartData = sparklineData?.map((val, i) => ({ index: i, value: val }));
-
-  // Normalize sparkline data so small changes become visible
-  function normalizeSparklineData(data: number[] | undefined) {
-    if (!data || data.length === 0) return [];
-
-    const min = Math.min(...data);
-    const max = Math.max(...data);
-    const range = max - min || 1; // prevent division by zero
-
-    return data.map((val, index) => ({
-      index,
-      value: ((val - min) / range) * 100, // normalize to 0–100
-    }));
-  }
 
   return (
     <div className={`bg-zinc-900 border border-zinc-800 rounded-3xl flex flex-col`}>
@@ -78,7 +69,11 @@ export function MetricCard({
       {/* Main Value */}
       <div className="px-8 pb-12">
         <span className="text-14xl leading-none font-mono font-semibold tracking-[-4px]">
-          {isValidNumber(value) !== false && value }
+          {isValidNumber(value) && (
+            Number(value) % 1 !== 0 
+              ? Number(value).toFixed(decimalPlaces ?? 2) 
+              : Number(value)
+          )}
           {isValidNumber(value) === false && (
             <span className={`${stringValueColor} flex justify-center mt-30`}> {value} </span>
           )}
@@ -91,7 +86,7 @@ export function MetricCard({
           {/* Delta */}
           {delta !== undefined && delta !== null && sparklineDataAsDelta === false && (
             <div className={`${deltaColor}`}>
-              {deltaArrow} {deltaUnit === "%" ? Math.abs(delta).toFixed(2) : Math.abs(delta)}
+              {deltaArrow} {deltaUnit === "%" ? Math.abs(delta).toFixed(decimalPlaces) : Math.abs(delta)}
               {deltaUnit === "%" ? " %" : " " + deltaUnit}
             </div>
           )}
@@ -103,7 +98,7 @@ export function MetricCard({
           )}
           {sparklineDataAsDelta === true && chartData && chartData.length > 2 && delta !== undefined && delta !== null && (
             <div className={`${deltaColor}`}>
-              {deltaArrow} {parseFloat(Math.abs(delta).toFixed(1)).toString().replace(/\.0$/, '')}
+              {deltaArrow} {parseFloat(Math.abs(delta).toFixed(decimalPlaces)).toString().replace(/\.0$/, '')}
               {deltaUnit === "%" ? " %" : " " + deltaUnit}
             </div>
           )}
@@ -116,14 +111,21 @@ export function MetricCard({
             <div className="w-full h-34 mt-4">          
               <ResponsiveContainer width="100%" height="100%">
                 <LineChart 
-                  data={normalizeSparklineData(sparklineData)} 
+                  data={prepareSparklineData(sparklineData, 25)} 
                   margin={{ top: 10, right: 10, bottom: 10, left: 10 }}
                 >
                   <Line
-                    type="natural"
+                    type="monotoneX"
                     dataKey="value"
-                    stroke={deltaColor === "text-emerald-400" ? "#34D399" : deltaColor === "text-red-400" ? "#F87171" : "#9CA3AF"}
-                    strokeWidth={15}                                      
+                    stroke={
+                              deltaColor.includes("positive") 
+                                ? "var(--color-positive)" 
+                                : deltaColor.includes("negative") 
+                                ? "var(--color-negative)" 
+                                : "var(--color-neutral)"
+                            }
+                    strokeWidth={15}  
+                    isAnimationActive={true}                                   
                     dot={false}
                   />
                 </LineChart>
@@ -134,7 +136,13 @@ export function MetricCard({
           {/* Progress Bar */}
           {showProgressBar && progressTarget !== undefined && isValidNumber(value) && (
             <div className="h-40 bg-zinc-800 rounded-2xl mt-4">
-              <div className="bg-green-500 h-40 rounded-2xl" style={{ width: `${Math.min(100, (value / progressTarget) * 100)}%` }} />
+              <div
+                className="h-40 rounded-2xl transition-all duration-1000"
+                style={{
+                  width: `${Math.min(100, Math.max(0, (Number(value) / progressTarget) * 100))}%`,
+                  backgroundColor: "var(--accent-green)",
+                }}
+              />
             </div>
           )}
       </div>
@@ -144,3 +152,31 @@ export function MetricCard({
   );
 }
 
+// Combine downsampling + normalization for clean, readable sparklines
+function prepareSparklineData(data: number[] | undefined, targetPoints: number = 40) {
+  if (!data || data.length === 0) return [];
+
+  // 1. Downsample first (reduce from 300+ points to ~40)
+  let sampled = data;
+  if (data.length > targetPoints) {
+    const step = Math.floor(data.length / targetPoints);
+    sampled = [];
+    for (let i = 0; i < data.length; i += step) {
+      sampled.push(data[i]);
+    }
+    // Always keep the last point
+    if (sampled[sampled.length - 1] !== data[data.length - 1]) {
+      sampled.push(data[data.length - 1]);
+    }
+  }
+
+  // 2. Normalize so small changes become visible
+  const min = Math.min(...sampled);
+  const max = Math.max(...sampled);
+  const range = max - min || 1;
+
+  return sampled.map((val, index) => ({
+    index,
+    value: ((val - min) / range) * 100,   // scale to 0-100
+  }));
+}

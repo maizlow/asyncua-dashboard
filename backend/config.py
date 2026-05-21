@@ -13,38 +13,51 @@ SCREEN_NODES = {
 DASHBOARD_DATA_NODES = [
     {
         "nodeid": 'ns=3;s="DB Production TV"."dashboardData"."target"',
+        "datatype": "DInt",
         "alias": "TargetCount",
         "historical": False,
     },
     {
         "nodeid": 'ns=3;s="DB Production TV"."dashboardData"."actual"',
+        "datatype": "DInt",
         "alias": "ProductionCount",
         "historical": False,
     },
     {
-        "nodeid": 'ns=3;s="DB Production TV"."dashboardData"."deltaActual"',
+        "nodeid": 'ns=3;s="DB Production TV"."dashboardData"."delta"',
+        "datatype": "Float",
         "alias": "ProductionDelta",
         "historical": True,
     },
     {
-        "nodeid": 'ns=3;s="DB Production TV"."dashboardData"."deltaActualProd"',
-        "alias": "ProductionDeltaTiles",
-        "historical": True,
-    },
-    {
         "nodeid": 'ns=3;s="DB Production TV"."dashboardData"."prodState"',
+        "datatype": "Int",
         "alias": "ProductionState",
         "historical": False,
     },
     {
         "nodeid": 'ns=3;s="DB Production TV"."dashboardData"."oee"',
+        "datatype": "Real",
         "alias": "OEE",
         "historical": True,
     },
     {
-        "nodeid": 'ns=3;s="DB Production TV"."dashboardData"."oeeDelta"',
-        "alias": "OEEDelta",
+        "nodeid": 'ns=3;s="DB Production TV"."dashboardData"."tpm"',
+        "datatype": "Real",
+        "alias": "TPM",
         "historical": True,
+    },
+    {
+        "nodeid": 'ns=3;s="DB Production TV"."dashboardData"."runtime"',
+        "datatype": "Time_Of_Day",
+        "alias": "CurrentRuntime",
+        "historical": False,
+    },
+    {
+        "nodeid": 'ns=3;s="DB Production TV"."dashboardData"."accStoptime"',
+        "datatype": "Time_Of_Day",
+        "alias": "AccumulatedStoptime",
+        "historical": False,
     }
     # Add more nodes or browse paths here for any additional data you want to display on the dashboard
 ]

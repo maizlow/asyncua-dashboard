@@ -7,20 +7,28 @@ export function ScreenManager() {
   const [currentScreen, setCurrentScreen] = useState<number>(1);
   const lastMessage = useWebSocket();
 
+  // 1. Initial load - run only once when component mounts
   useEffect(() => {
     fetch("/api/general")
       .then((res) => res.json())
       .then((data) => {
-        console.log("📊 Initial screen from backend:", data.ActiveScreenNr);
-        setCurrentScreen(data.ActiveScreenNr);
-      });
+        if (data.ActiveScreenNr !== undefined) {
+          console.log("📊 Initial screen from backend:", data.ActiveScreenNr);
+          setCurrentScreen(data.ActiveScreenNr);
+        }
+      })
+      .catch((err) => console.error("Failed to fetch initial screen:", err));
+  }, []); // ← Empty dependency = only on mount
 
+  // 2. Live screen changes from WebSocket
+  useEffect(() => {
     if (lastMessage?.type === "screen_change" && typeof lastMessage.screen === "number") {
       const newScreen = lastMessage.screen;
       console.log("📺 Switching to screen:", newScreen);
 
       setCurrentScreen(newScreen);
-      // === Confirm to backend that we switched ===
+
+      // Confirm back to backend
       fetch("/api/general", {
         method: "POST",
         headers: { "Content-Type": "application/json" },

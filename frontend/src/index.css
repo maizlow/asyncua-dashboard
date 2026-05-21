@@ -30,6 +30,16 @@
 }
 
 :root {
+  /* ABECE Colors */
+  --accent-green: #00a436;
+  --accent-red: #fb2c36;
+  --accent-neutral: #9ca3af;
+
+  --color-positive: var(--accent-green);
+  --color-negative: var(--accent-red);
+  --color-neutral: var(--accent-neutral);
+
+
   font-family: system-ui, Avenir, Helvetica, Arial, sans-serif;
   line-height: 1.5;
   font-weight: 400;
