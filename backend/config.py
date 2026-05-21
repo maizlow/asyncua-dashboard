@@ -29,7 +29,7 @@ DASHBOARD_DATA_NODES = [
         "alias": "ProductionDelta",
         "historical": True,
     },
-    {
+    {   # 2 = Running
         "nodeid": 'ns=3;s="DB Production TV"."dashboardData"."prodState"',
         "datatype": "Int",
         "alias": "ProductionState",

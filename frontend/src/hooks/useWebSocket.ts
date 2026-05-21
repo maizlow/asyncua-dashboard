@@ -5,60 +5,86 @@ interface WebSocketMessage {
   [key: string]: any;
 }
 
-// === True Singleton ===
+type ConnectionStatus = "connecting" | "connected" | "disconnected";
+
+// ===================== SINGLETON =====================
 let socket: WebSocket | null = null;
-let listeners: Set<(msg: WebSocketMessage) => void> = new Set();
-let isConnecting = false;
+let listeners: ((msg: WebSocketMessage) => void)[] = [];
+let statusListeners: ((status: ConnectionStatus) => void)[] = [];
+let currentStatus: ConnectionStatus = "disconnected";
+let reconnectAttempts = 0;
+let reconnectTimeout: ReturnType<typeof setTimeout> | null = null;
 
 function connectWebSocket() {
-  // Prevent multiple connections (including during StrictMode double mount)
-  if (socket || isConnecting) {
+  if (socket && (socket.readyState === WebSocket.OPEN || socket.readyState === WebSocket.CONNECTING)) {
     return;
   }
 
-  isConnecting = true;
+  currentStatus = "connecting";
+  statusListeners.forEach(cb => cb(currentStatus));
 
   socket = new WebSocket("ws://localhost:8000/ws");
 
   socket.onopen = () => {
-    console.log("✅ Global WebSocket connected");
-    isConnecting = false;
+    currentStatus = "connected";
+    reconnectAttempts = 0;
+    statusListeners.forEach(cb => cb(currentStatus));
+    console.log("✅ Global WebSocket connected (singleton)");
   };
 
   socket.onmessage = (event) => {
     try {
       const message = JSON.parse(event.data);
-      listeners.forEach((listener) => listener(message));
-    } catch (err) {
-      console.error("Failed to parse WebSocket message", err);
+      listeners.forEach(cb => cb(message));
+    } catch (e) {
+      console.error("Failed to parse message", e);
     }
   };
 
   socket.onclose = () => {
+    currentStatus = "disconnected";
+    statusListeners.forEach(cb => cb(currentStatus));
     console.log("🔌 Global WebSocket disconnected");
-    socket = null;
-    isConnecting = false;
+    attemptReconnect();
   };
 
-  socket.onerror = (err) => {
-    console.error("WebSocket error:", err);
-    isConnecting = false;
+  socket.onerror = () => {
+    currentStatus = "disconnected";
+    statusListeners.forEach(cb => cb(currentStatus));
   };
 }
 
+function attemptReconnect() {
+  if (reconnectTimeout) clearTimeout(reconnectTimeout);
+
+  const delay = Math.min(1000 * Math.pow(2, reconnectAttempts), 30000);
+  reconnectAttempts++;
+
+  reconnectTimeout = setTimeout(() => {
+    connectWebSocket();
+  }, delay);
+}
+
+// ===================== HOOK =====================
 export function useWebSocket() {
   const [lastMessage, setLastMessage] = useState<WebSocketMessage | null>(null);
+  const [status, setStatus] = useState<ConnectionStatus>(currentStatus);
 
   useEffect(() => {
-    const listener = (msg: WebSocketMessage) => setLastMessage(msg);
-    listeners.add(listener);
+    const handleMessage = (msg: WebSocketMessage) => setLastMessage(msg);
+    const handleStatus = (s: ConnectionStatus) => setStatus(s);
 
+    listeners.push(handleMessage);
+    statusListeners.push(handleStatus);
+
+    // Connect only once (singleton)
     connectWebSocket();
 
     return () => {
-      listeners.delete(listener);
+      listeners = listeners.filter(cb => cb !== handleMessage);
+      statusListeners = statusListeners.filter(cb => cb !== handleStatus);
     };
   }, []);
 
-  return lastMessage;
+  return { lastMessage, status };
 }

@@ -6,22 +6,21 @@ import { ShiftPatternScreen } from "@/screens/ShiftPatternScreen";
 
 export function ScreenManager() {
   const [currentScreen, setCurrentScreen] = useState<number>(1);
-  const lastMessage = useWebSocket();
+  const { lastMessage } = useWebSocket();   // ← Destructure correctly
 
-  // 1. Initial load - run only once when component mounts
+  // Initial screen load
   useEffect(() => {
     fetch("/api/general")
       .then((res) => res.json())
       .then((data) => {
         if (data.ActiveScreenNr !== undefined) {
-          console.log("📊 Initial screen from backend:", data.ActiveScreenNr);
           setCurrentScreen(data.ActiveScreenNr);
         }
       })
-      .catch((err) => console.error("Failed to fetch initial screen:", err));
-  }, []); // ← Empty dependency = only on mount
+      .catch(console.error);
+  }, []);
 
-  // 2. Live screen changes from WebSocket
+  // Listen for screen change messages
   useEffect(() => {
     if (lastMessage?.type === "screen_change" && typeof lastMessage.screen === "number") {
       const newScreen = lastMessage.screen;
@@ -43,14 +42,10 @@ export function ScreenManager() {
 
   const renderCurrentScreen = () => {
     switch (currentScreen) {
-      case 1:
-        return <AlarmScreen />;
-      case 2:
-        return <DashboardScreen />;
-      case 3:
-        return <ShiftPatternScreen />;
-      default:
-        return <DashboardScreen />;
+      case 1: return <AlarmScreen />;
+      case 2: return <DashboardScreen />;
+      case 3: return <ShiftPatternScreen />;
+      default: return <DashboardScreen />;
     }
   };
 
