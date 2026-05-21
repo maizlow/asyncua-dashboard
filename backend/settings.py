@@ -22,9 +22,14 @@ class Settings(BaseSettings):
     log_level: str = Field(default="INFO", alias="LOG_LEVEL")
     app_name: str = Field(default="Production Dashboard", alias="APP_NAME")
     refresh_interval_ms: int = Field(default=1000, alias="REFRESH_INTERVAL_MS")
+    snapshot_interval_ms: int = Field(default=10000, alias="SNAPSHOT_INTERVAL_MS")
 
     client_cert_path: Optional[Path] = None
     client_key_path: Optional[Path] = None
+
+    shift_db_path: str = Field(default="shift_log.db", alias="SHIFT_DB_PATH")
+
+
 
     model_config = {
         "env_file": BASE_DIR / ".env",     # ← Force it to look in project root

@@ -19,14 +19,23 @@ class DataStore:
             self._history[key] = deque(maxlen=self._maxlen)
         self._history[key].append((datetime.now(), value))
 
-        # === BROADCAST TO FRONTEND ===
+        # === BROADCAST TO FRONTEND (thread-safe) ===
         history_list = [v for _, v in self._history[key]] if key in self._history else []
-        asyncio.create_task(broadcast({
-            "type": "data_update",
-            "key": key,
-            "value": value,
-            "history": history_list
-        }))
+
+        try:
+            loop = asyncio.get_running_loop()
+            asyncio.run_coroutine_threadsafe(
+                broadcast({
+                    "type": "data_update",
+                    "key": key,
+                    "value": value,
+                    "history": history_list
+                }),
+                loop
+            )
+        except RuntimeError:
+            # Fallback if no running loop
+            print(f"⚠️ Could not broadcast data_update for {key} - no event loop")
 
         # Call other callbacks if any
         for callback in self._on_change_callbacks:
