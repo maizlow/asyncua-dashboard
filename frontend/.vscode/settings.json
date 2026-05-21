@@ -1,0 +1,16 @@
+{
+  "tailwindCSS.experimental.classRegex": [
+    ["tw`([^`]*)", "`([^`]*)`"],
+    ["tw=\"([^\"]*)", "\"([^\"]*)\""],
+    ["tw={\"([^\"]*)", "\"([^\"]*)\""]
+  ],
+
+  "css.lint.unknownAtRules": "ignore",
+
+  "tailwindCSS.classAttributes": [
+    "class",
+    "className",
+    "ngClass",
+    "class:list"
+  ]
+}
