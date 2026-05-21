@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { useWebSocket } from "@/hooks/useWebSocket";
 import { DashboardScreen } from "@/screens/DashboardScreen";
 import { AlarmScreen } from "@/screens/AlarmScreen";
+import { ShiftPatternScreen } from "@/screens/ShiftPatternScreen";
 
 export function ScreenManager() {
   const [currentScreen, setCurrentScreen] = useState<number>(1);
@@ -46,6 +47,8 @@ export function ScreenManager() {
         return <AlarmScreen />;
       case 2:
         return <DashboardScreen />;
+      case 3:
+        return <ShiftPatternScreen />;
       default:
         return <DashboardScreen />;
     }
