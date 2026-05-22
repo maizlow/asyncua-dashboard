@@ -20,10 +20,17 @@ async def get_single_value(key: str):
 
 
 @router.get("/history/{key}")
-async def get_history(key: str):
-    """Get history for a specific key."""
-    history = data_store.get_history(key)
+async def get_history(key: str, limit: int = 150):
+    """Get history for a specific key (values only, for sparklines)."""
+    history = await data_store.get_history(key, limit=limit)
     return {"key": key, "history": history}
+
+
+@router.get("/history/{key}/points")
+async def get_history_points(key: str, limit: int = 150):
+    """Get history for a specific key with timestamps."""
+    points = await data_store.get_history_points(key, limit=limit)
+    return {"key": key, "points": points}
 
 
 @router.get("/general")

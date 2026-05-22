@@ -29,19 +29,20 @@ async def websocket_endpoint(websocket: WebSocket):
     active_connections.append(websocket)
     print(f"🔌 WebSocket connected. Total clients: {len(active_connections)}")
 
-    # Send full snapshot + shift pattern immediately
+        # Send full snapshot + shift pattern immediately
     try:
         from backend.opc.state_store import data_store
         from backend.opc.shift_logger import shift_logger
 
-        # Full data snapshot
+        # Full data snapshot (histories read from SQLite)
+        histories = {}
+        for key in list(data_store._data.keys()):
+            histories[key] = await data_store.get_history(key, limit=150)
+
         snapshot = {
             "type": "full_snapshot",
             "data": data_store._data,
-            "histories": {
-                key: [v for _, v in history]
-                for key, history in data_store._history.items()
-            }
+            "histories": histories
         }
         await websocket.send_json(snapshot)
 
@@ -88,17 +89,18 @@ async def broadcast(message: dict):
             active_connections.remove(conn)
 
 async def broadcast_full_snapshot():
-    """Send a complete snapshot of all current data + histories"""
+    """Send a complete snapshot of all current data + histories (from SQLite)"""
     from backend.opc.state_store import data_store
 
     try:
+        histories = {}
+        for key in list(data_store._data.keys()):
+            histories[key] = await data_store.get_history(key, limit=150)
+
         snapshot = {
             "type": "full_snapshot",
             "data": data_store._data,
-            "histories": {
-                key: [v for _, v in history]
-                for key, history in data_store._history.items()
-            }
+            "histories": histories
         }
         await broadcast(snapshot)
     except Exception as e:
