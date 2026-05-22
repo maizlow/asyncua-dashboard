@@ -1,35 +1,30 @@
-from collections import deque
-from datetime import datetime
 from typing import Any, Callable
 from backend.app.routers.websocket import broadcast
 import asyncio
 
+from backend.opc.data_logger import data_logger
+
 class DataStore:
-    def __init__(self, history_seconds: int = 300, sample_interval: int = 2):
+    def __init__(self):
         self._data: dict[str, Any] = {}
-        self._history: dict[str, deque] = {}
-        self._maxlen = int(history_seconds / sample_interval)
         self._on_change_callbacks: list[Callable] = []
 
     def set(self, key: str, value: Any):
         self._data[key] = value
 
-        # Save to history
-        if key not in self._history:
-            self._history[key] = deque(maxlen=self._maxlen)
-        self._history[key].append((datetime.now(), value))
-
-        # === BROADCAST TO FRONTEND (thread-safe) ===
-        history_list = [v for _, v in self._history[key]] if key in self._history else []
-
+        # Best-effort async write to persistent history (non-blocking)
         try:
             loop = asyncio.get_running_loop()
+            asyncio.run_coroutine_threadsafe(
+                data_logger.log_value(key, value),
+                loop
+            )
+            # Broadcast live value only (no history in the hot path)
             asyncio.run_coroutine_threadsafe(
                 broadcast({
                     "type": "data_update",
                     "key": key,
-                    "value": value,
-                    "history": history_list
+                    "value": value
                 }),
                 loop
             )
@@ -44,17 +39,19 @@ class DataStore:
     def get(self, key: str, default: Any = None) -> Any:
         return self._data.get(key, default)
 
-    def get_history(self, key: str) -> list:
-        if key in self._history:
-            return [v for _, v in self._history[key]]
-        return []
+    async def get_history(self, key: str, limit: int = 150) -> list:
+        """Return the most recent N values (oldest first) for sparklines."""
+        return await data_logger.get_history_values(key, limit=limit)
+
+    async def get_history_points(self, key: str, limit: int = 150) -> list:
+        """Return the most recent N points with timestamps."""
+        return await data_logger.get_history_points(key, limit=limit)
 
     def on_change(self, callback: Callable):
         self._on_change_callbacks.append(callback)
 
     def clear(self):
         self._data.clear()
-        self._history.clear()
 
 
 class AlarmStore:
@@ -139,6 +136,6 @@ class GeneralStore:
 # GLOBAL INSTANCES
 # ============================================================
 
-data_store = DataStore(history_seconds=300, sample_interval=2)
+data_store = DataStore()
 alarm_store = AlarmStore()
 general_store = GeneralStore()

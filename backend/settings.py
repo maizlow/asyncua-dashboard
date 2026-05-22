@@ -27,7 +27,8 @@ class Settings(BaseSettings):
     client_cert_path: Optional[Path] = None
     client_key_path: Optional[Path] = None
 
-    shift_db_path: str = Field(default="shift_log.db", alias="SHIFT_DB_PATH")
+    db_path: str = Field(default="data.db", alias="DB_PATH")
+
 
 
 

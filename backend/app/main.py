@@ -5,6 +5,7 @@ from fastapi import FastAPI
 
 from backend.opc import opc_client
 from backend.opc.shift_logger import shift_logger
+from backend.opc.data_logger import data_logger
 from backend.app import api_server
 from backend.app.routers import metrics, websocket, alarms
 from backend.opc.state_store import alarm_store, data_store
@@ -92,6 +93,9 @@ if __name__ == "__main__":
 
         # Initialize shift logger database
         asyncio.run(shift_logger.init_db())
+
+        # Initialize data history database
+        asyncio.run(data_logger.init_db())
 
         # Start OPC UA in background thread
         opc_thread = threading.Thread(
