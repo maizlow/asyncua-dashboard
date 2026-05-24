@@ -21,6 +21,11 @@ class TagChangeHandler:
             int_val = int(val)
             general_store.set(alias, int_val)
             print(f"📡 [Tag Sync]: {alias} updated on server -> Stored value: {int_val}")
+
+    def status_change_notification(self, status):
+        """Called by asyncua when the server reports a status change (common during reconnects or network issues)."""
+        # We just log it at warning level so it doesn't spam the "no status_change_notification method" error.
+        print(f"⚠️ [OPC UA Screen Subscription Status]: {status}")
             
 
 

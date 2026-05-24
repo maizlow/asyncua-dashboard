@@ -58,6 +58,18 @@ DASHBOARD_DATA_NODES = [
         "datatype": "Time_Of_Day",
         "alias": "AccumulatedStoptime",
         "historical": False,
+    },
+    {
+        "nodeid": 'ns=3;s="DB Production TV"."dashboardData"."shiftStart"',
+        "datatype": "Time_Of_Day",
+        "alias": "ShiftStart",
+        "historical": False,
+    },
+    {
+        "nodeid": 'ns=3;s="DB Production TV"."dashboardData"."shiftEnd"',
+        "datatype": "Time_Of_Day",
+        "alias": "ShiftEnd",
+        "historical": False,
     }
     # Add more nodes or browse paths here for any additional data you want to display on the dashboard
 ]

@@ -2,18 +2,26 @@ import { useEffect, useState } from "react";
 import { AreaChart, Area, XAxis, YAxis, ResponsiveContainer, CartesianGrid } from 'recharts';
 import { useWebSocket } from "@/hooks/useWebSocket";
 
-// Fictional fallback data (used until real data arrives)
-const fallbackData: Array<{ time: string; running: number; stopped: number }> = [];
+interface ShiftPatternScreenProps {
+  data?: Array<{ time: string; running: number; stopped: number }>;
+}
 
-export function ShiftPatternScreen() {
-  const [shiftData, setShiftData] = useState(fallbackData);
+export function ShiftPatternScreen({ data }: ShiftPatternScreenProps) {
+  const [shiftData, setShiftData] = useState<Array<{ time: string; running: number; stopped: number }>>([]);
   const { lastMessage } = useWebSocket();
 
+  // Use prefetched data from ScreenManager when available
+  useEffect(() => {
+    if (data && data.length > 0) {
+      setShiftData(data);
+    }
+  }, [data]);
+
+  // Still listen for live updates while already on the screen
   useEffect(() => {
     if (lastMessage?.type === "shift_pattern_data" && Array.isArray(lastMessage.data)) {
       console.log("📊 Received live shift pattern data");
       setShiftData(lastMessage.data);
-      console.log(shiftData);
     }
   }, [lastMessage]);
 
