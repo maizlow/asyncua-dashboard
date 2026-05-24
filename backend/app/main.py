@@ -1,6 +1,7 @@
 import asyncio
 from contextlib import asynccontextmanager
 import threading
+from datetime import datetime, timedelta
 from fastapi import FastAPI
 
 from backend.opc import opc_client
@@ -63,11 +64,12 @@ async def start_periodic_snapshot():
         await broadcast_full_snapshot()
 
 async def start_periodic_shift_pattern():
-    """Send shift pattern data every 30 seconds"""
+    """Send shift pattern data every 30 seconds using the PLC-defined shift window (supports overnight shifts)."""
     while True:
-        await asyncio.sleep(30)  # Update every 30 seconds
+        await asyncio.sleep(30)
         try:
-            data = await shift_logger.get_shift_pattern(hours=12)
+            start, end = await shift_logger.get_current_shift_window()
+            data = await shift_logger.get_shift_pattern(start, end)
             if data and len(data) > 0:
                 await broadcast({
                     "type": "shift_pattern_data",

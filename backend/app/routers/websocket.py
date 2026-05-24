@@ -46,17 +46,21 @@ async def websocket_endpoint(websocket: WebSocket):
         }
         await websocket.send_json(snapshot)
 
-        # Shift pattern only if real data exists
-        shift_data = await shift_logger.get_shift_pattern(hours=12)
-        has_activity = any(
-            (row.get("running", 0) + row.get("stopped", 0)) > 0
-            for row in shift_data
-        )
-        if has_activity:
-            await websocket.send_json({
-                "type": "shift_pattern_data",
-                "data": shift_data
-            })
+        # Shift pattern using the PLC-defined shift window (supports overnight shifts)
+        try:
+            start, end = await shift_logger.get_current_shift_window()
+            shift_data = await shift_logger.get_shift_pattern(start, end)
+            has_activity = any(
+                (row.get("running", 0) + row.get("stopped", 0)) > 0
+                for row in shift_data
+            )
+            if has_activity:
+                await websocket.send_json({
+                    "type": "shift_pattern_data",
+                    "data": shift_data
+                })
+        except Exception as e:
+            print(f"⚠️ Failed to send initial shift pattern: {e}")
 
     except Exception as e:
         print(f"⚠️ Failed to send initial data: {e}")
