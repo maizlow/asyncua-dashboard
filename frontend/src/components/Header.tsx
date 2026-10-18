@@ -1,3 +1,4 @@
+import { IS_DEMO } from "@/data/dataSource";
 import { useEffect, useState } from "react";
 
 // The demo build (public GitHub Pages preview) must not show the real customer logo.
@@ -55,7 +56,12 @@ export function Header() {
         </div>
 
         {/* RIGHT: ABECE Logo */}
-        <div className="flex items-center justify-end flex-1">
+        <div className="flex items-center justify-end flex-1 gap-16">
+          {IS_DEMO && (
+            <div className="rounded-full bg-amber-500/90 px-10 py-4 text-5xl font-semibold text-black whitespace-nowrap">
+              DEMO · simulerad data
+            </div>
+          )}
           <img
             src={`${import.meta.env.BASE_URL}abeceLogo.svg`}
             alt="ABECE Logo"

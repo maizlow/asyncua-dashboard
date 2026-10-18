@@ -58,6 +58,22 @@ def resolve_shift_window(
     return start_dt, end_dt
 
 
+def hour_buckets(start: datetime, end: datetime, tz: tzinfo | None) -> list[dict]:
+    """Hourly buckets on local clock hours covering [start, end), stepped in UTC.
+
+    Each bucket: {"start", "end" (aware UTC), "time" ("HH:00" local)}. DST-safe: a
+    fall-back night simply has two "02:00" buckets.
+    """
+    first = to_local(start, tz).replace(minute=0, second=0, microsecond=0).astimezone(timezone.utc)
+    end_utc = end.astimezone(timezone.utc)
+    buckets = []
+    b = first
+    while b < end_utc:
+        buckets.append({"start": b, "end": b + timedelta(hours=1), "time": to_local(b, tz).strftime("%H:00")})
+        b += timedelta(hours=1)
+    return buckets
+
+
 class ShiftLogger:
     def __init__(self, db: Database | None = None, tz_name: str | None = None):
         self._db = db
@@ -99,17 +115,18 @@ class ShiftLogger:
             "INSERT INTO shift_log (timestamp, state) VALUES (?, ?)", (to_db_ts(ts or utcnow()), state)
         )
 
-    async def get_shift_pattern(
+    async def get_state_segments(
         self, start: datetime, end: datetime, now: datetime | None = None
-    ) -> list[dict]:
-        """Running vs stopped minutes per local clock hour between ``start`` and ``end``.
+    ) -> list[tuple[datetime, datetime, str]]:
+        """(from, to, state) segments in UTC, clipped to [start, min(end, now)].
 
-        Rows are returned in chronological order. Time after ``now`` is not counted.
+        The last state logged before ``start`` applies from ``start``. Adjacent segments
+        with the same state are merged (the PLC may report the same state repeatedly,
+        e.g. after a reconnect).
         """
         if start.tzinfo is None or end.tzinfo is None:
             raise ValueError("start/end must be timezone-aware")
         now = now or utcnow()
-        tz = self.tz
         start_s, end_s = to_db_ts(start), to_db_ts(end)
 
         def _query(conn: sqlite3.Connection):
@@ -126,41 +143,39 @@ class ShiftLogger:
 
         before, rows = await self.db.run_async(_query)
 
-        # Timeline of (utc instant, state); the state before the shift applies from its start
+        start_utc = start.astimezone(timezone.utc)
+        horizon = min(end, now).astimezone(timezone.utc)
         points: list[tuple[datetime, str]] = []
         if before:
-            points.append((start.astimezone(timezone.utc), before[1]))
+            points.append((start_utc, before[1]))
         for ts, state in rows:
             try:
                 points.append((from_db_ts(ts), state))
             except ValueError:
                 logger.warning("Skipping shift_log row with bad timestamp %r", ts)
-        horizon = min(end, now).astimezone(timezone.utc)
 
-        # Hourly buckets on local clock hours, stepped in UTC (DST-safe, no duplicate keys)
-        local_start = to_local(start, tz)
-        first = local_start.replace(minute=0, second=0, microsecond=0).astimezone(timezone.utc)
-        end_utc = end.astimezone(timezone.utc)
-        buckets: list[dict] = []
-        b = first
-        while b < end_utc:
-            buckets.append(
-                {
-                    "start": b,
-                    "end": b + timedelta(hours=1),
-                    "time": to_local(b, tz).strftime("%H:00"),
-                    "running": 0.0,
-                    "stopped": 0.0,
-                }
-            )
-            b += timedelta(hours=1)
-
-        start_utc = start.astimezone(timezone.utc)
+        segments: list[tuple[datetime, datetime, str]] = []
         for i, (t0, state) in enumerate(points):
             t1 = points[i + 1][0] if i + 1 < len(points) else horizon
             seg_start, seg_end = max(t0, start_utc), min(t1, horizon)
             if seg_start >= seg_end:
                 continue
+            if segments and segments[-1][2] == state and segments[-1][1] == seg_start:
+                segments[-1] = (segments[-1][0], seg_end, state)
+            else:
+                segments.append((seg_start, seg_end, state))
+        return segments
+
+    async def get_shift_pattern(
+        self, start: datetime, end: datetime, now: datetime | None = None
+    ) -> list[dict]:
+        """Running vs stopped minutes per local clock hour between ``start`` and ``end``.
+
+        Rows are returned in chronological order. Time after ``now`` is not counted.
+        """
+        segments = await self.get_state_segments(start, end, now)
+        buckets = [{**b, "running": 0.0, "stopped": 0.0} for b in hour_buckets(start, end, self.tz)]
+        for seg_start, seg_end, state in segments:
             field = "running" if state == "Running" else "stopped"
             for bucket in buckets:
                 overlap = (min(seg_end, bucket["end"]) - max(seg_start, bucket["start"])).total_seconds()

@@ -2,10 +2,25 @@
 import asyncio
 import logging
 
+from asyncua import ua
+from asyncua.ua import uaerrors
+
 import backend.config as config
 from backend.opc.state_store import data_store
 
 logger = logging.getLogger(__name__)
+
+# Errors that concern a single node (wrong ID, missing, no access). Connection-level
+# errors are NOT in this list and still propagate so the supervisor reconnects.
+NODE_LEVEL_ERRORS = (
+    ValueError,  # unparsable node ID string (UaStringParsingError is not a ValueError)
+    ua.UaStringParsingError,
+    uaerrors.BadNodeIdUnknown,
+    uaerrors.BadNodeIdInvalid,
+    uaerrors.BadAttributeIdInvalid,
+    uaerrors.BadNotReadable,
+    uaerrors.BadUserAccessDenied,
+)
 
 
 class TagChangeHandler:
@@ -67,19 +82,31 @@ async def subscribe_data_tags(client, sync_lock=None):
     handler_instance = TagChangeHandler()
     subscription = await client.create_subscription(1000, handler_instance)
 
+    subscribed, skipped = [], []
     for item in config.DASHBOARD_DATA_NODES:
         alias = item.get("alias", item.get("nodeid"))
         datatype = item.get("datatype", "Unknown")
+        nodeid = item.get("nodeid")
+        if not nodeid or item.get("placeholder"):
+            logger.info("Skipping %s: node ID not configured yet (placeholder)", alias)
+            skipped.append(alias)
+            continue
         try:
-            target_node = client.get_node(item["nodeid"])
-            handler_instance.node_map[item["nodeid"]] = alias
+            target_node = client.get_node(nodeid)
+            handler_instance.node_map[nodeid] = alias
             handler_instance.node_map[str(target_node.nodeid)] = alias
             handler_instance.datatype_map[alias] = datatype
             await subscription.subscribe_data_change(target_node)
+            subscribed.append(alias)
             logger.info("Subscribed: %s (datatype: %s)", alias, datatype)
+        except NODE_LEVEL_ERRORS as e:
+            # A wrong/missing node must not break the subscription for all other tags
+            logger.warning("Skipping %s: node %s not usable (%s)", alias, nodeid, e)
+            skipped.append(alias)
         except Exception:
             logger.exception("Failed to subscribe to %r", alias)
             raise
+    logger.info("Data tags subscribed: %d, skipped: %d %s", len(subscribed), len(skipped), skipped or "")
 
     # Keep-alive: raises when the connection is gone -> supervisor reconnects
     while True:

@@ -58,7 +58,7 @@ export function MetricCard({
   const chartData = sparklineData?.map((val, i) => ({ index: i, value: val }));
 
   return (
-    <div className={`bg-zinc-900 border border-zinc-800 rounded-3xl flex flex-col`}>
+    <div data-fit className={`bg-zinc-900 border border-zinc-800 rounded-3xl flex flex-col`}>
       {/* Header */}
       <div className="px-8 pt-6 pb-12">
         <div className="text-8xl text-zinc-400 tracking-wide uppercase font-medium">

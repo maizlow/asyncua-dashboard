@@ -15,6 +15,49 @@ export interface ShiftPatternRow {
   stopped: number;
 }
 
+/** OEE breakdown pushed by the backend (backend/opc/oee.py). Fractions are 0..1. */
+export interface OeeDetails {
+  nominal_tpm: number;
+  counts: {
+    good: number | null;
+    reject: number | null;
+    total: number | null;
+    scrap_pct: number | null;
+    good_source?: string;
+  };
+  speed: { current: number | null; nominal: number; pct: number | null };
+  shift: {
+    start: string;
+    end: string;
+    duration_s: number;
+    elapsed_s: number;
+    remaining_s: number;
+  } | null;
+  target: {
+    so_far: number;
+    shift: number;
+    prognosis: number | null;
+    progress_pct: number | null;
+  } | null;
+  stops: {
+    count: number;
+    total_s: number;
+    longest_s: number;
+    run_s: number;
+    mtbf_s: number | null;
+    mttr_s: number | null;
+    running: boolean | null;
+  } | null;
+  oee: {
+    availability: number | null;
+    performance: number | null;
+    quality: number | null;
+    oee: number | null;
+  };
+  /** good tiles per local clock hour; elapsed_s = seconds of that hour inside the shift so far */
+  hourly: { time: string; good: number | null; elapsed_s?: number }[];
+}
+
 export type ServerMessage =
   | { type: "data_update"; key: string; value: MetricValue }
   | {
@@ -25,7 +68,8 @@ export type ServerMessage =
   | { type: "alarm_added"; alarm_id: number | string; alarm: Alarm }
   | { type: "alarm_removed"; alarm_id: number | string; alarm?: Alarm }
   | { type: "shift_pattern_data"; data: ShiftPatternRow[] }
-  | { type: "screen_change"; screen: number };
+  | { type: "screen_change"; screen: number }
+  | { type: "oee_details"; data: OeeDetails };
 
 /**
  * Everything the UI needs from "the outside world". The real implementation talks
@@ -42,6 +86,7 @@ export interface DataSource {
   getActiveScreen(): Promise<number | undefined>;
   getAlarms(): Promise<Alarm[]>;
   getShiftPattern(): Promise<ShiftPatternRow[] | undefined>;
+  getOeeDetails(): Promise<OeeDetails | undefined>;
   /** Ask for an immediate full_snapshot push (read-only, no PLC write). */
   requestSnapshot(): void;
 }

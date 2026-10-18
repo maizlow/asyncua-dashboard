@@ -280,6 +280,26 @@ set `VITE_WS_URL` at build time to override.
 The dashboard is display-only: the REST API is read-only, and the only value written to the PLC is `ActiveScreenNr`,
 set internally by the backend's screen handler when the PLC requests a screen.
 
+### Screens (`ActiveScreenNr`)
+
+| Nr | Screen |
+|----|--------|
+| 1 | Larm (alarms) |
+| 2 | Dashboard |
+| 3 | Skiftmönster (shift pattern) |
+| 4 | OEE (availability/performance/quality, production vs target, scrap, rate, stops, shift, good per hour) |
+
+The UI is designed on a fixed 3840×2160 canvas that is scaled to fit any screen (`ScaledCanvas.tsx`); 21:9 screens are letterboxed.
+In demo mode, `?screen=N` pins a single screen instead of cycling.
+
+### OEE
+
+OEE values are computed in the backend (`backend/opc/oee.py`) and served at `GET /api/oee` and as `oee_details` WebSocket messages
+(every `OEE_INTERVAL_S`, default 5 s). The nominal rate is `NOMINAL_RATE_TPM` (default 140 tiles/min).
+A = run time / elapsed shift time, P = total / (run minutes × nominal) (capped at 100 %), Q = good / total.
+`GoodCount` and `RejectCount` in `backend/config.py` are placeholders until the real PLC node IDs are known;
+until then they are skipped and `ProductionCount` is used as the good count.
+
 ## Backend internals
 
 - **Threads/loops:** the OPC UA client runs on its own thread and event loop; FastAPI/WebSockets run on uvicorn's loop.

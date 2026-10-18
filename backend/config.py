@@ -70,6 +70,24 @@ DASHBOARD_DATA_NODES = [
         "datatype": "Time_Of_Day",
         "alias": "ShiftEnd",
         "historical": False,
-    }
+    },
+    # ===================== OEE details (roof tile line) =====================
+    # TODO(PLC): the node IDs below are PLACEHOLDERS - the real PLC tags are not known yet.
+    # Nodes marked "placeholder": True are skipped by the subscription (no error, the other
+    # tags keep working). When the real node ID is known: fix "nodeid" and remove "placeholder".
+    {   # Good (approved) tiles this shift. If not available, ProductionCount is used instead.
+        "nodeid": 'ns=3;s="DB Production TV"."dashboardData"."goodCount"',  # TODO(PLC): verify
+        "datatype": "DInt",
+        "alias": "GoodCount",
+        "historical": False,
+        "placeholder": True,
+    },
+    {   # Rejected / scrapped tiles this shift (kassation)
+        "nodeid": 'ns=3;s="DB Production TV"."dashboardData"."rejectCount"',  # TODO(PLC): verify
+        "datatype": "DInt",
+        "alias": "RejectCount",
+        "historical": False,
+        "placeholder": True,
+    },
     # Add more nodes or browse paths here for any additional data you want to display on the dashboard
 ]
