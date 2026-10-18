@@ -6,6 +6,8 @@ om ett objekt.
 
 Lösenord och certifikat står **aldrig** i YAML-filen utan i `.env` (se `.env.example`).
 
+Hur de beräknade värdena räknas fram (OEE, mål, prognos, kassation, stopp, trend, färger) står i [BERAKNINGAR.md](BERAKNINGAR.md).
+
 - [Filens delar](#filens-delar)
 - [Taggar](#taggar-tags)
 - [Skärmar](#skärmar-screens)
@@ -64,6 +66,8 @@ OEE-beräkningen läser dem, så byt inte namn på dem:
 | `GoodCount`, `RejectCount`, `ProductionCount` | OEE (godkända, kassation; `ProductionCount` om `GoodCount` saknas) |
 | `TargetCount` | Mål |
 | `CurrentRuntime`, `AccumulatedStoptime` | Körtid/stopptid |
+
+Vad varje reserverad tagg används till i formlerna: [BERAKNINGAR.md → Indata](BERAKNINGAR.md#indata).
 
 ## Skärmar (`screens`)
 

@@ -61,6 +61,10 @@ Lägg till nya punkter som checklistor under rätt rubrik och flytta dem till **
 - [x] YAML `decimals:` är fast; standard `percent` 1, `counter` 0, `number` 1 när taggen är ett decimaltal; trender med samma decimaler
 - [x] Takt på OEE-skärmen med en decimal (nominell takt på raden under); formatteringstester (`npm test`) i CI
 
+### Dokumentation av beräkningar ([PR #10](https://github.com/maizlow/asyncua-dashboard/pull/10))
+- [x] [docs/BERAKNINGAR.md](docs/BERAKNINGAR.md): formel (LaTeX), taggar, inställningar, avrundning, specialfall och räkneexempel för alla beräknade värden (OEE, A/P/Q, mål hittills, skiftmål, prognos, kassation, stopp, skift kvar, skiftmönster, trend, gränsvärdesfärger, PÅ MÅL/UNDER MÅL)
+- [x] Länkad från README och CONFIG.md
+
 ## Nästa
 
 ### Docker för drift på Fitlet3 (Linux, x86-64)
