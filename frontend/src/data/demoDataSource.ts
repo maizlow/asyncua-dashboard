@@ -241,6 +241,24 @@ export function createDemoDataSource(): DataSource {
   const pinnedScreen = SCREEN_ORDER.includes(pinned) ? pinned : null;
   let screenIndex = 0;
   const stressAlarms = new URLSearchParams(window.location.search).get("alarms") === "many";
+  // ?count=N: force every count field (production, good, targets, prognosis) to N, max 999999,
+  // to test that 6-digit values fit without overflow
+  const countParam = new URLSearchParams(window.location.search).get("count");
+  const countOverride =
+    countParam !== null && Number.isFinite(Number(countParam))
+      ? Math.min(999_999, Math.max(0, Math.round(Number(countParam))))
+      : null;
+
+  const details = (): OeeDetails => {
+    const d = sim.details();
+    if (countOverride === null) return d;
+    const n = countOverride;
+    return {
+      ...d,
+      counts: { ...d.counts, good: n },
+      target: { so_far: n, shift: n, prognosis: n, progress_pct: 100 },
+    };
+  };
 
   const alarms = new Map<string, Alarm>();
   const metrics: Record<string, MetricValue> = {};
@@ -277,9 +295,9 @@ export function createDemoDataSource(): DataSource {
   };
 
   const publishMetrics = (historical = true) => {
-    const d = sim.details();
+    const d = details();
     const expected = (PLC_TARGET * sim.elapsed) / SHIFT_S;
-    setMetric("TargetCount", PLC_TARGET);
+    setMetric("TargetCount", countOverride ?? PLC_TARGET);
     setMetric("ProductionCount", d.counts.good ?? 0);
     setMetric("GoodCount", d.counts.good ?? 0);
     setMetric("RejectCount", d.counts.reject ?? 0);
@@ -343,13 +361,13 @@ export function createDemoDataSource(): DataSource {
       statusListeners.forEach((cb) => cb());
       emit(snapshot());
       emit({ type: "shift_pattern_data", data: sim.shiftPattern() });
-      emit({ type: "oee_details", data: sim.details() });
+      emit({ type: "oee_details", data: details() });
     }, 400);
 
     setInterval(tick, TICK_MS);
     setInterval(() => emit(snapshot()), SNAPSHOT_EVERY_MS);
     setInterval(() => emit({ type: "shift_pattern_data", data: sim.shiftPattern() }), SHIFT_PATTERN_EVERY_MS);
-    setInterval(() => emit({ type: "oee_details", data: sim.details() }), OEE_EVERY_MS);
+    setInterval(() => emit({ type: "oee_details", data: details() }), OEE_EVERY_MS);
     if (pinnedScreen === null) {
       setInterval(() => {
         screenIndex = (screenIndex + 1) % SCREEN_ORDER.length;
@@ -373,7 +391,7 @@ export function createDemoDataSource(): DataSource {
     getActiveScreen: async () => pinnedScreen ?? SCREEN_ORDER[screenIndex],
     getAlarms: async () => [...alarms.values()],
     getShiftPattern: async () => sim.shiftPattern(),
-    getOeeDetails: async () => sim.details(),
+    getOeeDetails: async () => details(),
     requestSnapshot: () => {
       setTimeout(() => emit(snapshot()), 0);
     },

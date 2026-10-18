@@ -5,7 +5,8 @@ import { DASH, fmtClock, fmtDec1, fmtHM, fmtInt, fmtMinutes, fmtPct } from "@/li
 
 // Laid out for the 3840x2160 canvas (see ScaledCanvas). Display-only, read from 8-10 m on a 65" TV:
 // hero values 290 px mono (>= 180 px cap on the canvas = >= 90 px at 1080p), key values 220 px,
-// secondary values 140 px, labels >= 104 px (>= ~37 px cap at 1080p). Fixed grid rows, no growth.
+// secondary values 130-140 px (three 6-digit targets fit side by side), labels >= 104 px
+// (>= ~37 px cap at 1080p). Fixed grid rows, no growth.
 // Status is never colour-only: ▼ = under target / ▲ = over limit, plus words such as "UNDER MÅL".
 
 const GREEN = "var(--accent-green)";
@@ -100,7 +101,7 @@ function Stat({ label, value, color }: { label: string; value: string; color?: s
     <div className="min-w-0">
       <div className="text-[110px] text-zinc-300 leading-none whitespace-nowrap">{label}</div>
       <div
-        className="text-[140px] font-mono font-bold mt-5 leading-none whitespace-nowrap tabular-nums"
+        className="text-[130px] font-mono font-bold tracking-[-2px] mt-5 leading-none whitespace-nowrap tabular-nums"
         style={color ? { color } : undefined}
       >
         {value}

@@ -42,6 +42,10 @@ Lägg till nya punkter som checklistor under rätt rubrik och flytta dem till **
 - [x] Ljusare färger för text (grå #d4d4d8, röd #f87171, grön #22c55e) och status aldrig bara med färg (▲/▼/●, "UNDER MÅL", "STÅR")
 - [x] Ingen skärm får scrolla eller flöda över: `overflow: hidden` på html/body/#root, fasta rader, ellipsis; `npm run check:fit` i CI (5 upplösningar × alla skärmar, även många långa larm via `?alarms=many`)
 
+### 6-siffriga antal ([PR #6](https://github.com/maizlow/asyncua-dashboard/pull/6))
+- [x] Produktion/godkända, mål, skiftmål och prognos får plats upp till 999 999 utan overflow; hjältesiffror kvar på ≈ 97 px versalhöjd vid 1080p
+- [x] Demo-parameter `?count=999999` och motsvarande fall i `check:fit` (alla 5 upplösningar)
+
 ## Nästa
 
 ### Docker för drift på Fitlet3 (Linux, x86-64)

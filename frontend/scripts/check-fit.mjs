@@ -1,7 +1,7 @@
 // Fit check for the TV screens: no screen may ever overflow or scroll, in X or Y.
 //
 // Loads the demo build at several TV resolutions, pins each screen (?screen=1..4, plus the alarm
-// screen with many very long alarms: ?alarms=many) and asserts that
+// screen with many very long alarms: ?alarms=many, and 6-digit counts: ?count=999999) and asserts that
 //   1. the document never scrolls (scrollWidth/Height <= clientWidth/Height on html and body),
 //   2. every element inside the 3840x2160 canvas stays within the canvas bounds,
 //   3. no clipping element (overflow != visible) inside the canvas has hidden content
@@ -30,6 +30,9 @@ const CASES = [
   ["dashboard", "screen=2"],
   ["shift", "screen=3"],
   ["oee", "screen=4"],
+  // 6-digit counts (production, good count, targets, prognosis) must fit too
+  ["dashboard-6digit", "screen=2&count=999999"],
+  ["oee-6digit", "screen=4&count=999999"],
 ];
 // Screen switch = 2 s fade out + 3 s fade in
 const SETTLE_MS = Number(process.env.SETTLE_MS ?? 5600);
