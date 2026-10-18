@@ -5,11 +5,12 @@ import { useMetricsStore } from "@/stores/useMetricsStore";
 import { DashboardScreen } from "@/screens/DashboardScreen";
 import { AlarmScreen } from "@/screens/AlarmScreen";
 import { ShiftPatternScreen } from "@/screens/ShiftPatternScreen";
+import { OeeScreen } from "@/screens/OeeScreen";
 
 const FADE_OUT_MS = 2000;
 
 /**
- * Shows the screen selected by the PLC. Display-only: the frontend never writes
+ * Shows the screen selected by the PLC: 1 = Larm, 2 = Dashboard, 3 = Skiftmönster, 4 = OEE. Display-only: the frontend never writes
  * anything back; the backend acknowledges screen changes (ActiveScreenNr) itself.
  */
 export function ScreenManager() {
@@ -38,6 +39,14 @@ export function ScreenManager() {
         console.error("Failed to fetch shift pattern:", e);
       } finally {
         setIsLoadingScreenData(false);
+      }
+      if (seq !== switchSeq.current) return;
+    } else if (newScreen === 4) {
+      try {
+        const details = await dataSource.getOeeDetails();
+        if (details) useMetricsStore.getState().setOeeDetails(details);
+      } catch (e) {
+        console.error("Failed to fetch OEE details:", e);
       }
       if (seq !== switchSeq.current) return;
     } else if (newScreen === 2) {
@@ -75,8 +84,8 @@ export function ScreenManager() {
   const renderCurrentScreen = () => {
     if (isLoadingScreenData) {
       return (
-        <div className="flex items-center justify-center h-full text-4xl text-zinc-400">
-          Loading...
+        <div className="flex items-center justify-center h-full text-8xl text-zinc-400">
+          Laddar...
         </div>
       );
     }
@@ -88,15 +97,17 @@ export function ScreenManager() {
         return <DashboardScreen />;
       case 3:
         return <ShiftPatternScreen />;
+      case 4:
+        return <OeeScreen />;
       default:
         return <DashboardScreen />;
     }
   };
 
   return (
-    <div className="flex flex-col h-full">
+    <div data-fit className="flex flex-col flex-1 min-h-0">
       <div
-        className="transition-opacity duration-3000 ease-in-out h-full"
+        className="transition-opacity duration-3000 ease-in-out h-full min-h-0"
         style={{ opacity: screenOpacity }}
       >
         {renderCurrentScreen()}

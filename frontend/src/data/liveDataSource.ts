@@ -1,4 +1,4 @@
-import type { Alarm, ConnectionStatus, DataSource, ServerMessage, ShiftPatternRow } from "./types";
+import type { Alarm, ConnectionStatus, DataSource, OeeDetails, ServerMessage, ShiftPatternRow } from "./types";
 
 /** ws(s)://<page host>/ws unless VITE_WS_URL overrides it. */
 export function resolveWebSocketUrl(): string {
@@ -93,6 +93,9 @@ export function createLiveDataSource(): DataSource {
     async getShiftPattern() {
       const data = await getJson<{ data?: ShiftPatternRow[] }>("/api/shift-pattern");
       return data.data;
+    },
+    async getOeeDetails() {
+      return await getJson<OeeDetails>("/api/oee");
     },
     requestSnapshot() {
       fetch("/api/snapshot", { method: "POST" }).catch(() => {});

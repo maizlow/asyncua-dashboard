@@ -18,6 +18,9 @@ export function useDataFeed() {
       case "shift_pattern_data":
         if (Array.isArray(msg.data)) useMetricsStore.getState().setShiftPattern(msg.data);
         break;
+      case "oee_details":
+        if (msg.data) useMetricsStore.getState().setOeeDetails(msg.data);
+        break;
       case "alarm_added":
         if (msg.alarm) useAlarmStore.getState().addAlarm(msg.alarm);
         break;

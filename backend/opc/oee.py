@@ -128,7 +128,14 @@ def _last_value_at(conn: sqlite3.Connection, tag: str, ts: datetime) -> float | 
     return _num(row[0]) if row else None
 
 
-async def hourly_good(data_logger, tag: str, buckets: list[dict], now: datetime) -> list[dict]:
+async def hourly_good(
+    data_logger,
+    tag: str,
+    buckets: list[dict],
+    now: datetime,
+    shift_start: datetime | None = None,
+    shift_end: datetime | None = None,
+) -> list[dict]:
     """Good tiles per local clock hour of the shift (from the logged counter values)."""
     if not buckets:
         return []
@@ -143,7 +150,16 @@ async def hourly_good(data_logger, tag: str, buckets: list[dict], now: datetime)
     rows = []
     for bucket, inc in zip(buckets, increments, strict=True):
         future = bucket["start"] >= now_utc
-        rows.append({"time": bucket["time"], "good": None if future else inc})
+        lo = max(bucket["start"], shift_start) if shift_start else bucket["start"]
+        hi = min(bucket["end"], now_utc, shift_end) if shift_end else min(bucket["end"], now_utc)
+        rows.append(
+            {
+                "time": bucket["time"],
+                "good": None if future else inc,
+                # seconds of this hour that are inside the shift and already passed
+                "elapsed_s": max(0.0, (hi - lo).total_seconds()),
+            }
+        )
     return rows
 
 
@@ -205,7 +221,14 @@ async def compute_oee_details(
     else:
         result["oee"]["quality"] = good / total if good is not None and total else None
     try:
-        result["hourly"] = await hourly_good(data_logger, good_tag, hour_buckets(start, end, shift_logger.tz), now)
+        result["hourly"] = await hourly_good(
+            data_logger,
+            good_tag,
+            hour_buckets(start, end, shift_logger.tz),
+            now,
+            start.astimezone(timezone.utc),
+            end.astimezone(timezone.utc),
+        )
     except Exception:
         logger.exception("Failed to compute hourly good counts")
     return result

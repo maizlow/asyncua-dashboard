@@ -127,6 +127,7 @@ async def test_compute_oee_details_end_to_end(db, monkeypatch):
     assert oee["availability"] == pytest.approx(110 / 120)
     assert oee["oee"] == pytest.approx(13_720 / 16_800)
     assert [h["good"] for h in d["hourly"][:3]] == [7_900, 5_820, None]
+    assert [h["elapsed_s"] for h in d["hourly"][:3]] == [3600, 3600, 0]
     assert len(d["hourly"]) == 10
 
 
