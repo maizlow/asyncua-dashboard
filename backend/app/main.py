@@ -1,17 +1,18 @@
 import asyncio
-from contextlib import asynccontextmanager
 import threading
-from datetime import datetime, timedelta
+from contextlib import asynccontextmanager
+
 from fastapi import FastAPI
 
-from backend.opc import opc_client
-from backend.opc.shift_logger import shift_logger
-from backend.opc.data_logger import data_logger
 from backend.app import api_server
-from backend.app.routers import metrics, websocket, alarms
+from backend.app.routers import alarms, metrics, websocket
+from backend.app.routers.websocket import broadcast, broadcast_full_snapshot
+from backend.opc import opc_client
+from backend.opc.data_logger import data_logger
+from backend.opc.shift_logger import shift_logger
 from backend.opc.state_store import alarm_store, data_store
-from backend.app.routers.websocket import broadcast_full_snapshot, broadcast
 from backend.settings import settings
+
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):

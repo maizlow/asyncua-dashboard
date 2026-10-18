@@ -1,8 +1,8 @@
-from pydantic_settings import BaseSettings
-from pydantic import Field
 from pathlib import Path
 from typing import Optional
-import os
+
+from pydantic import Field
+from pydantic_settings import BaseSettings
 
 # Get the project root (go up from backend/settings.py)
 BASE_DIR = Path(__file__).resolve().parent.parent

@@ -1,7 +1,8 @@
-from fastapi import APIRouter, WebSocket, WebSocketDisconnect
-from typing import List, Any
 from dataclasses import asdict, is_dataclass
 from datetime import datetime
+from typing import Any, List
+
+from fastapi import APIRouter, WebSocket, WebSocketDisconnect
 from pydantic import BaseModel
 
 router = APIRouter(tags=["WebSocket"])
@@ -31,8 +32,8 @@ async def websocket_endpoint(websocket: WebSocket):
 
         # Send full snapshot + shift pattern immediately
     try:
-        from backend.opc.state_store import data_store
         from backend.opc.shift_logger import shift_logger
+        from backend.opc.state_store import data_store
 
         # Full data snapshot (histories read from SQLite)
         histories = {}

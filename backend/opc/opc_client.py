@@ -1,10 +1,11 @@
 import asyncio
 
 from backend.opc.opc_client_manager import OPCClientManager
-from backend.opc.opc_screen_handler import subscribe_screen_tags
 from backend.opc.opc_data_tags import subscribe_data_tags
 from backend.opc.opc_program_alarm_events import subscribe_program_alarms
-from backend.opc.state_store import alarm_store, general_store, data_store
+from backend.opc.opc_screen_handler import subscribe_screen_tags
+from backend.opc.state_store import alarm_store, data_store, general_store
+
 
 async def main():
     while True:

@@ -1,8 +1,11 @@
 # opc_screen_handler.py
 import asyncio
+
 from asyncua import ua
-from backend.opc.state_store import general_store
+
 import backend.config as config
+from backend.opc.state_store import general_store
+
 
 class TagChangeHandler:
     """Central handler that processes all live data-change stream alerts for this subscription."""
@@ -21,6 +24,13 @@ class TagChangeHandler:
             int_val = int(val)
             general_store.set(alias, int_val)
             print(f"📡 [Tag Sync]: {alias} updated on server -> Stored value: {int_val}")
+
+            # Screen handshake (internal logic only, never driven by HTTP clients):
+            # when the PLC requests a screen, the backend broadcasts it to the display
+            # (see GeneralStore.set) and acknowledges it by setting ActiveScreenNr,
+            # which the write-back loop below then writes to the PLC.
+            if alias == "RequestedScreenNr":
+                general_store.set("ActiveScreenNr", int_val)
 
     def status_change_notification(self, status):
         """Called by asyncua when the server reports a status change (common during reconnects or network issues)."""

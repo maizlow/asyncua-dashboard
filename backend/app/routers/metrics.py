@@ -1,6 +1,7 @@
 from fastapi import APIRouter
-from backend.opc.state_store import data_store, general_store
+
 from backend.opc.shift_logger import shift_logger
+from backend.opc.state_store import data_store, general_store
 
 router = APIRouter(prefix="/api", tags=["Metrics"])
 
@@ -39,14 +40,10 @@ async def get_general_data():
     """Returns general store data (e.g. screen number, status, etc)."""
     return general_store._data
 
-@router.post("/general")
-async def set_general_value(payload: dict):
-    key = payload.get("key")
-    value = payload.get("value")
-    if key and value is not None:
-        general_store.set(key, value)
-        return {"status": "ok"}
-    return {"status": "error", "message": "Missing key or value"}
+# NOTE: there is intentionally no POST/PUT for the general store.
+# The dashboard is display-only; ActiveScreenNr is set exclusively by the
+# internal screen handler (backend/opc/opc_screen_handler.py), which is the
+# only code path that writes to the PLC.
 
 
 # ===================== NEW ENDPOINTS FOR BETTER SCREEN SWITCH UX =====================
@@ -64,7 +61,10 @@ async def get_current_shift_pattern():
 
 @router.post("/snapshot")
 async def trigger_full_snapshot():
-    """Forces an immediate full data snapshot broadcast. Useful when entering the Dashboard."""
+    """Forces an immediate full data snapshot broadcast. Useful when entering the Dashboard.
+
+    Read-only with respect to the PLC: this only re-broadcasts current values to WebSocket clients.
+    """
     from backend.app.routers.websocket import broadcast_full_snapshot
     await broadcast_full_snapshot()
     return {"status": "ok"}

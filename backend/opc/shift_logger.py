@@ -1,7 +1,7 @@
-import aiosqlite
-import asyncio
 from datetime import datetime, timedelta
-from typing import List, Dict
+from typing import Dict, List
+
+import aiosqlite
 
 from backend.settings import settings
 
@@ -176,8 +176,9 @@ class ShiftLogger:
         Raises RuntimeError if the PLC values are missing or invalid.
         No silent fallback is performed.
         """
-        from backend.opc.state_store import data_store
         from datetime import datetime, timedelta
+
+        from backend.opc.state_store import data_store
 
         now = datetime.now()
         today = now.date()

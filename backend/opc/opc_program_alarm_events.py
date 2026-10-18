@@ -1,12 +1,13 @@
-from asyncua import ua
 import asyncio
 import logging
 import re
-import backend.config as config
-from backend.settings import settings
 
+from asyncua import ua
+
+import backend.config as config
 from backend.opc.models import AlarmDetails
 from backend.opc.state_store import alarm_store
+from backend.settings import settings
 
 logging.basicConfig(level=settings.log_level)
 
@@ -114,7 +115,7 @@ async def subscribe_program_alarms(client=None, sync_lock=None):
                 event_filter.SelectClauses.append(operand)
                 
             # Siemens DisplayClass (to determine if it's a Program Alarm or not)    
-            field_name = f"DisplayClass"
+            field_name = "DisplayClass"
             operand = ua.SimpleAttributeOperand()
             operand.TypeDefinitionId = ua.NodeId(ua.ObjectIds.AlarmConditionType, 0, ua.NodeIdType.Numeric)
             operand.BrowsePath = [ua.QualifiedName(field_name, siemens_ns_index)]
@@ -122,7 +123,7 @@ async def subscribe_program_alarms(client=None, sync_lock=None):
             event_filter.SelectClauses.append(operand)  
 
             # Siemens ID (to determine if it's a Program Alarm or not)    
-            field_name = f"ID"
+            field_name = "ID"
             operand = ua.SimpleAttributeOperand()
             operand.TypeDefinitionId = ua.NodeId(ua.ObjectIds.AlarmConditionType, 0, ua.NodeIdType.Numeric)
             operand.BrowsePath = [ua.QualifiedName(field_name, siemens_ns_index)]
@@ -131,7 +132,7 @@ async def subscribe_program_alarms(client=None, sync_lock=None):
               
             server_node = client.get_node(config.DEFAULT_NODES["ProgramAlarms"])
             await subscription._subscribe(server_node, ua.AttributeIds.EventNotifier, event_filter)
-            print(f"✅ Subscribed to Program Alarms with States. Monitoring active...")
+            print("✅ Subscribed to Program Alarms with States. Monitoring active...")
             
             # Base ConditionType Node ID is fixed across ALL OPC UA servers worldwide (ns=0;i=2782)
             condition_type_node = client.get_node(config.DEFAULT_NODES["ConditionType"])
