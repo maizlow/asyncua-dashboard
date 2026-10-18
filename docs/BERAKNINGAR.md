@@ -19,6 +19,7 @@ Hur du konfigurerar taggar och objekt står i [CONFIG.md](CONFIG.md).
 - [Räkneexempel som används nedan](#räkneexempel-som-används-nedan)
 - [Skärm OEE (`type: oee`)](#skärm-oee-type-oee)
 - [Skärm Skiftmönster (`type: shift`)](#skärm-skiftmönster-type-shift)
+- [Skärm 7 dagar (`type: week`)](#skärm-7-dagar-type-week)
 - [Grid-skärmar, t.ex. Dashboard (`type: grid`)](#grid-skärmar-tex-dashboard-type-grid)
 - [Skärm Larm (`type: alarms`)](#skärm-larm-type-alarms)
 - [Beräknas men visas inte](#beräknas-men-visas-inte)
@@ -53,6 +54,8 @@ ingenting själv.
 | `OEE_INTERVAL_S` | `5` | Hur ofta OEE-skärmens värden räknas om och skickas (minst 1 s). Räknas också när en skärm ansluter och vid `GET /api/oee` |
 | `TIMEZONE` | systemets zon | Tidszon för `ShiftStart`/`ShiftEnd` och skiftmönstrets timmar (t.ex. `Europe/Stockholm`) |
 | `SNAPSHOT_INTERVAL_MS` | `10000` | Hur ofta hela ögonblicksbilden + historik (för trend) skickas om |
+| `HISTORY_INTERVAL_S` | `60` | Hur ofta 7-dagarsskärmen räknas om och skickas (minst 10 s). Bara idag räknas om; tidigare dagar sparas |
+| `RETENTION_DAYS` | `30` | Hur länge historiken sparas. **Under 7** visar 7-dagarsskärmen `–` för de äldsta dagarna (varning i loggen) |
 
 Skiftmönstret skickas var 30:e sekund (fast i koden).
 
@@ -358,6 +361,104 @@ $$
 ger kör 52,0 min, stopp 8,0 min; timmarna 11:00–13:00 är 0. Skiftet 06:30–14:30: 8 timmar 06:30, 07:30 … 13:30,
 etiketter `06:30` och `14:30`. Skiftet 06:00–14:30: "8,5 timmars skift", sista timmen 14:00–14:30 (30 min).
 
+## Skärm 7 dagar (`type: week`)
+
+**Visas:** sju kolumner, idag längst till höger (ljusare ruta, "Idag"). Per dag: **OEE %** överst, en **stapel** med godkända
+pannor, en vit linje för **dagsmålet**, **antal godkända** under stapeln och veckodag + datum (`Mån` / `12/10`).
+Beräknas i backend ([`backend/opc/daily.py`](../backend/opc/daily.py)) från SQLite-historiken (`data_points` och `shift_log`),
+`GET /api/history/days?n=7` och WebSocket-meddelandet `daily_history`.
+
+### Dag
+
+En dag är ett **kalenderdygn i `TIMEZONE`**, från lokal midnatt till nästa lokala midnatt:
+
+$$
+D = [\thinspace 00{:}00_d,\ 00{:}00_{d+1}) \quad \text{(lokal tid)}, \qquad |D| \in \lbrace 23,\ 24,\ 25 \rbrace \ \text{h}
+$$
+
+- Sommartid: dygnet när klockan ställs fram är 23 h, när den ställs tillbaka 25 h.
+- Allt **delas vid midnatt**: räknarökningar hör till den dag de loggades, kör-/stopptid klipps vid midnatt och ett nattskift
+  (t.ex. 22:00–06:00) räknas till båda dagarna i proportion till tiden i varje dag.
+- Idag räknas fram till nu.
+- **Ingen data** (ingen rad i `data_points` eller `shift_log` under dygnet, t.ex. linjen stod och inget ändrades, backend var
+  avstängd eller historiken är gallrad): alla värden för dagen är `–` och ingen stapel visas.
+
+### Godkända per dag
+
+För varje räknartagg $c$ (`GoodCount`, `ProductionCount`, `RejectCount`) summeras ökningarna mellan på varandra följande loggade
+värden $v_0, v_1, \ldots, v_m$ under dagen, där $v_0$ är sista värdet före midnatt:
+
+$$
+\Delta c_D = \sum_{j=1}^{m} \begin{cases} v_j - v_{j-1} & \text{om } v_j \ge v_{j-1} \cr v_j & \text{om } v_j \lt v_{j-1} \ \text{(räknaren nollställd)} \end{cases}
+$$
+
+Saknas $v_0$ (ingen tidigare historik) räknas första värdet som ökning. Sedan samma regler som live:
+
+$$
+G_D = \Delta \texttt{GoodCount}_D, \quad N_D = G_D + K_D \qquad \text{eller} \qquad N_D = \Delta \texttt{ProductionCount}_D, \quad G_D = \max(0,\ N_D - K_D)
+$$
+
+med $K_D = \Delta \texttt{RejectCount}_D$. `GoodCount` används om taggen har historik, annars `ProductionCount`.
+Heltal, med tusentalsavgränsare (`70 600`).
+
+### Planerad tid, körtid och stopptid
+
+Skiftfönstren tas från nuvarande `ShiftStart`/`ShiftEnd` (live, annars senast loggade värden) och **antas vara samma alla
+dagar**. För dag $D$ betraktas skiften som börjar dagen före och samma dag. För varje skiftdel $S \cap D$ (fram till nu):
+
+$$
+t_{\text{kör},S \cap D} = \text{körtid i } S \cap D, \qquad
+S \cap D \ \text{är planerad} \iff t_{\text{kör},S \cap D} \gt 0
+$$
+
+$$
+t_{\text{plan},D} = \sum_{\text{planerade } S} |S \cap D|, \qquad
+t_{\text{kör},D} = \sum_{\text{planerade } S} t_{\text{kör},S \cap D}, \qquad
+t_{\text{stopp},D} = t_{\text{plan},D} - t_{\text{kör},D}
+$$
+
+En skiftdel helt utan körtid (helg, helgdag) räknas alltså **inte** som planerad. Körtid och stopptid visas inte på TV:n men
+finns i API:t (`planned_s`, `run_s`, `stop_s`).
+
+### OEE per dag
+
+Samma formler som live med dagens värden:
+
+$$
+A_D = \min\left(1,\ \frac{t_{\text{kör},D}}{t_{\text{plan},D}}\right), \quad
+P_D = \min\left(1,\ \frac{N_D}{t_{\text{kör},D}^{\text{min}} \cdot R}\right), \quad
+Q_D = \frac{G_D}{N_D}, \quad
+\mathrm{OEE}_D = A_D \cdot P_D \cdot Q_D
+$$
+
+- %, 1 decimal, vit (ingen färg). `–` utan planerad tid, utan skifttider, utan `RejectCount` (som live) eller utan data.
+- Om siffran inte får plats ("100,0 %") krymper den, aldrig under 37 px versalhöjd vid 1080p.
+
+### Dagsmål och stapel
+
+$$
+M_D = \sum_{\text{planerade } S} M_S \cdot \frac{|S \cap D|}{|S|}
+$$
+
+$M_S$ = sista loggade `ShiftTarget` för skiftet. Idag gäller målet fram till nu (som *Mål hittills*). Utan `ShiftTarget`: ingen
+vit linje, ingen förklaring "dagsmål" och grå staplar.
+
+$$
+\text{stapel}_D = \frac{G_D}{H}, \qquad \text{linje}_D = \frac{M_D}{H}, \qquad H = \max_{D}\bigl(\max(G_D,\ M_D)\bigr)
+$$
+
+Alla staplar har samma skala $H$. **Färg:** grön när $G_D \ge M_D$, gul när $G_D \lt M_D$ (stapeln slutar då under den vita
+linjen, så status syns även utan färg), grå utan mål.
+
+**Exempel:** dagskift 06:00–16:00, 600 min planerat, 540 min kört, 72 000 pannor varav 1 400 kasserade, `ShiftTarget` = 71 400:
+
+$$
+A = \frac{540}{600} = 0{,}900, \quad P = \frac{72\thinspace 000}{540 \cdot 140} = 0{,}952, \quad Q = \frac{70\thinspace 600}{72\thinspace 000} = 0{,}981, \quad \mathrm{OEE} = 0{,}840
+$$
+
+→ `84,0 %`, `70 600`, gul stapel strax under linjen 71 400. Nattskift 22:00–06:00 med `ShiftTarget` = 57 120 som kört hela
+natten i 119 st/min: dagen före får 2 h (14 280 pannor, mål 14 280), dagen efter 6 h (42 840 pannor, mål 42 840).
+
 ## Grid-skärmar, t.ex. Dashboard (`type: grid`)
 
 Värdena i rutorna kommer **direkt från PLC-taggarna**; dashboarden räknar inte om dem. I exempelfilen är *Produktion*
@@ -447,4 +548,7 @@ Följande finns i `GET /api/oee` men visas inte längre på TV:n (borttagna i PR
   kopplad – koppla då `GoodCount` i stället.
 - **Inga planerade raster:** hela den förflutna skifttiden är planerad tid, så raster sänker Tillgänglighet och OEE.
 - **Skifttider i Skift kvar** visas i webbläsarens tidszon, skiftfönstret räknas i `TIMEZONE`. Ställ in samma zon på båda.
+- **7 dagar:** skifttiderna antas vara desamma alla dagar (nuvarande `ShiftStart`/`ShiftEnd`); ändras skifttiderna räknas
+  tidigare dagar som inte redan är sparade om med de nya tiderna. En skiftdel med totalt haveri (ingen körtid alls) räknas inte
+  som planerad, vilket ger för hög OEE den dagen. Ökningar räknas till den tid de loggades (upplösning ≈ 1 s).
 - **Trend efter nollställning:** när en räknare nollställs vid skiftbyte visar trenden en stor ▼ (röd för `better: high`).

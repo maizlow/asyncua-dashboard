@@ -188,11 +188,13 @@
       "properties": {
         "type": {
           "default": "grid",
+          "description": "grid = own items; alarms; shift = shift pattern; oee = OEE details; week = today + previous 6 days from the history",
           "enum": [
             "grid",
             "alarms",
             "shift",
-            "oee"
+            "oee",
+            "week"
           ],
           "title": "Type",
           "type": "string"

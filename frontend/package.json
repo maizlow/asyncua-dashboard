@@ -9,7 +9,7 @@
     "lint": "eslint .",
     "preview": "vite preview",
     "check:fit": "node scripts/check-fit.mjs",
-    "test": "node --test scripts/test-format.mjs scripts/test-status.mjs"
+    "test": "node --test scripts/test-format.mjs scripts/test-status.mjs scripts/test-week.mjs"
   },
   "dependencies": {
     "@fontsource-variable/geist": "^5.2.9",

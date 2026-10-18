@@ -69,6 +69,37 @@ export interface OeeDetails {
   hourly: { time: string; good: number | null; elapsed_s?: number }[];
 }
 
+/** One local calendar day of the 7-day screen (backend/opc/daily.py). Values are null without data. */
+export interface DailyRow {
+  /** "YYYY-MM-DD" in the plant time zone */
+  date: string;
+  /** 0 = Monday */
+  weekday: number;
+  start: string;
+  end: string;
+  today: boolean;
+  has_data: boolean;
+  good: number | null;
+  reject: number | null;
+  total: number | null;
+  good_source?: string | null;
+  planned_s: number | null;
+  run_s: number | null;
+  stop_s: number | null;
+  /** Day target from ShiftTarget (today: up to now); null without ShiftTarget */
+  target: number | null;
+  oee: { availability: number | null; performance: number | null; quality: number | null; oee: number | null };
+}
+
+export interface DailyHistory {
+  days: DailyRow[];
+  nominal_tpm: number;
+  oee_target?: { value: number; source: string };
+  retention_days?: number | null;
+  shift?: { start: string; end: string } | null;
+  updated: string;
+}
+
 export type ServerMessage =
   | { type: "data_update"; key: string; value: MetricValue }
   | {
@@ -80,7 +111,8 @@ export type ServerMessage =
   | { type: "alarm_removed"; alarm_id: number | string; alarm?: Alarm }
   | { type: "shift_pattern_data"; data: ShiftPatternRow[] }
   | { type: "screen_change"; screen: number }
-  | { type: "oee_details"; data: OeeDetails };
+  | { type: "oee_details"; data: OeeDetails }
+  | { type: "daily_history"; data: DailyHistory };
 
 /**
  * Everything the UI needs from "the outside world". The real implementation talks
@@ -98,6 +130,8 @@ export interface DataSource {
   getAlarms(): Promise<Alarm[]>;
   getShiftPattern(): Promise<ShiftPatternRow[] | undefined>;
   getOeeDetails(): Promise<OeeDetails | undefined>;
+  /** Today + the previous 6 days (GET /api/history/days?n=7). */
+  getDailyHistory(): Promise<DailyHistory | undefined>;
   /** Screens + items from dashboard.yaml. Rejects with LayoutError if the file is invalid. */
   getLayout(): Promise<Layout>;
   /** Ask for an immediate full_snapshot push (read-only, no PLC write). */

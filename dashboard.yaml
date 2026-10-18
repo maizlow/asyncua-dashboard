@@ -31,7 +31,7 @@ tags:
   OeeTarget: ""      # TODO(PLC): OEE-mål i % (tomt = 85), t.ex. ns=3;s="DB Production TV"."dashboardData"."oeeTarget"
 
 # Skärmar: nummer = ActiveScreenNr i PLC:n.
-# type: grid (1–6 egna objekt) | alarms | shift | oee
+# type: grid (1–6 egna objekt) | alarms | shift | oee | week (idag + 6 dagar bakåt)
 screens:
   1: { type: alarms, title: Larm }
 
@@ -48,3 +48,5 @@ screens:
   3: { type: shift, title: Skiftmönster }
 
   4: { type: oee, title: OEE }
+
+  5: { type: week, title: Senaste 7 dagarna }

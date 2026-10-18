@@ -94,7 +94,8 @@ screens:
 | `grid` (standard) | 1–6 egna objekt (`items`). 1 objekt = hel bredd, annars 2 kolumner och upp till 3 rader. |
 | `alarms` | Aktiva larm från Program_Alarm (inga `items`). |
 | `shift` | Skiftmönstret (kräver taggarna `ShiftStart`, `ShiftEnd`, `ProductionState`). |
-| `oee` | OEE-skärmen (kräver dessutom `TPM`; utan `GoodCount`/`ProductionCount`, `RejectCount` och `ShiftTarget` visar respektive värde `–`). |
+| `oee` | OEE-skärmen (kräver dessutom `TPM` och en av taggarna `GoodCount`/`ProductionCount` under `tags`; saknar taggarna värde, liksom `RejectCount` och `ShiftTarget`, visar respektive värde `–`). |
+| `week` | Idag + 6 dagar bakåt från historiken i databasen: OEE %, godkända per dag och dagsmål (kräver `ShiftStart`, `ShiftEnd`, `ProductionState` och `GoodCount` eller `ProductionCount`). Formler: [BERAKNINGAR.md](BERAKNINGAR.md#skärm-7-dagar-type-week). |
 
 `title` är valfri (max 40 tecken) och är till för dig; grid-skärmar visar ingen rubrik.
 Okänt skärmnummer från PLC:n visar första grid-skärmen.
