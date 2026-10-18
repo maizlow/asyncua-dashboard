@@ -18,7 +18,7 @@ export interface ItemConfig {
   target?: string | number;
   trend: boolean;
   color?: ColorName;
-  /** [warn, good] */
+  /** [lower, upper]: high = green >= upper, amber >= lower; low = green <= lower, amber <= upper */
   thresholds?: [number, number];
   better: "high" | "low";
   states?: Record<string, { text: string; color: ColorName }>;

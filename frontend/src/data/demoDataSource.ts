@@ -33,12 +33,14 @@ const HISTORY_POINTS = 150;
 const NOMINAL_TPM = 140;
 const SHIFT_HOURS = 10;
 const SHIFT_S = SHIFT_HOURS * 3600;
-/** PLC-side shift target (planned at 85 % OEE), used by the existing Dashboard card */
-const PLC_TARGET = Math.round(SHIFT_HOURS * 60 * NOMINAL_TPM * 0.85);
+/** PLC shift target (tags ShiftTarget and TargetCount): nominal x 85 % OEE goal = 119 tiles/min */
+const DEMO_OEE_TARGET = 0.85;
+const PLC_TARGET = Math.round(SHIFT_HOURS * 60 * NOMINAL_TPM * DEMO_OEE_TARGET);
 const SCRAP_RATE = 0.02;
 const STOP_PROB_PER_S = 1 / 2400; // ~ one stop every 40 min of running
 const MIN_RUN_BETWEEN_STOPS_S = 180;
-const PREFILL_OEE_RANGE: [number, number] = [0.8, 0.85];
+// Straddles the 85 % goal so the demo shows both PÅ MÅL and UNDER MÅL
+const PREFILL_OEE_RANGE: [number, number] = [0.82, 0.88];
 
 const STOP_ALARMS: Omit<Alarm, "timestamp">[] = [
   { ID: 1012, message: "Nödstopp – station 3", displayClass: 1 },
@@ -154,15 +156,17 @@ class LineSim {
     const planned = this.elapsed;
     const availability = planned > 0 ? Math.min(1, this.runS / planned) : null;
     const performance = this.runS > 0 ? Math.min(1, total / ((this.runS / 60) * NOMINAL_TPM)) : null;
-    const quality = total > 0 ? good / total : null;
+    const quality = total > 0 ? good / total : null; // RejectCount is simulated, so Q is known
     const oee =
       availability !== null && performance !== null && quality !== null ? availability * performance * quality : null;
     const count = this.stops.length;
     const nowMs = this.startMs + this.elapsed * 1000;
-    const soFar = Math.round((this.elapsed / 60) * NOMINAL_TPM);
-    const shiftTarget = Math.round((SHIFT_S / 60) * NOMINAL_TPM);
+    // Same as the backend: Skiftmål = PLC ShiftTarget, Mål hittills pro rata over the shift
+    const shiftTarget = PLC_TARGET;
+    const soFar = Math.round((PLC_TARGET * this.elapsed) / SHIFT_S);
     return {
       nominal_tpm: NOMINAL_TPM,
+      oee_target: { value: DEMO_OEE_TARGET * 100, source: "default" },
       counts: { good, reject, total, scrap_pct: total ? (reject / total) * 100 : null, good_source: "GoodCount" },
       speed: { current: round(this.speed, 1), nominal: NOMINAL_TPM, pct: (this.speed / NOMINAL_TPM) * 100 },
       shift: {
@@ -175,6 +179,7 @@ class LineSim {
       target: {
         so_far: soFar,
         shift: shiftTarget,
+        source: "ShiftTarget",
         prognosis: this.elapsed >= 300 ? Math.round((good / this.elapsed) * SHIFT_S) : null,
         progress_pct: (good / shiftTarget) * 100,
       },
@@ -203,6 +208,8 @@ class LineSim {
   shiftPattern(): ShiftPatternRow[] {
     return this.hours.map((h, i) => ({
       time: this.hourLabel(i),
+      end: this.hourLabel(i + 1),
+      minutes: 60,
       running: round(h.running / 60, 1),
       stopped: round(h.stopped / 60, 1),
     }));
@@ -264,7 +271,7 @@ export function createDemoDataSource(): DataSource {
     let d = sim.details();
     if (countOverride !== null) {
       const n = countOverride;
-      d = { ...d, counts: { ...d.counts, good: n }, target: { so_far: n, shift: n, prognosis: n, progress_pct: 100 } };
+      d = { ...d, counts: { ...d.counts, good: n }, target: { so_far: n, shift: n, source: "ShiftTarget", prognosis: n, progress_pct: 100 } };
     }
     if (forceStopped && d.stops) d = { ...d, stops: { ...d.stops, count: 999, running: false } };
     return d;
@@ -317,6 +324,7 @@ export function createDemoDataSource(): DataSource {
     const d = details();
     const expected = (PLC_TARGET * sim.elapsed) / SHIFT_S;
     setMetric("TargetCount", countOverride ?? PLC_TARGET);
+    setMetric("ShiftTarget", countOverride ?? PLC_TARGET);
     setMetric("ProductionCount", d.counts.good ?? 0);
     setMetric("GoodCount", d.counts.good ?? 0);
     setMetric("RejectCount", d.counts.reject ?? 0);
@@ -332,7 +340,7 @@ export function createDemoDataSource(): DataSource {
   };
 
   /** Simulated values for YAML tags the line model doesn't know (and `demo:` overrides). */
-  const BUILT_IN = new Set(["TargetCount", "ProductionCount", "GoodCount", "RejectCount", "ProductionDelta",
+  const BUILT_IN = new Set(["TargetCount", "ShiftTarget", "OeeTarget", "ProductionCount", "GoodCount", "RejectCount", "ProductionDelta",
     "ProductionState", "OEE", "TPM", "CurrentRuntime", "AccumulatedStoptime", "ShiftStart", "ShiftEnd"]);
   const publishLayoutTags = (historical: boolean) => {
     for (const [name, tag] of Object.entries(layout.tags)) {

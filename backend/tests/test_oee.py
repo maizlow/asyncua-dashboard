@@ -8,7 +8,10 @@ from backend.opc.oee import (
     compute_oee_details,
     counter_increments,
     oee_factors,
+    oee_target,
+    production_counts,
     prognosis,
+    quality,
     shift_progress,
     stop_stats,
     targets,
@@ -30,9 +33,14 @@ def test_shift_progress_clamps_to_shift():
     assert shift_progress(start, end, at(700))["remaining_s"] == 0
 
 
-def test_targets_use_nominal_rate():
-    # 2.5 h into a 10 h shift at 140 tiles/min
-    assert targets(9000, 36000, 140) == {"so_far": 21000, "shift": 84000}
+def test_targets_come_from_plc_shift_target_pro_rata():
+    # 2.5 h into a 10 h shift, PLC ShiftTarget 71 400 (140 tiles/min x 85 %)
+    assert targets(9000, 36000, 71_400) == {"so_far": 17_850, "shift": 71_400}
+
+
+def test_targets_without_plc_target_are_unknown_not_nominal():
+    assert targets(9000, 36000, None) == {"so_far": None, "shift": None}
+    assert targets(0, 0, 71_400) == {"so_far": None, "shift": None}
 
 
 def test_prognosis_at_current_pace():
@@ -98,7 +106,15 @@ async def test_compute_oee_details_end_to_end(db, monkeypatch):
     await sl.init_db()
     await dl.init_db()
 
-    store = {"ShiftStart": "06:00:00", "ShiftEnd": "16:00:00", "GoodCount": 13_720, "RejectCount": 280, "TPM": 133.0}
+    store = {
+        "ShiftStart": "06:00:00",
+        "ShiftEnd": "16:00:00",
+        "GoodCount": 13_720,
+        "RejectCount": 280,
+        "TPM": 133.0,
+        "ShiftTarget": 71_400,
+        "OeeTarget": 82,
+    }
 
     # 06:00-07:30 running, 07:30-07:40 stopped, 07:40-08:00 running (now = 08:00)
     sl.log_state_change("Running", ts=at(-5))
@@ -115,11 +131,13 @@ async def test_compute_oee_details_end_to_end(db, monkeypatch):
 
     assert d["shift"]["elapsed_s"] == 7200 and d["shift"]["remaining_s"] == 8 * 3600
     assert d["target"] == {
-        "so_far": 16_800,
-        "shift": 84_000,
+        "so_far": 14_280,  # 71 400 x 2 h / 10 h
+        "shift": 71_400,
+        "source": "ShiftTarget",
         "prognosis": 68_600,
-        "progress_pct": pytest.approx(13_720 / 840),
+        "progress_pct": pytest.approx(13_720 / 714),
     }
+    assert d["oee_target"] == {"value": 82.0, "source": "OeeTarget"}
     assert d["stops"]["count"] == 1 and d["stops"]["total_s"] == 600
     assert d["counts"]["scrap_pct"] == pytest.approx(2.0)
     assert d["speed"]["pct"] == pytest.approx(95.0)
@@ -140,3 +158,73 @@ async def test_compute_oee_details_without_shift_window(db, monkeypatch):
     monkeypatch.setattr(state_store, "data_store", store)
     d = await compute_oee_details(store, sl, dl, 140, now=at(10))
     assert d["shift"] is None and d["counts"]["good"] == 500 and d["counts"]["good_source"] == "ProductionCount"
+
+
+# ----- fix: Kvalitet unknown without RejectCount
+def test_quality_unknown_without_reject_count():
+    assert quality(34_440, 34_440, None) is None
+    assert quality(34_440, 35_140, 700) == pytest.approx(0.98008, abs=1e-5)
+    f = oee_factors(267 * 60, 300 * 60, 35_140, 35_140, 140, reject=None)
+    assert f["quality"] is None and f["oee"] is None and f["performance"] is not None
+
+
+# ----- fix: no double counting of rejects with the ProductionCount fallback
+def test_counts_good_count_plus_rejects():
+    assert production_counts(34_440, 99_999, 700) == {
+        "good": 34_440, "reject": 700, "total": 35_140, "source": "GoodCount"
+    }
+
+
+def test_counts_production_count_includes_rejects():
+    c = production_counts(None, 35_140, 700)
+    assert c == {"good": 34_440, "reject": 700, "total": 35_140, "source": "ProductionCount"}
+    assert production_counts(None, 35_140, None) == {
+        "good": 35_140, "reject": None, "total": 35_140, "source": "ProductionCount"
+    }
+    assert production_counts(None, 100, 250)["good"] == 0  # counters out of sync never go negative
+    assert production_counts(None, None, None)["good"] is None
+
+
+# ----- OEE goal from the PLC (OeeTarget), default 85 %
+def test_oee_target_tag_or_default():
+    assert oee_target(None) == {"value": 85.0, "source": "default"}
+    assert oee_target("") == {"value": 85.0, "source": "default"}
+    assert oee_target(0) == {"value": 85.0, "source": "default"}
+    assert oee_target(120) == {"value": 85.0, "source": "default"}
+    assert oee_target(82.5) == {"value": 82.5, "source": "OeeTarget"}
+
+
+async def _details(db, monkeypatch, store, now_min=300):
+    sl = ShiftLogger(db, tz_name="Europe/Stockholm")
+    dl = DataLogger(db)
+    await sl.init_db()
+    await dl.init_db()
+    sl.log_state_change("Running", ts=at(-5))
+    db.flush()
+    import backend.opc.state_store as state_store
+
+    monkeypatch.setattr(state_store, "data_store", store)
+    return await compute_oee_details(store, sl, dl, 140, now=at(now_min))
+
+
+async def test_details_without_shift_target_show_no_targets(db, monkeypatch):
+    store = {"ShiftStart": "06:00:00", "ShiftEnd": "14:00:00", "GoodCount": 34_440, "RejectCount": 700}
+    d = await _details(db, monkeypatch, store)
+    assert d["target"]["so_far"] is None and d["target"]["shift"] is None and d["target"]["source"] is None
+    assert d["target"]["progress_pct"] is None
+    assert d["target"]["prognosis"] == 55_104  # prognosis does not need a target
+    assert d["oee_target"]["source"] == "default"
+
+
+async def test_details_production_count_fallback_and_quality(db, monkeypatch):
+    store = {"ShiftStart": "06:00:00", "ShiftEnd": "14:00:00", "ProductionCount": 35_140, "RejectCount": 700}
+    d = await _details(db, monkeypatch, store)
+    assert d["counts"] == {
+        "good": 34_440, "reject": 700, "total": 35_140,
+        "scrap_pct": pytest.approx(700 / 35_140 * 100), "good_source": "ProductionCount",
+    }
+    assert d["oee"]["quality"] == pytest.approx(34_440 / 35_140)
+
+    store = {"ShiftStart": "06:00:00", "ShiftEnd": "14:00:00", "ProductionCount": 35_140}
+    d = await _details(db, monkeypatch, store)
+    assert d["oee"]["quality"] is None and d["oee"]["oee"] is None and d["counts"]["scrap_pct"] is None

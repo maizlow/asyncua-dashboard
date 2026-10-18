@@ -33,9 +33,14 @@ Hur du konfigurerar taggar och objekt står i [CONFIG.md](CONFIG.md).
 | `ShiftStart`, `ShiftEnd` | Skiftets start- och sluttid (`type: time`, `hh:mm:ss`, lokal tid) | Inget skiftfönster: allt som beror på skiftet visar `–` |
 | `ProductionState` | `2` = kör, **alla andra värden** = stopp. Varje ändring loggas med tidsstämpel (UTC) i `shift_log` | Ingen kör-/stopptid: Tillgänglighet, Prestanda, OEE visar `–` |
 | `GoodCount` | Godkända pannor detta skift, $G$ | `ProductionCount` används i stället |
-| `ProductionCount` | Används som $G$ när `GoodCount` inte har något värde | Om även den saknas: $G$ saknas |
-| `RejectCount` | Kasserade pannor detta skift, $K$ | Totalt $N = G$ (se [Kvalitet](#kvalitet)) |
+| `ProductionCount` | Total produktion detta skift **inklusive kassation**; används när `GoodCount` inte har något värde | Om även den saknas: $G$ saknas |
+| `RejectCount` | Kasserade pannor detta skift, $K$ | Kvalitet och Kassation visar `–` |
 | `TPM` | Aktuell takt, st/min | Takt visar `–` |
+| `ShiftTarget` | **Skiftmål** i st för hela skiftet, från PLC:n, $M$ | Mål hittills och Skiftmål visar `–`, inget PÅ/UNDER MÅL i Produktion |
+| `OeeTarget` | **OEE-mål** i %, från PLC:n | 85 % används (även om värdet är ≤ 0 eller > 100) |
+
+`TargetCount` (målet i Dashboard-rutan *Produktion*) är **inte** reserverad och används inte av OEE-skärmen: det är bara en
+vanlig tagg som exempelfilen visar som `target:`. Är PLC:ns `target` samma sak som skiftmålet kan `ShiftTarget` få samma nod-id.
 
 Räknarna förutsätts vara **skifträknare** som PLC:n nollställer vid skiftstart (`ShiftStart`). Dashboarden nollställer
 ingenting själv.
@@ -44,7 +49,7 @@ ingenting själv.
 
 | Inställning | Standard | Används till |
 |---|---|---|
-| `NOMINAL_RATE_TPM` | `140` | Nominell takt $R$ (st/min): mål, prognosens skala, prestanda, "av 140" |
+| `NOMINAL_RATE_TPM` | `140` | Nominell takt $R$ (st/min): Prestanda och "av 140". **Inte** målen – de kommer från PLC:n |
 | `OEE_INTERVAL_S` | `5` | Hur ofta OEE-skärmens värden räknas om och skickas (minst 1 s). Räknas också när en skärm ansluter och vid `GET /api/oee` |
 | `TIMEZONE` | systemets zon | Tidszon för `ShiftStart`/`ShiftEnd` och skiftmönstrets timmar (t.ex. `Europe/Stockholm`) |
 | `SNAPSHOT_INTERVAL_MS` | `10000` | Hur ofta hela ögonblicksbilden + historik (för trend) skickas om |
@@ -56,7 +61,7 @@ Skiftmönstret skickas var 30:e sekund (fast i koden).
 - **Decimalkomma** och fast antal decimaler; på OEE-skärmen heltal med mellanslag som tusentalsavgränsare (`34 440`),
   på grid-skärmar utan avgränsare (`34440`).
 - Saknat värde (`null`, ej tal, tomt nod-id) visas alltid som **`–`**.
-- Färger och ▲/▼ jämförs mot det **oavrundade** värdet (se [Att känna till](#att-känna-till)).
+- Färger, ▲/▼ och PÅ/UNDER MÅL jämförs mot värdet **avrundat som det visas** (`85,0 %` är alltid på ett mål på 85 %).
 - Decimaltal (Real) från PLC:n avrundas till 2 decimaler redan när de läses in i backend.
 
 ## Gemensamma begrepp
@@ -98,17 +103,21 @@ $$
 ### Godkända, kassation och totalt
 
 $$
-G = \begin{cases} \texttt{GoodCount} & \text{om värde finns} \\ \texttt{ProductionCount} & \text{annars} \end{cases}
-\qquad
-K = \texttt{RejectCount}
-\qquad
-N = \begin{cases} G + K & \text{om } K \text{ finns} \\ G & \text{annars} \end{cases}
+\begin{array}{lll}
+\texttt{GoodCount} \text{ har värde:} & G = \texttt{GoodCount}, & N = G + K \ (\text{eller } G \text{ utan } K) \\
+\text{annars:} & N = \texttt{ProductionCount}, & G = \max\bigl(0,\ N - K\bigr) \ (\text{eller } N \text{ utan } K)
+\end{array}
+\qquad K = \texttt{RejectCount}
 $$
+
+**Antagande:** `ProductionCount` räknar **alla** pannor, även kasserade. Därför räknas kassationen aldrig två gånger.
+Om PLC:ns räknare inte går i takt (kassation > produktion) blir $G$ = 0, aldrig negativt.
 
 ## Räkneexempel som används nedan
 
 Dagskift **06:00–14:00** (8 h), klockan är **11:00**, `NOMINAL_RATE_TPM = 140`.
 Linjen har kört 267 min och stått 33 min fördelat på 6 stopp; totalt 35 140 pannor varav 700 kasserade; `TPM` = 138,6.
+PLC:n ger `ShiftTarget` = 57 120 (8 h × 60 × 140 × 0,85, dvs. 85 % av nominell takt) och `OeeTarget` är tomt (85 %).
 
 | Storhet | Värde |
 |---|---|
@@ -118,8 +127,9 @@ Linjen har kört 267 min och stått 33 min fördelat på 6 stopp; totalt 35 140 
 | $t_\text{kör}$ | 267 min |
 | $n_\text{stopp}$, $t_\text{stopp}$ | 6 st, 33 min |
 | $N$, $K$, $G$ | 35 140, 700, 34 440 |
+| $M$ (`ShiftTarget`) | 57 120 |
 
-Nattskift används som andra exempel: **18:00–06:00** (12 h), klockan **02:00**.
+Nattskift används som andra exempel: **18:00–06:00** (12 h), klockan **02:00**, `ShiftTarget` = 85 680.
 
 ## Skärm OEE (`type: oee`)
 
@@ -132,12 +142,16 @@ $$
 $$
 
 - Enhet %, 1 decimal. `–` om någon av $A$, $P$, $Q$ saknas.
-- När prestandan inte är kapad gäller $\mathrm{OEE} = \dfrac{G}{t_\text{min} \cdot R}$ = godkända / *Mål hittills*.
-- **Färg:** grön ≥ 85 %, gul ≥ 75 %, annars röd (gränserna är fasta i `OeeScreen.tsx`).
-- **"● PÅ MÅL"** (grön) vid OEE ≥ 85 %, annars **"▼ UNDER MÅL"** (gul text, även när siffran är röd). Ingen text när OEE saknas.
+- **OEE-mål** $O$ = `OeeTarget` (%), 85 om taggen saknar giltigt värde.
+- **Färg:** grön när visat värde ≥ $O$, gul när ≥ $O - 10$, annars röd.
+- **"● PÅ MÅL"** (grön) när visat värde ≥ $O$, annars **"▼ UNDER MÅL"** (gul text, även när siffran är röd). Ingen text när OEE saknas.
 
-**Exempel:** $0{,}890 \cdot 0{,}940 \cdot 0{,}980 = 0{,}820$ → `82,0 %`, gul, "▼ UNDER MÅL" (85 % krävs för "PÅ MÅL").
-Kontroll: $34\,440 / 42\,000 = 0{,}820$.
+$$
+\text{PÅ MÅL} \iff \operatorname{round}_1(100 \cdot \mathrm{OEE}) \ge O
+$$
+
+**Exempel:** $0{,}890 \cdot 0{,}940 \cdot 0{,}980 = 0{,}820$ → `82,0 %`, gul, "▼ UNDER MÅL". Med `OeeTarget` = 80 blir det
+grönt och "● PÅ MÅL". OEE 0,8496 visas `85,0 %` och är "PÅ MÅL".
 
 ### Tillgänglighet
 
@@ -178,15 +192,15 @@ $$
 Q = \frac{G}{N}
 $$
 
-- %, 1 decimal. `–` om $G$ saknas eller $N = 0$.
-- **Utan `RejectCount`** är $N = G$ och Kvalitet visar **100,0 %** (inte `–`).
+- %, 1 decimal. `–` om $G$ saknas, $N = 0$ eller **`RejectCount` saknas** (då vet vi inte hur mycket som kasserats,
+  och därför visar även OEE `–`).
 - Kvalitet räknas även utan tillståndslogg, men **inte** utan skiftfönster (då är alla fyra `–`).
 
 **Exempel:** $34\,440 / 35\,140 = 0{,}980$ → `98,0 %`.
 
 ### Färg på Tillgänglighet, Prestanda, Kvalitet
 
-Samma för alla tre: grön ≥ 90 %, gul ≥ 80 %, annars röd med **▼** framför värdet. Stapeln under raden är värdet i %
+Samma för alla tre, på visat värde: grön ≥ 90,0 %, gul ≥ 80,0 %, annars röd med **▼** framför värdet. Stapeln under raden är värdet i %
 (0–100 %) i samma färg; saknat värde = tom stapel.
 
 **Exempel:** Tillgänglighet 89,0 % → gul, `▼ 89,0 %`; Prestanda 94,0 % och Kvalitet 98,0 % → gröna.
@@ -200,31 +214,32 @@ G \quad \text{(direkt från taggen, se ovan)}
 $$
 
 Heltal med tusentalsavgränsare. `–` om varken `GoodCount` eller `ProductionCount` har något värde.
-
-### Mål hittills
-
-**Visas:** *Mål hittills* i rutan Produktion (och vit markör i stapeln).
-
-$$
-M_\text{hittills} = \operatorname{round}\left(\frac{t}{60} \cdot R\right)
-$$
-
-- Inställning `NOMINAL_RATE_TPM`, taggar `ShiftStart`/`ShiftEnd`. Heltal (st). `–` utan skiftfönster.
-- Målet är **nominell takt hela tiden** (100 % OEE): stopp, kassation och raster ingår inte.
-
-**Exempel:** $300 \cdot 140 = 42\,000$. Nattskift kl. 02:00: $480 \cdot 140 = 67\,200$.
+Med `ProductionCount` och `RejectCount`: $G = \texttt{ProductionCount} - \texttt{RejectCount}$.
 
 ### Skiftmål
 
 **Visas:** *Skiftmål* i rutan Produktion.
 
 $$
-M_\text{skift} = \operatorname{round}\left(\frac{T}{60} \cdot R\right)
+M_\text{skift} = \operatorname{round}(M), \qquad M = \texttt{ShiftTarget}
 $$
 
-Heltal (st). `–` utan skiftfönster.
+- Hela skiftets mål i st, **från PLC:n**. Heltal. `–` om `ShiftTarget` saknar värde eller skiftfönster saknas.
+- Dashboarden räknar **aldrig** fram ett eget mål från nominell takt.
 
-**Exempel:** 8 h: $480 \cdot 140 = 67\,200$. 12 h nattskift: $720 \cdot 140 = 100\,800$.
+**Exempel:** `ShiftTarget` = 57 120 → `57 120`. Nattskift: `85 680`.
+
+### Mål hittills
+
+**Visas:** *Mål hittills* i rutan Produktion (och vit markör i stapeln).
+
+$$
+M_\text{hittills} = \operatorname{round}\left(M \cdot \frac{t}{T}\right)
+$$
+
+- Skiftmålet fördelat jämnt över skiftet (pro rata). Heltal (st). `–` när Skiftmål är `–`.
+
+**Exempel:** $57\,120 \cdot 300 / 480 = 35\,700$. Nattskift kl. 02:00: $85\,680 \cdot 480 / 720 = 57\,120$.
 
 ### Prognos
 
@@ -237,6 +252,7 @@ $$
 - Godkända vid skiftslut om nuvarande **medeltakt inklusive stopp** håller i sig. Heltal (st).
 - `–` de **första 5 minuterna** av skiftet ($t < 300$ s), utan skiftfönster eller utan $G$.
 - Mellan skift ($t = T$) blir prognosen lika med $G$.
+- Prognosen behöver inget mål och visas även utan `ShiftTarget`; den färgas inte.
 
 **Exempel:** $34\,440 / 300 \cdot 480 = 55\,104$.
 
@@ -253,10 +269,12 @@ $$
 \text{PÅ MÅL} \iff G \ge M_\text{hittills}
 $$
 
-- "● PÅ MÅL" + grön stapel, annars "▼ UNDER MÅL" + gul stapel. Ingen text om $G$ eller målet saknas (stapeln är då tom).
-- Eftersom $G / M_\text{hittills} \approx \mathrm{OEE}$ visas **"PÅ MÅL" i praktiken bara vid OEE ≥ 100 %** (se [Att känna till](#att-känna-till)).
+- "● PÅ MÅL" + grön stapel, annars "▼ UNDER MÅL" + gul stapel (heltal mot heltal, som de visas).
+- **Utan `ShiftTarget`:** Mål hittills och Skiftmål `–`, ingen text, tom stapel och ingen markör. Ingen reserv med nominell takt.
+- Med ett skiftmål på 85 % av nominell takt betyder "PÅ MÅL" ungefär OEE ≥ 85 %.
 
-**Exempel:** stapel $34\,440 / 67\,200 = 51{,}3\,\%$, markör $42\,000 / 67\,200 = 62{,}5\,\%$; $34\,440 < 42\,000$ → "▼ UNDER MÅL".
+**Exempel:** stapel $34\,440 / 57\,120 = 60{,}3\,\%$, markör $35\,700 / 57\,120 = 62{,}5\,\%$; $34\,440 < 35\,700$ →
+"▼ UNDER MÅL". Med 36 000 godkända: "● PÅ MÅL".
 
 ### Takt · TPM
 
@@ -281,7 +299,7 @@ K = \texttt{RejectCount}, \qquad
 $$
 
 - Antal: heltal (st). Andel: procent, 1 decimal.
-- **Färg på andelen:** grön ≤ 2 %, gul ≤ 3 %, annars röd med **▲** framför.
+- **Färg på andelen** (visat värde): grön ≤ 2,0 %, gul ≤ 3,0 %, annars röd med **▲** framför. 2,04 % visas `2,0 %` och är grön.
 - `–` (och neutral färg) utan `RejectCount` eller om $N = 0$. Räknas även utan skiftfönster.
 
 **Exempel:** $700 / 35\,140 \cdot 100 = 1{,}99\,\%$ → `700 st`, `2,0 %` grön.
@@ -316,23 +334,29 @@ $$
 
 ## Skärm Skiftmönster (`type: shift`)
 
-**Visas:** staplad yta grön (kör) / röd (stopp) per klocktimme, etikett första och sista timme och "– N timmars skift".
+**Visas:** staplad yta grön (kör) / röd (stopp) per skifttimme, etikett skiftstart och skiftslut och "– N timmars skift".
 
-För varje lokal klocktimme $h$ från timmen där skiftet startar till skiftslut:
+Skiftet delas i timmar räknat **från skiftstart**: $[t_\text{start} + i\,\text{h},\ \min(t_\text{start} + (i+1)\,\text{h},\ t_\text{slut}))$.
+Ett skift som inte är ett helt antal timmar slutar med en kortare timme. För varje timme $i$:
 
 $$
-\text{kör}_h = \frac{1}{60} \sum_{\text{kör-segment}} \bigl|\,\text{segment} \cap [h,\ h + 1\,\text{h})\,\bigr|_\text{s}, \qquad
-\text{stopp}_h = \frac{1}{60} \sum_{\text{stopp-segment}} \bigl|\,\text{segment} \cap [h,\ h + 1\,\text{h})\,\bigr|_\text{s}
+\text{kör}_i = \frac{1}{60} \sum_{\text{kör-segment}} \bigl|\,\text{segment} \cap \text{timme}_i\,\bigr|_\text{s}, \qquad
+\text{stopp}_i = \frac{1}{60} \sum_{\text{stopp-segment}} \bigl|\,\text{segment} \cap \text{timme}_i\,\bigr|_\text{s}
+$$
+
+$$
+N_\text{timmar} = \frac{1}{60} \sum_i \text{minuter}_i = \frac{T}{60}
 $$
 
 - Taggar `ShiftStart`, `ShiftEnd`, `ProductionState`; inställning `TIMEZONE`. Minuter, 1 decimal (inga siffror visas på TV:n).
 - Tid efter "nu" räknas inte (framtida timmar är 0). En hel timme ger kör + stopp = 60.
-- Sommartid: natten när klockan ställs tillbaka får två timmar "02:00".
-- **N** i "N timmars skift" = antal klocktimmar i diagrammet, vänster etikett = första timmen (`HH:00`), höger = sista timmen + 1.
+- **N** = skiftets verkliga längd i timmar, heltal eller en decimal (`8`, `8,5`). Vänster etikett = skiftstart, höger = skiftslut (`HH:MM`).
+- Sommartid: natten när klockan ställs om blir skiftet 1 h kortare/längre (7 eller 9 timmar).
 - Uppdateras var 30:e s och när skärmen visas.
 
-**Exempel:** 06:00–14:00 kl. 11:00: 8 timmar, etiketter `06:00` och `14:00`; timmen 06:00 med ett stopp 06:40–06:48 ger
-kör 52,0 min, stopp 8,0 min; timmarna 11:00–13:00 är 0.
+**Exempel:** 06:00–14:00 kl. 11:00: "8 timmars skift", etiketter `06:00` och `14:00`; timmen 06:00 med ett stopp 06:40–06:48
+ger kör 52,0 min, stopp 8,0 min; timmarna 11:00–13:00 är 0. Skiftet 06:30–14:30: 8 timmar 06:30, 07:30 … 13:30,
+etiketter `06:30` och `14:30`. Skiftet 06:00–14:30: "8,5 timmars skift", sista timmen 14:00–14:30 (30 min).
 
 ## Grid-skärmar, t.ex. Dashboard (`type: grid`)
 
@@ -359,9 +383,9 @@ $$
 \texttt{better: low}:\ \begin{cases} \text{grön} & x \le \text{lägre} \\ \text{gul} & x \le \text{övre} \\ \text{röd} & \text{annars} \end{cases}
 $$
 
-Gul och röd visar ▼ (`high`) eller ▲ (`low`) i rubrikraden. Jämförelsen görs på PLC-värdet $x$, inte på det avrundade.
+Gul och röd visar ▼ (`high`) eller ▲ (`low`) i rubrikraden. $x$ är värdet **avrundat till $d$ decimaler**, som det visas.
 
-**Exempel:** `OEE` = 82,4 med `thresholds: [75, 85]` → gul `82,4 %` och ▼.
+**Exempel:** `OEE` = 82,4 med `thresholds: [75, 85]` → gul `82,4 %` och ▼. `OEE` = 84,96 visas `85,0 %` och är grön.
 
 ### Trend (`trend: true`)
 
@@ -406,23 +430,21 @@ Följande finns i `GET /api/oee` men visas inte längre på TV:n (borttagna i PR
 | `stops.mtbf_s` | $t_\text{kör} / n_\text{stopp}$ (saknas om 0 stopp) |
 | `stops.mttr_s` | $t_\text{stopp} / n_\text{stopp}$ (saknas om 0 stopp) |
 | `speed.pct` | $\texttt{TPM} / R \cdot 100$ |
-| `target.progress_pct` | $G / M_\text{skift} \cdot 100$ (inte kapad vid 100) |
-| `hourly[].good` | ökning av $G$-taggen under varje klocktimme (minskning = nollställd räknare, då räknas det nya värdet) |
+| `target.progress_pct` | $G / M_\text{skift} \cdot 100$ (inte kapad vid 100; saknas utan `ShiftTarget`) |
+| `target.source` | `ShiftTarget`, eller saknas |
+| `oee_target` | $O$ och källa (`OeeTarget` eller `default`) |
+| `hourly[].good` | ökning av `GoodCount` (annars `ProductionCount`, då inklusive kassation) under varje klocktimme (minskning = nollställd räknare, då räknas det nya värdet) |
 | `counts.good_source` | `GoodCount` eller `ProductionCount` |
 
 ## Att känna till
 
 - **Två olika OEE.** OEE på grid-skärmen (`OEE`-taggen) räknas i PLC:n. OEE på OEE-skärmen räknas i backend enligt formlerna
   ovan. De kan visa olika värden.
-- **"PÅ MÅL" i Produktion kräver i praktiken 100 % OEE**, eftersom *Mål hittills* är nominell takt × förfluten tid. Vid
-  realistiska 80–85 % visar rutan alltid "▼ UNDER MÅL" och *Prognos* ligger alltid under *Skiftmål*.
-- **OEE-rutans "PÅ MÅL" kräver 85 %**: 80–84,9 % är gult och "▼ UNDER MÅL".
-- **Färg mot oavrundat värde:** OEE 84,96 % visas som `85,0 %` men är gult/"UNDER MÅL"; kassation 2,04 % visas som `2,0 %`
-  men är gul. Samma på grid-skärmar med `thresholds`.
-- **Utan `RejectCount`** (tomt nod-id i exempelfilen idag) visar Kvalitet 100,0 % och Kassation `–`.
-- **`ProductionCount` som reserv för `GoodCount`:** om `RejectCount` kopplas in men inte `GoodCount` blir $N$ =
-  `ProductionCount` + `RejectCount`. Räknar `ProductionCount` redan med kasserade pannor räknas de två gånger.
+- **Målen kommer från PLC:n.** `ShiftTarget` och `OeeTarget` är tomma (TODO(PLC)) i exempelfilen: tills de kopplas visar
+  Mål hittills/Skiftmål `–`, Produktion har ingen PÅ/UNDER MÅL-text och OEE-målet är 85 %.
+- **Utan `RejectCount`** (tomt nod-id i exempelfilen idag) visar Kvalitet, OEE och Kassation `–`.
+- **`ProductionCount` antas innehålla kassationen.** Om den i PLC:n bara räknar godkända blir $G$ för lågt med `RejectCount`
+  kopplad – koppla då `GoodCount` i stället.
 - **Inga planerade raster:** hela den förflutna skifttiden är planerad tid, så raster sänker Tillgänglighet och OEE.
-- **Skiftmönster för skift som inte börjar på hel timme:** 06:30–14:30 visar "9 timmars skift" och etiketterna 06:00–15:00.
 - **Skifttider i Skift kvar** visas i webbläsarens tidszon, skiftfönstret räknas i `TIMEZONE`. Ställ in samma zon på båda.
 - **Trend efter nollställning:** när en räknare nollställs vid skiftbyte visar trenden en stor ▼ (röd för `better: high`).

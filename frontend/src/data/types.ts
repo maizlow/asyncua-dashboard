@@ -12,7 +12,12 @@ export interface Alarm {
 }
 
 export interface ShiftPatternRow {
+  /** "HH:MM" local start of the bucket (buckets are aligned to the shift start) */
   time: string;
+  /** "HH:MM" local end of the bucket */
+  end?: string;
+  /** Bucket length in minutes (60, or less for a final partial hour) */
+  minutes?: number;
   running: number;
   stopped: number;
 }
@@ -20,6 +25,8 @@ export interface ShiftPatternRow {
 /** OEE breakdown pushed by the backend (backend/opc/oee.py). Fractions are 0..1. */
 export interface OeeDetails {
   nominal_tpm: number;
+  /** OEE goal in % (PLC tag OeeTarget, default 85) */
+  oee_target?: { value: number; source: "OeeTarget" | "default" };
   counts: {
     good: number | null;
     reject: number | null;
@@ -36,8 +43,10 @@ export interface OeeDetails {
     remaining_s: number;
   } | null;
   target: {
-    so_far: number;
-    shift: number;
+    /** null when the PLC tag ShiftTarget has no value */
+    so_far: number | null;
+    shift: number | null;
+    source?: "ShiftTarget" | null;
     prognosis: number | null;
     progress_pct: number | null;
   } | null;

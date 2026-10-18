@@ -116,10 +116,10 @@ async def test_shift_pattern_overnight_is_chronological_and_capped_at_now(db):
     rows = await sl.get_shift_pattern(start, end, now=local(2026, 6, 11, 1, 30))
     assert [r["time"] for r in rows] == ["22:00", "23:00", "00:00", "01:00", "02:00", "03:00", "04:00", "05:00"]
     by_time = {r["time"]: r for r in rows}
-    assert by_time["22:00"] == {"time": "22:00", "running": 60.0, "stopped": 0.0}
-    assert by_time["23:00"] == {"time": "23:00", "running": 30.0, "stopped": 30.0}
-    assert by_time["00:00"] == {"time": "00:00", "running": 45.0, "stopped": 15.0}
-    assert by_time["01:00"] == {"time": "01:00", "running": 30.0, "stopped": 0.0}  # only up to now
+    assert by_time["22:00"] == {"time": "22:00", "end": "23:00", "minutes": 60.0, "running": 60.0, "stopped": 0.0}
+    assert by_time["23:00"] == {"time": "23:00", "end": "00:00", "minutes": 60.0, "running": 30.0, "stopped": 30.0}
+    assert by_time["00:00"] == {"time": "00:00", "end": "01:00", "minutes": 60.0, "running": 45.0, "stopped": 15.0}
+    assert by_time["01:00"] == {"time": "01:00", "end": "02:00", "minutes": 60.0, "running": 30.0, "stopped": 0.0}
     assert all(r["running"] == r["stopped"] == 0 for r in rows[4:])  # future not counted
 
 
@@ -152,3 +152,31 @@ async def test_get_current_shift_window_uses_plc_values(db, monkeypatch):
     monkeypatch.setattr(data_store, "_data", {})
     with pytest.raises(RuntimeError):
         await sl.get_current_shift_window()
+
+
+async def test_shift_pattern_buckets_follow_a_half_hour_shift_start(db):
+    """06:30-14:30 is 8 buckets 06:30..13:30 (not 9 clock hours 06:00..14:00)."""
+    sl = await _logger(db)
+    start, end = local(2026, 6, 10, 6, 30), local(2026, 6, 10, 14, 30)
+    sl.log_state_change("Running", ts=start)
+    sl.log_state_change("Stopped", ts=local(2026, 6, 10, 7, 0))
+    sl.log_state_change("Running", ts=local(2026, 6, 10, 7, 10))
+    db.flush()
+    rows = await sl.get_shift_pattern(start, end, now=end)
+    assert len(rows) == 8
+    assert rows[0] == {"time": "06:30", "end": "07:30", "minutes": 60.0, "running": 50.0, "stopped": 10.0}
+    assert rows[-1]["time"] == "13:30" and rows[-1]["end"] == "14:30"
+    assert sum(r["minutes"] for r in rows) == 8 * 60
+    assert sum(r["running"] + r["stopped"] for r in rows) == pytest.approx(8 * 60)
+
+
+async def test_shift_pattern_partial_last_bucket(db):
+    """An 8.5 h shift ends with a 30-minute bucket; nothing outside the shift is counted."""
+    sl = await _logger(db)
+    start, end = local(2026, 6, 10, 6), local(2026, 6, 10, 14, 30)
+    sl.log_state_change("Running", ts=local(2026, 6, 10, 5))
+    db.flush()
+    rows = await sl.get_shift_pattern(start, end, now=local(2026, 6, 10, 16))
+    assert len(rows) == 9
+    assert rows[-1] == {"time": "14:00", "end": "14:30", "minutes": 30.0, "running": 30.0, "stopped": 0.0}
+    assert sum(r["minutes"] for r in rows) == 510

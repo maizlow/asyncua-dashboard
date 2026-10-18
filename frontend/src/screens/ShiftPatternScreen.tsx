@@ -1,12 +1,16 @@
 import { AreaChart, Area, XAxis, YAxis, ResponsiveContainer, CartesianGrid } from 'recharts';
 import { useMetricsStore } from "@/stores/useMetricsStore";
+import { shiftHoursLabel } from "@/lib/status";
 
 export function ShiftPatternScreen() {
   // Prefetched by ScreenManager and kept live by shift_pattern_data messages (useDataFeed)
   const shiftData = useMetricsStore((s) => s.shiftPattern) ?? [];
   const firstLabel = shiftData[0]?.time ?? "";
-  const lastHour = shiftData.length ? Number(shiftData[shiftData.length - 1].time.slice(0, 2)) : NaN;
-  const endLabel = Number.isFinite(lastHour) ? `${String((lastHour + 1) % 24).padStart(2, "0")}:00` : "";
+  // Buckets are aligned to the shift start (06:30, 07:30, ...); the last one may be shorter
+  const last = shiftData[shiftData.length - 1];
+  const lastHour = last ? Number(last.time.slice(0, 2)) : NaN;
+  const endLabel = last?.end ?? (Number.isFinite(lastHour) ? `${String((lastHour + 1) % 24).padStart(2, "0")}:00` : "");
+  const shiftMinutes = shiftData.reduce((sum, r) => sum + (r.minutes ?? 60), 0);
 
   return (
     <div data-fit className="flex flex-col h-full min-h-0 bg-zinc-950 text-white overflow-hidden">
@@ -15,7 +19,7 @@ export function ShiftPatternScreen() {
           <h1 className="text-[150px] leading-none font-bold tracking-tight">Skiftmönster</h1>
           <p className="text-[110px] text-zinc-300 mt-10 tv-truncate">
             Körtid <span className="text-[#22c55e]">■</span> vs stopptid <span className="text-[#ef4444]">■</span>
-            {shiftData.length > 0 && ` – ${shiftData.length} timmars skift`}
+            {shiftData.length > 0 && ` – ${shiftHoursLabel(shiftMinutes)} timmars skift`}
           </p>
         </div>
 

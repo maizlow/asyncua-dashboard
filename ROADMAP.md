@@ -65,6 +65,14 @@ Lägg till nya punkter som checklistor under rätt rubrik och flytta dem till **
 - [x] [docs/BERAKNINGAR.md](docs/BERAKNINGAR.md): formel (LaTeX), taggar, inställningar, avrundning, specialfall och räkneexempel för alla beräknade värden (OEE, A/P/Q, mål hittills, skiftmål, prognos, kassation, stopp, skift kvar, skiftmönster, trend, gränsvärdesfärger, PÅ MÅL/UNDER MÅL)
 - [x] Länkad från README och CONFIG.md
 
+### Mål från PLC:n och rättade beräkningar ([PR #11](https://github.com/maizlow/asyncua-dashboard/pull/11))
+- [x] Skiftmål från PLC-taggen `ShiftTarget` (Mål hittills = pro rata); utan taggen visas `–` och inget PÅ/UNDER MÅL (ingen reserv med nominell takt)
+- [x] OEE-mål från PLC-taggen `OeeTarget` (%, 85 om tom) i stället för hårdkodade 85 %
+- [x] Kvalitet (och OEE) visar `–` utan `RejectCount`; ingen dubbelräkning av kassation när `ProductionCount` används (godkända = `ProductionCount` − `RejectCount`)
+- [x] Färger och PÅ/UNDER MÅL följer det avrundade, visade värdet
+- [x] Skiftmönstret räknar timmar från skiftstart: rätt längd och etiketter för t.ex. 06:30–14:30 och 8,5 h-skift
+- [x] Rättade CONFIG.md/schema/kommentarer (krävda/reserverade taggar, `decimals` för `counter`, `thresholds`); demo med skiftmål 140 × 0,85 st/min
+
 ## Nästa
 
 ### Docker för drift på Fitlet3 (Linux, x86-64)
@@ -75,7 +83,7 @@ Lägg till nya punkter som checklistor under rätt rubrik och flytta dem till **
 - [ ] Ev. kioskläge i webbläsaren vid uppstart
 
 ## Planerat
-- [ ] Koppla nya OEE-taggar till riktiga nod-id i PLC:n (`GoodCount`, `RejectCount` i `dashboard.yaml`)
+- [ ] Koppla nya OEE-taggar till riktiga nod-id i PLC:n (`GoodCount`, `RejectCount`, `ShiftTarget`, `OeeTarget` i `dashboard.yaml`)
 - [ ] Planerade raster/stopp i tillgänglighetsberäkningen (idag = hela förflutna skifttiden)
 - [ ] Flytta hårdkodade värden till konfig:
   - [ ] `ProductionState == 2` = kör

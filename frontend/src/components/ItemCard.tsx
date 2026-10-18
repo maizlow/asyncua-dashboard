@@ -3,6 +3,7 @@ import type { MetricValue } from "@/data/types";
 import { COLOR_VAR, type ItemConfig } from "@/layout/layout";
 import { DASH, fmtFixed, itemDecimals } from "@/lib/format";
 import { isValidNumber } from "@/lib/utils";
+import { thresholdStatus, type Status } from "@/lib/status";
 
 // One tile of a grid screen, configured in dashboard.yaml (see docs/CONFIG.md).
 // Laid out for the 3840x2160 canvas (see ScaledCanvas), read from 8-10 m on a 65" TV:
@@ -15,15 +16,6 @@ const STATUS_PX = 200;
 // Floor for the fit-shrink: 120 px mono = 40 px cap height at 1080p, still above the 37 px minimum.
 // Only reached by extreme combinations (docs/examples/stress.yaml); normal values keep 290 px.
 const MIN_HERO_PX = 120;
-
-type Status = "good" | "warn" | "bad";
-
-function thresholdStatus(item: ItemConfig, v: number): Status | null {
-  if (!item.thresholds) return null;
-  const [a, b] = item.thresholds;
-  if (item.better === "low") return v <= a ? "good" : v <= b ? "warn" : "bad";
-  return v >= b ? "good" : v >= a ? "warn" : "bad";
-}
 
 const STATUS_COLOR: Record<Status, string> = { good: COLOR_VAR.green, warn: COLOR_VAR.amber, bad: COLOR_VAR.red };
 
@@ -77,7 +69,7 @@ export function ItemCard({ item, value, history, targetValue }: ItemCardProps) {
     text = String(value);
   } else {
     text = fmtFixed(numeric, decimals);
-    status = thresholdStatus(item, numeric);
+    status = thresholdStatus(numeric, item.thresholds, item.better, decimals); // on the shown (rounded) value
     if (status) color = STATUS_COLOR[status];
   }
   // Non-colour cue: ▼ = below target (higher is better), ▲ = above limit (lower is better)

@@ -33,7 +33,8 @@ MAX_LABEL = 20
 MAX_UNIT = 6
 MAX_STATE_TEXT = 10
 
-# Tags the built-in screens read by name
+# Tags the built-in screens read by name (required for those screen types). Optional reserved tags,
+# read by name when present: GoodCount, ProductionCount, RejectCount, ShiftTarget, OeeTarget (docs/BERAKNINGAR.md)
 SHIFT_TAGS = ("ShiftStart", "ShiftEnd", "ProductionState")
 OEE_TAGS = (*SHIFT_TAGS, "TPM")
 
@@ -64,11 +65,11 @@ class Item(_Strict):
     label: str = Field(..., min_length=1, max_length=MAX_LABEL, description="Rubrik (svenska)")
     tag: str = Field(..., description="Name of a tag under `tags`")
     unit: str | None = Field(None, max_length=MAX_UNIT, description='Enhet, e.g. "st". percent defaults to "%"')
-    decimals: int | None = Field(None, ge=0, le=3, description="Fixed decimals, shown with decimal comma even when 0 (82,0). Default: percent 1, counter 0, number 1 once the tag delivers a decimal value, else 0")
+    decimals: int | None = Field(None, ge=0, le=3, description="Fixed decimals, shown with decimal comma even when 0 (82,0). Default: percent 1, number 1 once the tag delivers a decimal value, else 0. Ignored for counter (always 0)")
     target: str | float | None = Field(None, description="Mål: a tag name or a fixed number; shows Mål + progress bar")
     trend: bool = Field(False, description="Show the latest change as a large ▲/▼ value")
     color: Color | None = Field(None, description="Fixed value colour (ignored when thresholds are set)")
-    thresholds: list[float] | None = Field(None, min_length=2, max_length=2, description="[lower, upper]. better high: >= upper green, >= lower amber, else red (+ ▼). better low: <= lower green, <= upper amber, else red (+ ▲)")
+    thresholds: list[float] | None = Field(None, min_length=2, max_length=2, description="[lower, upper], compared with the value as displayed (rounded to its decimals). better high: >= upper green, >= lower amber, else red (+ ▼). better low: <= lower green, <= upper amber, else red (+ ▲)")
     better: Literal["high", "low"] = Field("high", description="high: higher is better (OEE); low: lower is better (kassation)")
     states: dict[int, State] | None = Field(None, description="status: PLC value -> text + colour")
 
