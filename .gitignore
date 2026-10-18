@@ -1,6 +1,12 @@
 .env
+.env.*
+!.env.example
 
 certificates/
+*.pem
+*.key
+*.der
+*.pfx
 __pycache__
 data.db
 
