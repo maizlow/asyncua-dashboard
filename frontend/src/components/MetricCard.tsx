@@ -86,11 +86,10 @@ export function MetricCard({
         {/* Target + progress */}
         {target !== undefined && (
           <div className="shrink-0 pb-6">
-            <div className="flex items-baseline justify-between gap-10 leading-none whitespace-nowrap">
-              <span className="text-[110px] text-zinc-300">Mål</span>
-              <span className="text-[140px] font-mono font-semibold text-zinc-200 tabular-nums">
-                {target}
-              </span>
+            {/* Label above the value so a 6-digit hero (999999 st) + 6-digit target still fit the card */}
+            <div className="text-[110px] text-zinc-300 leading-none">Mål</div>
+            <div className="text-[140px] font-mono font-semibold text-zinc-200 tabular-nums leading-none whitespace-nowrap mt-4">
+              {target}
             </div>
             {progress !== null && (
               <div className="h-14 bg-zinc-800 rounded-full mt-8 overflow-hidden">

@@ -1,12 +1,12 @@
 // Fit check for the TV screens: no screen may ever overflow or scroll, in X or Y.
 //
 // Loads the demo build at several TV resolutions, pins each screen (?screen=1..4, plus the alarm
-// screen with many very long alarms: ?alarms=many) and asserts that
+// screen with many very long alarms: ?alarms=many, and 6-digit counts: ?count=999999) and asserts that
 //   1. the document never scrolls (scrollWidth/Height <= clientWidth/Height on html and body),
 //   2. every element inside the 3840x2160 canvas stays within the canvas bounds,
 //   3. no clipping element (overflow != visible) inside the canvas has hidden content
 //      (scrollWidth/Height > clientWidth/Height), except intentional clamps: text-overflow: ellipsis
-//      (X) or -webkit-line-clamp (Y), which are reported, not failed.
+//      (X) or -webkit-line-clamp (Y), which are reported, not failed - on the alarm screen only.
 //
 // Usage: build the demo (VITE_DEMO=true npm run build), serve it (npx vite preview --port 4173),
 // then: CHROME=/usr/bin/google-chrome BASE_URL=http://localhost:4173/ node scripts/check-fit.mjs
@@ -24,12 +24,18 @@ const SIZES = [
   [2560, 1080],
   [3840, 2160],
 ];
+// [name, query, clamping allowed?] Only alarm texts may be ellipsized; on the other screens a
+// clamped label or number means the layout is too tight and fails the check.
 const CASES = [
-  ["alarm", "screen=1"],
-  ["alarm-many", "screen=1&alarms=many"],
+  ["alarm", "screen=1", true],
+  ["alarm-many", "screen=1&alarms=many", true],
   ["dashboard", "screen=2"],
   ["shift", "screen=3"],
   ["oee", "screen=4"],
+  // 6-digit counts (production, good count, targets, prognosis) must fit too
+  ["dashboard-6digit", "screen=2&count=999999"],
+  // ... together with a stopped line and a 3-digit stop count (worst case for the Stopp tile)
+  ["oee-6digit", "screen=4&count=999999&stopped=1"],
 ];
 // Screen switch = 2 s fade out + 3 s fade in
 const SETTLE_MS = Number(process.env.SETTLE_MS ?? 5600);
@@ -48,7 +54,7 @@ try {
     page.on("pageerror", (e) => errors.push(String(e)));
     page.on("console", (m) => m.type() === "error" && errors.push(m.text()));
     await page.setViewport({ width: w, height: h, deviceScaleFactor: 1 });
-    for (const [name, query] of CASES) {
+    for (const [name, query, allowClamp = false] of CASES) {
       await page.goto(`${BASE_URL}?${query}`, { waitUntil: "networkidle0" });
       await new Promise((r) => setTimeout(r, SETTLE_MS));
       const r = await page.evaluate(() => {
@@ -91,6 +97,7 @@ try {
         return { problems, clamped, count: els.length };
       });
       if (SHOT_DIR) await page.screenshot({ path: `${SHOT_DIR}/${name}-${w}x${h}.png` });
+      if (!allowClamp) r.problems.push(...r.clamped.map((c) => `not allowed on this screen: ${c}`));
       const ok = r.problems.length === 0;
       if (!ok) failures++;
       console.log(`${ok ? "PASS" : "FAIL"} ${name} ${w}x${h} (${r.count} elements, ${r.clamped.length} clamped)`);

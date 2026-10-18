@@ -5,7 +5,8 @@ import { DASH, fmtClock, fmtDec1, fmtHM, fmtInt, fmtMinutes, fmtPct } from "@/li
 
 // Laid out for the 3840x2160 canvas (see ScaledCanvas). Display-only, read from 8-10 m on a 65" TV:
 // hero values 290 px mono (>= 180 px cap on the canvas = >= 90 px at 1080p), key values 220 px,
-// secondary values 140 px, labels >= 104 px (>= ~37 px cap at 1080p). Fixed grid rows, no growth.
+// secondary values 130-140 px (three 6-digit targets fit side by side), labels >= 104 px
+// (>= ~37 px cap at 1080p). Fixed grid rows, no growth.
 // Status is never colour-only: ▼ = under target / ▲ = over limit, plus words such as "UNDER MÅL".
 
 const GREEN = "var(--accent-green)";
@@ -100,7 +101,7 @@ function Stat({ label, value, color }: { label: string; value: string; color?: s
     <div className="min-w-0">
       <div className="text-[110px] text-zinc-300 leading-none whitespace-nowrap">{label}</div>
       <div
-        className="text-[140px] font-mono font-bold mt-5 leading-none whitespace-nowrap tabular-nums"
+        className="text-[130px] font-mono font-bold tracking-[-2px] mt-5 leading-none whitespace-nowrap tabular-nums"
         style={color ? { color } : undefined}
       >
         {value}
@@ -119,9 +120,10 @@ function ProductionCard({ d }: { d: OeeDetails | null }) {
 
   return (
     <Card title="Produktion" aside={<TargetStatus ok={onTarget} />}>
-      <div className="flex items-baseline gap-8 leading-none whitespace-nowrap min-w-0">
-        <span className="text-[290px] font-mono font-bold tracking-[-6px] tabular-nums">{fmtInt(good)}</span>
-        <span className="text-[110px] text-zinc-300 tv-truncate">st godkända</span>
+      {/* Sized so "999 999 st godkända" fits even with wider fallback fonts (e.g. DejaVu Sans) */}
+      <div className="flex items-baseline gap-5 leading-none whitespace-nowrap min-w-0">
+        <span className="text-[290px] font-mono font-bold tracking-[-8px] tabular-nums">{fmtInt(good)}</span>
+        <span className="text-[104px] text-zinc-300 tv-truncate">st godkända</span>
       </div>
 
       {/* Progress vs shift target, marker = target so far */}
@@ -144,14 +146,13 @@ function ProductionCard({ d }: { d: OeeDetails | null }) {
   );
 }
 
-function BigValue({ value, unit, color, extra }: { value: string; unit?: string; color?: string; extra?: ReactNode }) {
+function BigValue({ value, unit, color }: { value: string; unit?: string; color?: string }) {
   return (
     <div className="flex items-baseline leading-none whitespace-nowrap min-w-0">
       <span className="text-[220px] font-mono font-bold tracking-[-4px] tabular-nums" style={color ? { color } : undefined}>
         {value}
       </span>
       {unit && <span className="text-[110px] text-zinc-300 ml-6">{unit}</span>}
-      {extra}
     </div>
   );
 }
@@ -194,13 +195,9 @@ export function OeeScreen() {
             </span>
           </SubLine>
         </Card>
-        <Card title="Stopp">
-          <BigValue
-            value={stops ? fmtInt(stops.count) : DASH}
-            unit="st"
-            color={stopped ? RED : undefined}
-            extra={stopped ? <span className="text-[110px] font-bold ml-10" style={{ color: RED }}>■ STÅR</span> : undefined}
-          />
+        {/* "STÅR" in the title row (not next to the value) so 2-3 digit stop counts still fit */}
+        <Card title="Stopp" aside={stopped ? <span style={{ color: RED }}>STÅR</span> : undefined}>
+          <BigValue value={stops ? fmtInt(stops.count) : DASH} unit="st" color={stopped ? RED : undefined} />
           <SubLine>
             <span className="text-zinc-100">{fmtMinutes(stops?.total_s ?? null)}</span> totalt
           </SubLine>
