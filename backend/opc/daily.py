@@ -18,6 +18,12 @@ Per day (formulas in docs/BERAKNINGAR.md):
 - target: ShiftTarget (last logged value of each shift) x (planned part / shift length).
 - has_data: any logged row (data_points or shift_log) inside the day; otherwise every value is None.
 
+Since the shift log (table ``shifts``, backend/opc/shifts.py) exists, a day that the log fully
+covers is aggregated from the shift rows instead (``source: "shifts"``): every shift's raw totals are
+split at local midnight by time share and A, P, Q, OEE are recomputed from the sums. Days that began
+before the shift log started recording (meta ``shift_log_since``) keep the method above
+(``source: "raw"``).
+
 Past days are final and cached; only today is recomputed on each refresh (HISTORY_INTERVAL_S).
 """
 
@@ -162,8 +168,11 @@ def _has_rows(conn: sqlite3.Connection, start: datetime, end: datetime) -> bool:
 class DailyHistory:
     """Computes and caches the per-day aggregates. Past days are cached, today is refreshed."""
 
-    def __init__(self, data_logger, shift_logger, nominal_tpm: float, retention_days: int | None = None):
+    def __init__(
+        self, data_logger, shift_logger, nominal_tpm: float, retention_days: int | None = None, shift_store=None
+    ):
         self.data_logger = data_logger
+        self.shift_store = shift_store
         self.shift_logger = shift_logger
         self.nominal_tpm = nominal_tpm
         self.retention_days = retention_days
@@ -176,14 +185,20 @@ class DailyHistory:
         tz = self.shift_logger.tz
         windows = day_windows(n, now, tz)
         shift_times = await self._shift_times(data_store)
+        log_since = await self.shift_store.log_since() if self.shift_store is not None else None
         days = []
         for d, start, end in windows:
             final = end <= now - timedelta(seconds=FINAL_AFTER_S)
-            key = (d, shift_times, self.nominal_tpm)
+            use_shifts = log_since is not None and log_since <= start
+            key = (d, shift_times, self.nominal_tpm, use_shifts)
             if final and key in self._past:
                 days.append({**self._past[key], "today": False})
                 continue
-            row = await self._compute_day(d, start, end, now, tz, shift_times)
+            if use_shifts:
+                row, closed = await self._compute_day_from_shifts(d, start, end, now)
+                final = final and closed
+            else:
+                row = await self._compute_day(d, start, end, now, tz, shift_times)
             if final:
                 self._past[key] = row
             days.append(row)
@@ -229,6 +244,7 @@ class DailyHistory:
             "start": start.isoformat(),
             "end": end.isoformat(),
             "today": False,
+            "source": "raw",
             "has_data": False,
             "good": None,
             "reject": None,
@@ -238,6 +254,9 @@ class DailyHistory:
             "run_s": None,
             "stop_s": None,
             "target": None,
+            "oee_target": None,
+            "teams": [],
+            "shifts": None,
             "oee": {"availability": None, "performance": None, "quality": None, "oee": None},
         }
         if horizon <= start:
@@ -297,6 +316,25 @@ class DailyHistory:
         return row
 
 
+    async def _compute_day_from_shifts(self, d, start, end, now) -> tuple[dict, bool]:
+        """Day row from the shift log; returns (row, every overlapping shift closed)."""
+        from backend.opc.shifts import aggregate_shifts, shift_shares
+
+        rows = await self.shift_store.between(start, end)
+        rows = [r for r in rows if shift_shares(r, start, end, now)[0] > 0]
+        agg = aggregate_shifts(rows, start, end, now, self.nominal_tpm)
+        row = {
+            "date": d.isoformat(),
+            "weekday": d.weekday(),
+            "start": start.isoformat(),
+            "end": end.isoformat(),
+            "today": False,
+            "source": "shifts",
+            **agg,
+        }
+        return row, all(r["status"] == "closed" for r in rows)
+
+
 _instance: DailyHistory | None = None
 
 
@@ -306,7 +344,10 @@ def get_daily_history() -> DailyHistory:
     if _instance is None:
         from backend.opc.data_logger import data_logger
         from backend.opc.shift_logger import shift_logger
+        from backend.opc.shifts import get_shift_store
         from backend.settings import settings
 
-        _instance = DailyHistory(data_logger, shift_logger, settings.nominal_rate_tpm, settings.retention_days)
+        _instance = DailyHistory(
+            data_logger, shift_logger, settings.nominal_rate_tpm, settings.retention_days, get_shift_store()
+        )
     return _instance

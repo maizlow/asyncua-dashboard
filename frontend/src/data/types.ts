@@ -41,6 +41,12 @@ export interface OeeDetails {
     duration_s: number;
     elapsed_s: number;
     remaining_s: number;
+    /** Planned production time so far: PlannedTime pro rata, else elapsed */
+    planned_s?: number;
+    planned_shift_s?: number;
+    planned_source?: "PlannedTime" | "schedule";
+    /** PLC tag ShiftTeam (null when empty) */
+    team?: string | null;
   } | null;
   target: {
     /** null when the PLC tag ShiftTarget has no value */
@@ -88,6 +94,14 @@ export interface DailyRow {
   stop_s: number | null;
   /** Day target from ShiftTarget (today: up to now); null without ShiftTarget */
   target: number | null;
+  /** "shifts" = aggregated from the shift log, "raw" = from the raw history (days before the log) */
+  source?: "shifts" | "raw";
+  /** Planned-time-weighted mean of the shifts' OeeTarget (shift log only) */
+  oee_target?: number | null;
+  /** Shift teams that worked this day (shift log only) */
+  teams?: string[];
+  shifts?: number | null;
+  stop_count?: number | null;
   oee: { availability: number | null; performance: number | null; quality: number | null; oee: number | null };
 }
 

@@ -30,6 +30,7 @@ async def lifespan(app: FastAPI):
         asyncio.create_task(start_periodic_retention(), name="periodic-retention"),
         asyncio.create_task(start_periodic_oee(), name="periodic-oee"),
         asyncio.create_task(start_periodic_daily_history(), name="periodic-daily-history"),
+        asyncio.create_task(start_shift_tracker(), name="shift-tracker"),
     ]
     logger.info("Background tasks started (snapshot every %d ms)", settings.snapshot_interval_ms)
 
@@ -125,6 +126,19 @@ async def start_periodic_daily_history():
         await asyncio.sleep(max(10.0, settings.history_interval_s))
 
 
+async def start_shift_tracker():
+    """Per-shift log (table shifts): boundary detection + settle window, about once a second."""
+    from backend.opc.shifts import get_shift_tracker
+
+    tracker = get_shift_tracker()
+    while True:
+        try:
+            await tracker.tick()
+        except Exception:
+            logger.exception("Shift tracker tick failed")
+        await asyncio.sleep(1.0)
+
+
 async def start_periodic_retention():
     """Delete data_points older than RETENTION_DAYS (once at startup, then periodically)."""
     while True:
@@ -138,9 +152,16 @@ async def start_periodic_retention():
 def wire_store_callbacks() -> None:
     """Connect store changes (fired on the OPC thread) to logging and WebSocket broadcast."""
 
+    from backend.opc.shifts import get_shift_tracker
+
+    tracker = get_shift_tracker()
+
     def on_production_state_change(key, value):
         if key == "ProductionState":
             shift_logger.log_state_change("Running" if value == 2 else "Stopped")
+
+    def on_shift_tag_change(key, value):
+        tracker.on_value(key, value)  # cheap; decisions happen in start_shift_tracker()
 
     def broadcast_alarm_added(alarm_id, alarm):
         broadcaster.publish({"type": "alarm_added", "alarm_id": alarm_id, "alarm": alarm})
@@ -149,6 +170,7 @@ def wire_store_callbacks() -> None:
         broadcaster.publish({"type": "alarm_removed", "alarm_id": alarm_id, "alarm": alarm})
 
     data_store.on_change(on_production_state_change)
+    data_store.on_change(on_shift_tag_change)
     alarm_store.on_add(broadcast_alarm_added)
     alarm_store.on_remove(broadcast_alarm_removed)
 
@@ -185,6 +207,9 @@ if __name__ == "__main__":
         # Initialize databases (shift log + metric history)
         asyncio.run(shift_logger.init_db())
         asyncio.run(data_logger.init_db())
+        from backend.opc.shifts import get_shift_store
+
+        asyncio.run(get_shift_store().init_db())
 
         wire_store_callbacks()
 

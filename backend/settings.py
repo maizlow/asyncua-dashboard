@@ -44,6 +44,10 @@ class Settings(BaseSettings):
     oee_interval_s: float = Field(default=5.0, alias="OEE_INTERVAL_S")
     # How often the 7-day history (screen type: week) is refreshed and pushed; past days are cached
     history_interval_s: float = Field(default=60.0, alias="HISTORY_INTERVAL_S")
+    # Shift log: wait this long after a shift boundary (ShiftStart change) before the new shift's
+    # parameters (ShiftTarget, OeeTarget, PlannedTime, ShiftTeam) are snapshotted; also the window in
+    # which a counter reset is matched to the boundary. See backend/opc/shifts.py
+    shift_settle_s: float = Field(default=10.0, alias="SHIFT_SETTLE_S")
 
     model_config = {
         "env_file": BASE_DIR / ".env",     # ← Force it to look in project root

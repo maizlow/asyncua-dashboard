@@ -68,6 +68,13 @@ OEE-beräkningen läser dem, så byt inte namn på dem:
 | `RejectCount` | OEE (kassation, kvalitet) | nej – utan den visar Kvalitet, OEE och Kassation `–` |
 | `ShiftTarget` | OEE: skiftmål i st för hela skiftet (Mål hittills räknas pro rata) | nej – utan den visar målen `–` och inget PÅ/UNDER MÅL |
 | `OeeTarget` | OEE: OEE-mål i % | nej – utan den gäller 85 % |
+| `PlannedTime` | OEE och skiftloggen: planerad tid i **minuter** för hela skiftet, exklusive raster | nej – utan den är hela skifttiden planerad |
+| `ShiftTeam` | Skiftloggen: skiftlag (text eller nummer) | nej – utan den visas `–` |
+
+`ShiftStart`, `ShiftEnd`, `ShiftTarget`, `OeeTarget`, `PlannedTime` och `ShiftTeam` beskriver **pågående** skift. Backend sparar en
+rad per skift (tabellen `shifts`, gallras inte) och hanterar att taggarna kommer i olika OPC-ramar: efter ett skiftbyte väntar den
+`SHIFT_SETTLE_S` sekunder (`.env`, standard 10) innan det nya skiftets värden sparas. Se
+[BERAKNINGAR.md → Skiftlogg](BERAKNINGAR.md#skiftlogg-tabellen-shifts).
 
 Övriga namn i exempelfilen (`TargetCount`, `ProductionDelta`, `OEE`, `CurrentRuntime`, `AccumulatedStoptime`) är vanliga taggar
 som bara används av objekten på Dashboard-skärmen; dem kan du byta namn på.
@@ -95,7 +102,7 @@ screens:
 | `alarms` | Aktiva larm från Program_Alarm (inga `items`). |
 | `shift` | Skiftmönstret (kräver taggarna `ShiftStart`, `ShiftEnd`, `ProductionState`). |
 | `oee` | OEE-skärmen (kräver dessutom `TPM` och en av taggarna `GoodCount`/`ProductionCount` under `tags`; saknar taggarna värde, liksom `RejectCount` och `ShiftTarget`, visar respektive värde `–`). |
-| `week` | Idag + 6 dagar bakåt från historiken i databasen: OEE %, godkända per dag och dagsmål (kräver `ShiftStart`, `ShiftEnd`, `ProductionState` och `GoodCount` eller `ProductionCount`). Formler: [BERAKNINGAR.md](BERAKNINGAR.md#skärm-7-dagar-type-week). |
+| `week` | Idag + 6 dagar bakåt från skiftloggen (dagar före skiftloggen: från historiken) i databasen: OEE %, godkända per dag och dagsmål (kräver `ShiftStart`, `ShiftEnd`, `ProductionState` och `GoodCount` eller `ProductionCount`). Formler: [BERAKNINGAR.md](BERAKNINGAR.md#skärm-7-dagar-type-week). |
 
 `title` är valfri (max 40 tecken) och är till för dig; grid-skärmar visar ingen rubrik.
 Okänt skärmnummer från PLC:n visar första grid-skärmen.

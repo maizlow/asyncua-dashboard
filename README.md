@@ -75,10 +75,10 @@ checks all screens at 1280×720, 1366×768, 1920×1080, 2560×1080 and 3840×216
 
 OEE values are computed in the backend (`backend/opc/oee.py`) and served at `GET /api/oee` and as `oee_details` WebSocket messages
 (every `OEE_INTERVAL_S`, default 5 s). The nominal rate is `NOMINAL_RATE_TPM` (default 140 tiles/min).
-A = run time / elapsed shift time, P = total / (run minutes × nominal) (both capped at 100 %), Q = good / total (unknown without `RejectCount`).
+A = run time / planned time so far (`PlannedTime` minutes excl. breaks, pro rata; else elapsed shift time), P = total / (run minutes × nominal) (both capped at 100 %), Q = good / total (unknown without `RejectCount`).
 Targets come from the PLC: `ShiftTarget` (whole-shift target, tiles; target so far = pro rata) and `OeeTarget` (%, default 85).
 Without `ShiftTarget` the targets show `–` – there is no fallback to the nominal rate.
-`GoodCount`, `RejectCount`, `ShiftTarget` and `OeeTarget` in `dashboard.yaml` are placeholders (empty node id) until the real PLC
+`GoodCount`, `RejectCount`, `ShiftTarget`, `OeeTarget`, `PlannedTime` and `ShiftTeam` in `dashboard.yaml` are placeholders (empty node id) until the real PLC
 node IDs are known; until then `ProductionCount` (assumed to include rejects) is used for the counts.
 All formulas, edge cases and worked examples: [docs/BERAKNINGAR.md](docs/BERAKNINGAR.md).
 
@@ -92,6 +92,11 @@ All formulas, edge cases and worked examples: [docs/BERAKNINGAR.md](docs/BERAKNI
 - **7-day screen (`type: week`):** `backend/opc/daily.py` aggregates per local calendar day (`TIMEZONE`, DST-aware, split at
   midnight) with SQL window functions; past days are cached and only today is recomputed every `HISTORY_INTERVAL_S` (default 60 s).
   Served at `GET /api/history/days?n=7` and pushed as `daily_history`. Formulas: [docs/BERAKNINGAR.md](docs/BERAKNINGAR.md#skärm-7-dagar-type-week).
+- **Shift log:** `backend/opc/shifts.py` persists one row per shift in the `shifts` table (never purged): parameters
+  (`ShiftTarget`, `OeeTarget`, `PlannedTime`, `ShiftTeam`), counter deltas, run/stop time. Shift changes are detected from
+  `ShiftStart` (or the clock for single-shift plants) and settle for `SHIFT_SETTLE_S` (default 10 s) because tags arrive in
+  different OPC frames. The 7-day screen aggregates over these rows (raw history for days before the log existed).
+  `GET /api/shifts?limit=20`. Design and formulas: [docs/BERAKNINGAR.md](docs/BERAKNINGAR.md#skiftlogg-tabellen-shifts).
 - **Shifts:** `ShiftStart`/`ShiftEnd` from the PLC are plant-local times, resolved in `TIMEZONE` (or the system local zone),
   DST-aware. Shifts crossing midnight (e.g. 22:00–06:00) are supported.
 - **Tests:** `pip install -r backend/requirements-dev.txt && python -m pytest`; frontend formatters: `cd frontend && npm test`

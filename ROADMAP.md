@@ -79,6 +79,14 @@ Lägg till nya punkter som checklistor under rätt rubrik och flytta dem till **
 - [x] Aggregering i SQLite (fönsterfunktioner), tidigare dagar cachas, idag räknas om var `HISTORY_INTERVAL_S`; `GET /api/history/days?n=7` och WebSocket `daily_history`
 - [x] Demo med simulerad vecka (OEE 80–86 %, kort lördag, söndag utan produktion), `check:fit` med 7-dagarsskärmen (även 6-siffriga antal och 100,0 %)
 
+### Skiftlogg och summering över skift ([PR #15](https://github.com/maizlow/asyncua-dashboard/pull/15))
+- [x] Tabellen `shifts`: en rad per skift (start/slut, lag, mål, OEE-mål, planerad tid, godkända/kassation/totalt, körtid, stopp, öppen/stängd); gallras inte
+- [x] Skiftbyte från `ShiftStart` (eller klockan vid samma starttid varje dag) med väntetid `SHIFT_SETTLE_S` för taggar som kommer i olika OPC-ramar; stängt skift behåller parametrarna från före bytet; räknare delas med ökningar vid nollställningen
+- [x] Omstart mitt i skiftet, fladdrande/bakåtgående `ShiftStart` och saknade taggar hanteras; tester med taggar i fel ordning
+- [x] Nya taggar `PlannedTime` (planerad tid exkl. raster, minuter) och `ShiftTeam`; OEE-skärmens tillgänglighet använder `PlannedTime`
+- [x] 7-dagarsskärmen summerar skiftloggen (nattskift delas vid midnatt efter tidsandel, OEE räknas om från summorna, OEE-mål viktat med planerad tid); äldre dagar som förut; `GET /api/shifts`
+- [x] Demo med 2–3 skift per dag och skiftlag A/B/C
+
 ## Nästa
 
 ### Docker för drift på Fitlet3 (Linux, x86-64)
@@ -89,8 +97,8 @@ Lägg till nya punkter som checklistor under rätt rubrik och flytta dem till **
 - [ ] Ev. kioskläge i webbläsaren vid uppstart
 
 ## Planerat
-- [ ] Koppla nya OEE-taggar till riktiga nod-id i PLC:n (`GoodCount`, `RejectCount`, `ShiftTarget`, `OeeTarget` i `dashboard.yaml`)
-- [ ] Planerade raster/stopp i tillgänglighetsberäkningen (idag = hela förflutna skifttiden)
+- [ ] Koppla nya OEE-taggar till riktiga nod-id i PLC:n (`GoodCount`, `RejectCount`, `ShiftTarget`, `OeeTarget`, `PlannedTime`, `ShiftTeam` i `dashboard.yaml`)
+- [ ] Raster på kända klockslag i tillgänglighetsberäkningen (idag `PlannedTime` pro rata, eller hela förflutna skifttiden)
 - [ ] Flytta hårdkodade värden till konfig:
   - [ ] `ProductionState == 2` = kör
   - [ ] CORS-lista
