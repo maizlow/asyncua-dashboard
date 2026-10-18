@@ -17,14 +17,17 @@ import type {
   ServerMessage,
   ShiftPatternRow,
 } from "./types";
+import { demoScreenOrder, normaliseLayout, type Layout } from "@/layout/layout";
+// Built from the same dashboard.yaml as the real installation (vite.config.ts: dashboard-yaml plugin)
+import dashboardYaml from "../../../dashboard.yaml";
+// ?layout=stress: worst-case layout (long labels/units, 6-digit/negative values) for the fit check
+import stressYaml from "../../../docs/examples/stress.yaml";
 
 const TICK_MS = 1000;
 const SNAPSHOT_EVERY_MS = 10_000;
 const SHIFT_PATTERN_EVERY_MS = 30_000;
 const OEE_EVERY_MS = 2_000;
 const SCREEN_CYCLE_MS = 15_000;
-/** Dashboard -> OEE -> Shift pattern -> Alarms */
-const SCREEN_ORDER = [2, 4, 3, 1];
 const HISTORY_POINTS = 150;
 
 const NOMINAL_TPM = 140;
@@ -236,8 +239,13 @@ export function createDemoDataSource(): DataSource {
   let started = false;
   let sim: LineSim;
 
+  const params = new URLSearchParams(window.location.search);
+  const layout: Layout = normaliseLayout(params.get("layout") === "stress" ? stressYaml : dashboardYaml);
+  /** Own grid screens -> OEE -> Shift pattern -> Alarms */
+  const SCREEN_ORDER = demoScreenOrder(layout);
+
   // Optional ?screen=N pins one screen (useful for screenshots); otherwise cycle
-  const pinned = Number(new URLSearchParams(window.location.search).get("screen"));
+  const pinned = Number(params.get("screen"));
   const pinnedScreen = SCREEN_ORDER.includes(pinned) ? pinned : null;
   let screenIndex = 0;
   const stressAlarms = new URLSearchParams(window.location.search).get("alarms") === "many";
@@ -268,7 +276,16 @@ export function createDemoDataSource(): DataSource {
 
   const emit = (msg: ServerMessage) => listeners.forEach((cb) => cb(msg));
 
-  const setMetric = (key: string, value: MetricValue, historical = false) => {
+  // Tags with a `demo:` value in the YAML override the built-in simulation
+  const demoOverrides = new Set(Object.entries(layout.tags).filter(([, t]) => t.demo !== undefined).map(([k]) => k));
+  const statusTags = new Map<string, number>();
+  for (const s of layout.screens)
+    for (const i of s.items)
+      if (i.type === "status" && i.states && !statusTags.has(i.tag)) statusTags.set(i.tag, Number(Object.keys(i.states)[0]));
+  const walk: Record<string, number> = {};
+
+  const setMetric = (key: string, value: MetricValue, historical = false, fromLayout = false) => {
+    if (!fromLayout && demoOverrides.has(key)) return;
     if (historical) histories[key] = [...(histories[key] ?? []), value].slice(-HISTORY_POINTS);
     if (metrics[key] === value) return;
     metrics[key] = value;
@@ -311,6 +328,34 @@ export function createDemoDataSource(): DataSource {
     setMetric("AccumulatedStoptime", hms(sim.stopS));
     setMetric("ShiftStart", hms(new Date(sim.startMs).getHours() * 3600));
     setMetric("ShiftEnd", hms(((new Date(sim.startMs).getHours() + SHIFT_HOURS) % 24) * 3600));
+    publishLayoutTags(historical);
+  };
+
+  /** Simulated values for YAML tags the line model doesn't know (and `demo:` overrides). */
+  const BUILT_IN = new Set(["TargetCount", "ProductionCount", "GoodCount", "RejectCount", "ProductionDelta",
+    "ProductionState", "OEE", "TPM", "CurrentRuntime", "AccumulatedStoptime", "ShiftStart", "ShiftEnd"]);
+  const publishLayoutTags = (historical: boolean) => {
+    for (const [name, tag] of Object.entries(layout.tags)) {
+      const demo = tag.demo;
+      if (typeof demo === "number") {
+        setMetric(name, tag.type === "time" ? hms(demo) : demo, historical, true);
+      } else if (Array.isArray(demo)) {
+        // Random walk inside [min, max], starting at max (widest value) so the fit check sees it
+        const [lo, hi] = demo;
+        const prev = walk[name] ?? hi;
+        const next = Math.min(hi, Math.max(lo, prev + (Math.random() - 0.5) * (hi - lo) * 0.04));
+        walk[name] = next;
+        setMetric(name, tag.type === "time" ? hms(next) : round(next, 1), historical, true);
+      } else if (!BUILT_IN.has(name) && !tag.placeholder) {
+        if (statusTags.has(name)) setMetric(name, statusTags.get(name)!, false, true);
+        else if (tag.type === "time") setMetric(name, hms(sim.elapsed), false, true);
+        else {
+          const prev = walk[name] ?? 50;
+          walk[name] = Math.min(100, Math.max(0, prev + (Math.random() - 0.5) * 4));
+          setMetric(name, round(walk[name], 1), historical, true);
+        }
+      }
+    }
   };
 
   const snapshot = (): ServerMessage => ({
@@ -394,6 +439,7 @@ export function createDemoDataSource(): DataSource {
     getAlarms: async () => [...alarms.values()],
     getShiftPattern: async () => sim.shiftPattern(),
     getOeeDetails: async () => details(),
+    getLayout: async () => layout,
     requestSnapshot: () => {
       setTimeout(() => emit(snapshot()), 0);
     },

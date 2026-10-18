@@ -1,0 +1,356 @@
+{
+  "$defs": {
+    "Item": {
+      "additionalProperties": false,
+      "description": "One tile on a grid screen.",
+      "properties": {
+        "type": {
+          "default": "number",
+          "enum": [
+            "number",
+            "percent",
+            "counter",
+            "time",
+            "status"
+          ],
+          "title": "Type",
+          "type": "string"
+        },
+        "label": {
+          "description": "Rubrik (svenska)",
+          "maxLength": 20,
+          "minLength": 1,
+          "title": "Label",
+          "type": "string"
+        },
+        "tag": {
+          "description": "Name of a tag under `tags`",
+          "title": "Tag",
+          "type": "string"
+        },
+        "unit": {
+          "anyOf": [
+            {
+              "maxLength": 6,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Enhet, e.g. \"st\". percent defaults to \"%\"",
+          "title": "Unit"
+        },
+        "decimals": {
+          "anyOf": [
+            {
+              "maximum": 3,
+              "minimum": 0,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Fixed decimals (default: as received)",
+          "title": "Decimals"
+        },
+        "target": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Mål: a tag name or a fixed number; shows Mål + progress bar",
+          "title": "Target"
+        },
+        "trend": {
+          "default": false,
+          "description": "Show the latest change as a large ▲/▼ value",
+          "title": "Trend",
+          "type": "boolean"
+        },
+        "color": {
+          "anyOf": [
+            {
+              "enum": [
+                "white",
+                "green",
+                "amber",
+                "red",
+                "grey"
+              ],
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Fixed value colour (ignored when thresholds are set)",
+          "title": "Color"
+        },
+        "thresholds": {
+          "anyOf": [
+            {
+              "items": {
+                "type": "number"
+              },
+              "maxItems": 2,
+              "minItems": 2,
+              "type": "array"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "[lower, upper]. better high: >= upper green, >= lower amber, else red (+ ▼). better low: <= lower green, <= upper amber, else red (+ ▲)",
+          "title": "Thresholds"
+        },
+        "better": {
+          "default": "high",
+          "description": "high: higher is better (OEE); low: lower is better (kassation)",
+          "enum": [
+            "high",
+            "low"
+          ],
+          "title": "Better",
+          "type": "string"
+        },
+        "states": {
+          "anyOf": [
+            {
+              "additionalProperties": {
+                "$ref": "#/$defs/State"
+              },
+              "type": "object"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "status: PLC value -> text + colour",
+          "title": "States"
+        }
+      },
+      "required": [
+        "label",
+        "tag"
+      ],
+      "title": "Item",
+      "type": "object"
+    },
+    "Opc": {
+      "additionalProperties": false,
+      "properties": {
+        "url": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "opc.tcp://... (OPC_ENDPOINT_URL in .env takes precedence)",
+          "title": "Url"
+        },
+        "alarms": {
+          "default": "",
+          "description": "Program_Alarm server object, e.g. ns=3;i=1815. Empty = no alarms",
+          "title": "Alarms",
+          "type": "string"
+        },
+        "screen": {
+          "$ref": "#/$defs/ScreenNodes"
+        }
+      },
+      "required": [
+        "screen"
+      ],
+      "title": "Opc",
+      "type": "object"
+    },
+    "Screen": {
+      "additionalProperties": false,
+      "properties": {
+        "type": {
+          "default": "grid",
+          "enum": [
+            "grid",
+            "alarms",
+            "shift",
+            "oee"
+          ],
+          "title": "Type",
+          "type": "string"
+        },
+        "title": {
+          "anyOf": [
+            {
+              "maxLength": 40,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Title"
+        },
+        "items": {
+          "items": {
+            "$ref": "#/$defs/Item"
+          },
+          "title": "Items",
+          "type": "array"
+        }
+      },
+      "title": "Screen",
+      "type": "object"
+    },
+    "ScreenNodes": {
+      "additionalProperties": false,
+      "properties": {
+        "active": {
+          "description": "ActiveScreenNr (written back by the backend)",
+          "minLength": 1,
+          "title": "Active",
+          "type": "string"
+        },
+        "requested": {
+          "description": "RequestedScreenNr (set by the PLC)",
+          "minLength": 1,
+          "title": "Requested",
+          "type": "string"
+        }
+      },
+      "required": [
+        "active",
+        "requested"
+      ],
+      "title": "ScreenNodes",
+      "type": "object"
+    },
+    "State": {
+      "additionalProperties": false,
+      "properties": {
+        "text": {
+          "maxLength": 10,
+          "minLength": 1,
+          "title": "Text",
+          "type": "string"
+        },
+        "color": {
+          "default": "white",
+          "enum": [
+            "white",
+            "green",
+            "amber",
+            "red",
+            "grey"
+          ],
+          "title": "Color",
+          "type": "string"
+        }
+      },
+      "required": [
+        "text"
+      ],
+      "title": "State",
+      "type": "object"
+    },
+    "TagSpec": {
+      "additionalProperties": false,
+      "description": "A PLC tag. Short form in YAML: `Name: 'ns=3;s=\"DB\".\"tag\"'`.",
+      "properties": {
+        "node": {
+          "default": "",
+          "description": "OPC UA node id, e.g. ns=3;s=\"DB Production TV\".\"dashboardData\".\"oee\". Empty = not configured yet (skipped).",
+          "title": "Node",
+          "type": "string"
+        },
+        "type": {
+          "default": "auto",
+          "description": "time = S7 Time_Of_Day (ms) shown as hh:mm:ss",
+          "enum": [
+            "auto",
+            "time"
+          ],
+          "title": "Type",
+          "type": "string"
+        },
+        "demo": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "items": {
+                "type": "number"
+              },
+              "type": "array"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Demo mode only: fixed value or [min, max] for a simulated value",
+          "title": "Demo"
+        }
+      },
+      "title": "TagSpec",
+      "type": "object"
+    }
+  },
+  "additionalProperties": false,
+  "properties": {
+    "opc": {
+      "$ref": "#/$defs/Opc"
+    },
+    "tags": {
+      "additionalProperties": {
+        "anyOf": [
+          {
+            "$ref": "#/$defs/TagSpec"
+          },
+          {
+            "type": "string"
+          }
+        ]
+      },
+      "title": "Tags",
+      "type": "object"
+    },
+    "screens": {
+      "additionalProperties": {
+        "$ref": "#/$defs/Screen"
+      },
+      "title": "Screens",
+      "type": "object",
+      "propertyNames": {
+        "pattern": "^[1-9][0-9]?$"
+      }
+    }
+  },
+  "required": [
+    "opc",
+    "screens"
+  ],
+  "title": "asyncua-dashboard dashboard.yaml",
+  "type": "object",
+  "$schema": "https://json-schema.org/draft/2020-12/schema"
+}

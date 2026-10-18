@@ -9,7 +9,10 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 
 class Settings(BaseSettings):
     # ===================== OPC UA =====================
-    opc_endpoint_url: str = Field(..., alias="OPC_ENDPOINT_URL")
+    # Optional: falls back to opc.url in dashboard.yaml (see backend/dashboard_config.py)
+    opc_endpoint_url: Optional[str] = Field(default=None, alias="OPC_ENDPOINT_URL")
+    # Dashboard layout + PLC tags (YAML). Default: dashboard.yaml in the project root
+    dashboard_config: Optional[str] = Field(default=None, alias="DASHBOARD_CONFIG")
     opc_username: Optional[str] = Field(default=None, alias="OPC_USERNAME")
     opc_password: Optional[str] = Field(default=None, alias="OPC_PASSWORD")
 

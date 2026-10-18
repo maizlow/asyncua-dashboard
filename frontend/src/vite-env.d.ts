@@ -10,3 +10,9 @@ interface ImportMetaEnv {
 interface ImportMeta {
   readonly env: ImportMetaEnv;
 }
+
+/** dashboard.yaml imported via the dashboard-yaml plugin in vite.config.ts (screens + tag types). */
+declare module "*.yaml" {
+  const value: unknown;
+  export default value;
+}

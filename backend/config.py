@@ -1,93 +1,23 @@
-DEFAULT_NODES = {
-"ConditionType": "ns=0;i=2782",         # Base ConditionType Node (for method calls)
-"ProgramAlarms": "ns=3;i=1815",         # Example: Siemens Program Alarm Server Object
-}
+"""OPC UA node configuration, read from dashboard.yaml (see backend/dashboard_config.py, docs/CONFIG.md).
 
-# Variables to subscribe to (add node ids or browse paths as needed)
-SCREEN_NODES = {
-    "ActiveScreenNr": 'ns=3;s="DB Production TV"."screenHandler"."activeScreenNr"', 
-    "RequestedScreenNr": 'ns=3;s="DB Production TV"."screenHandler"."requestScreenNr"',
-    # Add more nodes or browse paths here if you want to subscribe to additional events or data changes
-}
+Kept as a thin compatibility layer so the OPC modules can keep using
+``config.DEFAULT_NODES``, ``config.SCREEN_NODES`` and ``config.DASHBOARD_DATA_NODES``.
+Values are resolved lazily (on first access) so importing the backend never fails just
+because the YAML is being edited; ``main`` validates it explicitly at startup.
+"""
 
-DASHBOARD_DATA_NODES = [
-    {
-        "nodeid": 'ns=3;s="DB Production TV"."dashboardData"."target"',
-        "datatype": "DInt",
-        "alias": "TargetCount",
-        "historical": False,
-    },
-    {
-        "nodeid": 'ns=3;s="DB Production TV"."dashboardData"."actual"',
-        "datatype": "DInt",
-        "alias": "ProductionCount",
-        "historical": False,
-    },
-    {
-        "nodeid": 'ns=3;s="DB Production TV"."dashboardData"."delta"',
-        "datatype": "Float",
-        "alias": "ProductionDelta",
-        "historical": True,
-    },
-    {   # 2 = Running
-        "nodeid": 'ns=3;s="DB Production TV"."dashboardData"."prodState"',
-        "datatype": "Int",
-        "alias": "ProductionState",
-        "historical": False,
-    },
-    {
-        "nodeid": 'ns=3;s="DB Production TV"."dashboardData"."oee"',
-        "datatype": "Real",
-        "alias": "OEE",
-        "historical": True,
-    },
-    {
-        "nodeid": 'ns=3;s="DB Production TV"."dashboardData"."tpm"',
-        "datatype": "Real",
-        "alias": "TPM",
-        "historical": True,
-    },
-    {
-        "nodeid": 'ns=3;s="DB Production TV"."dashboardData"."runtime"',
-        "datatype": "Time_Of_Day",
-        "alias": "CurrentRuntime",
-        "historical": False,
-    },
-    {
-        "nodeid": 'ns=3;s="DB Production TV"."dashboardData"."accStoptime"',
-        "datatype": "Time_Of_Day",
-        "alias": "AccumulatedStoptime",
-        "historical": False,
-    },
-    {
-        "nodeid": 'ns=3;s="DB Production TV"."dashboardData"."shiftStart"',
-        "datatype": "Time_Of_Day",
-        "alias": "ShiftStart",
-        "historical": False,
-    },
-    {
-        "nodeid": 'ns=3;s="DB Production TV"."dashboardData"."shiftEnd"',
-        "datatype": "Time_Of_Day",
-        "alias": "ShiftEnd",
-        "historical": False,
-    },
-    # ===================== OEE details (roof tile line) =====================
-    # TODO(PLC): the node IDs below are PLACEHOLDERS - the real PLC tags are not known yet.
-    # Nodes marked "placeholder": True are skipped by the subscription (no error, the other
-    # tags keep working). When the real node ID is known: fix "nodeid" and remove "placeholder".
-    {   # Good (approved) tiles this shift. If not available, ProductionCount is used instead.
-        "nodeid": 'ns=3;s="DB Production TV"."dashboardData"."goodCount"',  # TODO(PLC): verify
-        "datatype": "DInt",
-        "alias": "GoodCount",
-        "historical": False,
-        "placeholder": True,
-    },
-    {   # Rejected / scrapped tiles this shift (kassation)
-        "nodeid": 'ns=3;s="DB Production TV"."dashboardData"."rejectCount"',  # TODO(PLC): verify
-        "datatype": "DInt",
-        "alias": "RejectCount",
-        "historical": False,
-        "placeholder": True,
-    },
-    # Add more nodes or browse paths here for any additional data you want to display on the dashboard
-]
+from typing import Any
+
+from backend.dashboard_config import CONDITION_TYPE_NODE, get_dashboard
+
+
+def __getattr__(name: str) -> Any:
+    dash = get_dashboard()
+    if name == "DEFAULT_NODES":
+        return {"ConditionType": CONDITION_TYPE_NODE, "ProgramAlarms": dash.opc.alarms.strip()}
+    if name == "SCREEN_NODES":
+        return {"ActiveScreenNr": dash.opc.screen.active, "RequestedScreenNr": dash.opc.screen.requested}
+    if name == "DASHBOARD_DATA_NODES":
+        # Empty node id = TODO(PLC) placeholder -> skipped by the subscription
+        return dash.data_nodes()
+    raise AttributeError(name)
