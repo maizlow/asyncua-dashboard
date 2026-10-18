@@ -8,6 +8,8 @@ och ett räkneexempel från takpannelinjen. Dokumentet beskriver **koden som den
   (`GET /api/oee` och WebSocket-meddelandet `oee_details`).
 - **Backend** [`backend/opc/shift_logger.py`](../backend/opc/shift_logger.py) räknar skiftfönstret, kör-/stopptid och
   skiftmönstret per timme.
+- **Backend** [`backend/opc/shifts.py`](../backend/opc/shifts.py) för skiftloggen (tabellen `shifts`): en rad per skift med
+  parametrar, räknare och kör-/stopptid, och summering över skift (`GET /api/shifts`).
 - **Frontend** räknar bara visningen: avrundning, trend (▲/▼), framdriftsstaplar, färger och ▲/▼/"UNDER MÅL"
   ([`ItemCard.tsx`](../frontend/src/components/ItemCard.tsx), [`OeeScreen.tsx`](../frontend/src/screens/OeeScreen.tsx),
   [`format.ts`](../frontend/src/lib/format.ts)).
@@ -19,6 +21,7 @@ Hur du konfigurerar taggar och objekt står i [CONFIG.md](CONFIG.md).
 - [Räkneexempel som används nedan](#räkneexempel-som-används-nedan)
 - [Skärm OEE (`type: oee`)](#skärm-oee-type-oee)
 - [Skärm Skiftmönster (`type: shift`)](#skärm-skiftmönster-type-shift)
+- [Skiftlogg (tabellen `shifts`)](#skiftlogg-tabellen-shifts)
 - [Skärm 7 dagar (`type: week`)](#skärm-7-dagar-type-week)
 - [Grid-skärmar, t.ex. Dashboard (`type: grid`)](#grid-skärmar-tex-dashboard-type-grid)
 - [Skärm Larm (`type: alarms`)](#skärm-larm-type-alarms)
@@ -39,6 +42,8 @@ Hur du konfigurerar taggar och objekt står i [CONFIG.md](CONFIG.md).
 | `TPM` | Aktuell takt, st/min | Takt visar `–` |
 | `ShiftTarget` | **Skiftmål** i st för hela skiftet, från PLC:n, $M$ | Mål hittills och Skiftmål visar `–`, inget PÅ/UNDER MÅL i Produktion |
 | `OeeTarget` | **OEE-mål** i %, från PLC:n | 85 % används (även om värdet är ≤ 0 eller > 100) |
+| `PlannedTime` | **Planerad tid** i minuter för hela skiftet, **exklusive raster**, från PLC:n, $T_\text{plan}$ | $T_\text{plan} = T$ (skiftlängden); gäller också om värdet är < 0 eller > 1440 |
+| `ShiftTeam` | **Skiftlag** (text eller nummer), sparas per skift i skiftloggen | `–` |
 
 `TargetCount` (målet i Dashboard-rutan *Produktion*) är **inte** reserverad och används inte av OEE-skärmen: det är bara en
 vanlig tagg som exempelfilen visar som `target:`. Är PLC:ns `target` samma sak som skiftmålet kan `ShiftTarget` få samma nod-id.
@@ -55,6 +60,7 @@ ingenting själv.
 | `TIMEZONE` | systemets zon | Tidszon för `ShiftStart`/`ShiftEnd` och skiftmönstrets timmar (t.ex. `Europe/Stockholm`) |
 | `SNAPSHOT_INTERVAL_MS` | `10000` | Hur ofta hela ögonblicksbilden + historik (för trend) skickas om |
 | `HISTORY_INTERVAL_S` | `60` | Hur ofta 7-dagarsskärmen räknas om och skickas (minst 10 s). Bara idag räknas om; tidigare dagar sparas |
+| `SHIFT_SETTLE_S` | `10` | Skiftloggen: väntetid efter ett skiftbyte innan det nya skiftets parametrar sparas, och fönstret där en nollställning av räknarna kopplas till skiftbytet ([Skiftbyte](#skiftbyte-och-taggar-som-kommer-i-olika-ordning)) |
 | `RETENTION_DAYS` | `30` | Hur länge historiken sparas. **Under 7** visar 7-dagarsskärmen `–` för de äldsta dagarna (varning i loggen) |
 
 Skiftmönstret skickas var 30:e sekund (fast i koden).
@@ -85,8 +91,17 @@ t = \min\bigl(\max(0,\ t_\text{nu} - t_\text{start}),\ T\bigr), \qquad
 t_\text{kvar} = T - t
 $$
 
-$T$ = skiftlängd, $t$ = förfluten skifttid (sekunder i koden). Planerade raster dras **inte** av: hela den förflutna tiden
-räknas som planerad produktionstid.
+$T$ = skiftlängd, $t$ = förfluten skifttid (sekunder i koden).
+
+**Planerad tid hittills** $t_\text{plan}$. Med `PlannedTime` ($T_\text{plan}$ minuter för hela skiftet, exklusive raster) fördelas
+den jämnt över skiftet, annars är hela den förflutna tiden planerad:
+
+$$
+t_\text{plan} = \begin{cases} T_\text{plan} \cdot \frac{t}{T} & \text{om } \texttt{PlannedTime} \text{ har ett värde mellan 0 och 1440 min} \cr t & \text{annars} \end{cases}
+$$
+
+Rasternas klockslag är inte kända, därför pro rata: under en rast ökar $t_\text{plan}$ ändå, men vid skiftets slut är
+$t_\text{plan} = T_\text{plan}$. Utan `PlannedTime` dras raster **inte** av.
 
 ### Körtid och stopp
 
@@ -161,15 +176,17 @@ grönt och "● PÅ MÅL". OEE 0,8496 visas `85,0 %` och är "PÅ MÅL".
 **Visas:** raden *Tillgänglighet* i rutan OEE.
 
 $$
-A = \min\left(1,\ \frac{t_\text{kör}}{t}\right)
+A = \min\left(1,\ \frac{t_\text{kör}}{t_\text{plan}}\right)
 $$
 
-- Taggar: `ShiftStart`, `ShiftEnd`, `ProductionState`. %, 1 decimal, max 100 %.
-- `–` om skiftfönster saknas, $t = 0$ (precis vid skiftstart) eller om det inte finns någon loggad tillståndsändring alls.
+- Taggar: `ShiftStart`, `ShiftEnd`, `ProductionState`, `PlannedTime` (valfri). %, 1 decimal, max 100 %.
+- `–` om skiftfönster saknas, $t_\text{plan} = 0$ (precis vid skiftstart, eller `PlannedTime` = 0) eller om det inte finns
+  någon loggad tillståndsändring alls.
 - Tid i skiftet innan första loggade tillståndet (om backend startade mitt i skiftet utan tidigare logg) räknas varken som
-  kör eller stopp men ingår i $t$, vilket sänker $A$.
+  kör eller stopp men ingår i $t_\text{plan}$, vilket sänker $A$.
 
-**Exempel:** $267 / 300 = 0{,}890$ → `89,0 %`.
+**Exempel:** utan `PlannedTime`: $267 / 300 = 0{,}890$ → `89,0 %`. Med `PlannedTime` = 450 min:
+$t_\text{plan} = 450 \cdot 300 / 480 = 281{,}25$ min och $A = 267 / 281{,}25 = 0{,}949$ → `94,9 %`.
 
 ### Prestanda
 
@@ -361,12 +378,151 @@ $$
 ger kör 52,0 min, stopp 8,0 min; timmarna 11:00–13:00 är 0. Skiftet 06:30–14:30: 8 timmar 06:30, 07:30 … 13:30,
 etiketter `06:30` och `14:30`. Skiftet 06:00–14:30: "8,5 timmars skift", sista timmen 14:00–14:30 (30 min).
 
+## Skiftlogg (tabellen `shifts`)
+
+PLC:n visar bara **pågående** skift (`ShiftStart`, `ShiftEnd`, `ShiftTarget`, `OeeTarget`, `PlannedTime`, `ShiftTeam`).
+Backend ([`backend/opc/shifts.py`](../backend/opc/shifts.py)) sparar därför **en rad per skift** i SQLite och stänger
+föregående skift när ett nytt börjar. Tabellen gallras **inte** av `RETENTION_DAYS`. Visas inte direkt på TV:n men är
+underlaget för [7 dagar](#skärm-7-dagar-type-week); finns i `GET /api/shifts?limit=20` (nyast först).
+
+| Fält | Innehåll |
+|---|---|
+| `start`, `end` | Schemalagd start $s_S$ och slut $e_S$ från `ShiftStart`/`ShiftEnd` (UTC i databasen) |
+| `opened`, `closed` | Skiftbytestiden $T_S$ då mätningen började, och nästa skifts $T_{S+1}$ (tom medan skiftet pågår) |
+| `status` | `open` (pågående, uppdateras var 30:e sekund) eller `closed` |
+| `team`, `target`, `oee_target` | `ShiftTeam`, `ShiftTarget` $M_S$, `OeeTarget` $O_S$ (tomt om taggen saknar värde) |
+| `planned_s`, `planned_source` | $t_{\text{plan},S}$ och `PlannedTime` eller `schedule` |
+| `good`, `reject`, `total` | $G_S$, $K_S$, $N_S$ |
+| `run_s`, `stop_count`, `stop_s` | Körtid, antal stopp och stopptid |
+
+### Skiftbyte och taggar som kommer i olika ordning
+
+Taggarna kommer inte i samma OPC-ram: ett nytt `ShiftTarget` kan komma tre ramar efter `ShiftStart`, eller före. Därför:
+
+1. **Skiftbyte upptäcks** när skiftets start flyttas framåt: `ShiftStart` ändras till ett nytt klockslag (en färsk ändring
+   får komma upp till 30 min före den schemalagda starten), **eller** klockan passerar nästa förekomst av ett oförändrat
+   `ShiftStart` (ett skift per dag med 06:00 varje dag). En nollställd räknare ensam är **inte** ett skiftbyte (räknare
+   nollställs ibland mitt i skiftet).
+2. **Skiftbytestid** $T = \min(s_\text{ny},\ \text{tiden då ändringen kom})$. Det gamla skiftet mäts till $T$, det nya från $T$.
+3. **Väntan** $w$ = `SHIFT_SETTLE_S` (10 s) efter senaste `ShiftStart`-ändringen innan något skrivs. Då:
+   - det **stängda** skiftet får de parametrar det hade vid $T - w$, så värden för nästa skift som kom strax före eller efter
+     `ShiftStart` hamnar aldrig på det gamla skiftet;
+   - det **nya** skiftet får de senaste värdena (även de som kom före `ShiftStart`);
+   - går `ShiftStart` tillbaka till det öppna skiftets start under väntan (fladder) avbryts skiftbytet; ändras det igen
+     ersätts kandidaten och väntan börjar om ($T$ behålls).
+4. **Parametrar medan skiftet pågår:** varje ändring skrivs direkt till skiftets rad, **senaste värdet gäller** (en rättelse av
+   `ShiftTarget` mitt i skiftet gäller hela skiftet).
+5. **`ShiftStart` bakåt** (tidigare än det öppna skiftets start) ignoreras och loggas som varning. Samma värde igen
+   (återanslutning) ignoreras.
+6. **Omstart av backend:** det öppna skiftet läses från databasen och fortsätter. Har skiftet bytts medan backend var nere
+   stängs det gamla vid det nya skiftets schemalagda start.
+7. **Saknade taggar:** utan `ShiftStart` skapas inga rader. Utan `ShiftTeam`, `ShiftTarget` eller `OeeTarget` blir fältet tomt;
+   utan `PlannedTime` är $t_{\text{plan},S} = e_S - s_S$.
+
+**Räknarna** delas med **ökningar** (inte absoluta värden). För varje räknartagg är delningstiden $u$ den första
+nollställningen (minskning) som loggats mellan $T - w$ och tiden då väntan tog slut, annars $T$:
+
+$$
+u = \begin{cases} \text{första minskningen av räknaren i } [T - w,\ T_\text{väntan klar}] & \text{om den finns} \cr T & \text{annars} \end{cases}
+$$
+
+Pannor som loggas mellan skiftbytet och en sen nollställning hör alltså till det gamla skiftet, och pannor efter en tidig
+nollställning till det nya. En räknare som aldrig nollställs fungerar också (ökningarna delas vid $T$).
+
+**Exempel** med $w$ = 10 s:
+
+| Tid | Från PLC:n | Effekt |
+|---|---|---|
+| 13:59:56 | `ShiftTarget` = 48 000, `ShiftTeam` = B (avsett för nästa skift) | Skift A:s rad uppdateras tillfälligt |
+| 14:00:00 | `ShiftStart` = 14:00, `ShiftEnd` = 22:00 | Skiftbyte upptäckt, $T$ = 14:00:00, väntan till 14:00:10 |
+| 14:00:03 | `ProductionCount` = 50 012 | Hör till skift A |
+| 14:00:04 | `ProductionCount` = 0 | Nollställning: $u$ = 14:00:04 |
+| 14:00:05 | `PlannedTime` = 420 | |
+| 14:00:10 | – | A stängs med 50 000 st och lag A (värdena 13:59:50), $N_A$ = 50 012. B öppnas med 48 000 st, lag B, 420 min |
+
+### Värden per skift
+
+$$
+N_S = \Delta \texttt{ProductionCount} \text{ i } [u_S,\ u_{S+1}), \qquad
+t_{\text{kör},S} = \text{körtid i } [T_S,\ T_{S+1}), \qquad
+t_{\text{plan},S} = \begin{cases} 60 \cdot \texttt{PlannedTime} & \text{om värde} \cr e_S - s_S & \text{annars} \end{cases}
+$$
+
+$\Delta$ = summan av ökningar som i [Godkända per dag](#godkända-per-dag) (minskning = nollställd, nya värdet räknas). $G_S$ och
+$K_S$ på samma sätt med samma regler för `GoodCount`/`ProductionCount`/`RejectCount` som live. För ett pågående skift är
+$u_{S+1}$ och $T_{S+1}$ = nu. Stopp räknas bara inom $[T_S,\ \min(e_S,\ T_{S+1})]$ (stopp efter schemalagt slut är inte
+stilleståndstid). Körtid efter schemalagt slut (övertid) räknas.
+
+### Summering över skift (dag, vecka)
+
+Råa summor delas efter **tidsandel** och A, P, Q och OEE räknas om från summorna (inte medelvärde av skiftens OEE). Ett skift
+täcker $[s_S,\ e_S^\ast]$ med $e_S^\ast = \min(e_S,\ \text{stängt eller nu})$. För ett intervall $D$ (t.ex. ett dygn):
+
+$$
+a_{S,D} = \frac{|[s_S,\ e_S^\ast] \cap D|}{e_S^\ast - s_S}, \qquad
+p_{S,D} = \frac{|[s_S,\ e_S^\ast] \cap D|}{e_S - s_S}
+$$
+
+$a$ delar det som mätts hittills (antal, körtid), $p$ delar planerad tid och mål (för ett pågående skift blir det "hittills").
+Ett nattskift 22:00–06:00 ger 2/8 till dagen före och 6/8 till dagen efter.
+
+$$
+G_D = \sum_S a_{S,D} \cdot G_S, \quad
+N_D = \sum_S a_{S,D} \cdot N_S, \quad
+t_{\text{kör},D} = \sum_S a_{S,D} \cdot t_{\text{kör},S}, \quad
+t_{\text{plan},D} = \sum_{S \text{ planerat}} p_{S,D} \cdot t_{\text{plan},S}
+$$
+
+$$
+\mathrm{OEE}_D = \min\left(1,\ \frac{G_D}{t_{\text{plan},D}^{\text{min}} \cdot R}\right), \quad
+A_D = \min\left(1,\ \frac{t_{\text{kör},D}}{t_{\text{plan},D}}\right), \quad
+P_D = \min\left(1,\ \frac{N_D}{t_{\text{kör},D}^{\text{min}} \cdot R}\right), \quad
+Q_D = \frac{G_D}{N_D}
+$$
+
+$$
+M_D = \sum_S p_{S,D} \cdot M_S, \qquad
+O_D = \frac{\sum_{S \text{ planerat}} p_{S,D} \cdot t_{\text{plan},S} \cdot O_S}{t_{\text{plan},D}}
+$$
+
+- Utan kapning vid 1 är $\mathrm{OEE}_D = A_D \cdot P_D \cdot Q_D$ exakt.
+- **Planerat skift:** ett skift utan någon körtid räknas inte som planerat (helg, ledigt), **utom** när PLC:n gav `PlannedTime`:
+  då räknas ett totalt haveri som planerad tid (och `PlannedTime` = 0 betyder ledigt).
+- $O_S$ = 85 för skift utan `OeeTarget`. $M_D$ saknas om inget skift har `ShiftTarget`. OEE och Q saknas utan `RejectCount`
+  (som live).
+
+**Exempel**, ett dygn med tre skift och $R$ = 140:
+
+| Skift | $G_S$ | $N_S$ | $t_{\text{kör},S}$ | $t_{\text{plan},S}$ | $M_S$ | Andel av dygnet |
+|---|---|---|---|---|---|---|
+| A 06–14 | 50 000 | 51 000 | 7 h | 8 h | 54 000 | 1 |
+| B 14–22 | 48 000 | 49 000 | 7 h | 8 h | 54 000 | 1 |
+| C 22–06 | 40 000 | 41 000 | 6 h | 8 h | 54 000 | 2/8 |
+
+$$
+G_D = 50\thinspace 000 + 48\thinspace 000 + \tfrac{2}{8} \cdot 40\thinspace 000 = 108\thinspace 000, \qquad
+t_{\text{plan},D} = 18 \text{ h}, \qquad
+\mathrm{OEE}_D = \frac{108\thinspace 000}{1080 \cdot 140} = 0{,}714
+$$
+
+och $M_D = 54\thinspace 000 + 54\thinspace 000 + 13\thinspace 500 = 121\thinspace 500$.
+
 ## Skärm 7 dagar (`type: week`)
 
 **Visas:** sju kolumner, idag längst till höger (ljusare ruta, "Idag"). Per dag: **OEE %** överst, en **stapel** med godkända
 pannor, en vit linje för **dagsmålet**, **antal godkända** under stapeln och veckodag + datum (`Mån` / `12/10`).
-Beräknas i backend ([`backend/opc/daily.py`](../backend/opc/daily.py)) från SQLite-historiken (`data_points` och `shift_log`),
-`GET /api/history/days?n=7` och WebSocket-meddelandet `daily_history`.
+Beräknas i backend ([`backend/opc/daily.py`](../backend/opc/daily.py)), `GET /api/history/days?n=7` och WebSocket-meddelandet
+`daily_history`.
+
+**Två källor** (fältet `source` per dag):
+
+- **`shifts`**: dagar som började efter att skiftloggen startade räknas från [skiftloggen](#skiftlogg-tabellen-shifts) med
+  [summering över skift](#summering-över-skift-dag-vecka): $G_D$, $\mathrm{OEE}_D$, $A_D$, $P_D$, $Q_D$, dagsmål $M_D$ och
+  dagens OEE-mål $O_D$ (`oee_target`) samt skiftlagen (`teams`). Ingen överlappande skiftrad = `–`.
+- **`raw`**: dagar före skiftloggen (de första dagarna efter uppgradering) räknas som tidigare direkt ur historiken
+  (`data_points` och `shift_log`), enligt avsnitten nedan.
+
+Skiftloggens starttid sparas i databasen (tabellen `meta`, `shift_log_since`) första gången backend startar med skiftloggen.
 
 ### Dag
 
@@ -546,9 +702,14 @@ Följande finns i `GET /api/oee` men visas inte längre på TV:n (borttagna i PR
 - **Utan `RejectCount`** (tomt nod-id i exempelfilen idag) visar Kvalitet, OEE och Kassation `–`.
 - **`ProductionCount` antas innehålla kassationen.** Om den i PLC:n bara räknar godkända blir $G$ för lågt med `RejectCount`
   kopplad – koppla då `GoodCount` i stället.
-- **Inga planerade raster:** hela den förflutna skifttiden är planerad tid, så raster sänker Tillgänglighet och OEE.
+- **Raster:** utan `PlannedTime` (tomt i exempelfilen idag) är hela den förflutna skifttiden planerad tid, så raster sänker
+  Tillgänglighet och OEE. Med `PlannedTime` fördelas den planerade tiden jämnt över skiftet (inte vid rastens klockslag).
 - **Skifttider i Skift kvar** visas i webbläsarens tidszon, skiftfönstret räknas i `TIMEZONE`. Ställ in samma zon på båda.
-- **7 dagar:** skifttiderna antas vara desamma alla dagar (nuvarande `ShiftStart`/`ShiftEnd`); ändras skifttiderna räknas
+- **7 dagar, dagar före skiftloggen (`raw`):** skifttiderna antas vara desamma alla dagar (nuvarande `ShiftStart`/`ShiftEnd`); ändras skifttiderna räknas
   tidigare dagar som inte redan är sparade om med de nya tiderna. En skiftdel med totalt haveri (ingen körtid alls) räknas inte
   som planerad, vilket ger för hög OEE den dagen. Ökningar räknas till den tid de loggades (upplösning ≈ 1 s).
+- **Skiftloggen:** ett nattskift delas efter tidsandel, inte efter när pannorna faktiskt gjordes. En rättelse av `ShiftStart`
+  framåt mitt i ett skift (t.ex. 14:00 → 14:30 kl. 14:10) tolkas som ett nytt skift. Var backend nere över flera skift blir det
+  ett långt skift (det gamla stängs vid det senaste skiftbytet). Parametrar som kommer mer än `SHIFT_SETTLE_S` före
+  `ShiftStart` hamnar på det gamla skiftet; höj då `SHIFT_SETTLE_S`.
 - **Trend efter nollställning:** när en räknare nollställs vid skiftbyte visar trenden en stor ▼ (röd för `better: high`).

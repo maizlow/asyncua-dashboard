@@ -38,6 +38,22 @@ async def get_daily_history(n: int = 7):
     return await history.compute(data_store, n=n)
 
 
+@router.get("/shifts")
+async def get_shifts(limit: int = 20):
+    """The shift log (newest first): one row per shift with parameters, counts and run/stop time.
+
+    ``pending`` is set while a detected shift change waits for SHIFT_SETTLE_S (see backend/opc/shifts.py).
+    """
+    from backend.opc.shifts import get_shift_store, get_shift_tracker, row_to_json
+
+    rows = await get_shift_store().recent(max(1, min(500, limit)))
+    pending = get_shift_tracker().pending
+    return {
+        "shifts": [row_to_json(r) for r in rows],
+        "pending": {k: v.isoformat() for k, v in pending.items()} if pending else None,
+    }
+
+
 @router.get("/history/{key}")
 async def get_history(key: str, limit: int = 150):
     """Get history for a specific key (values only, for sparklines)."""

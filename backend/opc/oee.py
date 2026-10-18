@@ -1,7 +1,8 @@
 """OEE details for the display (roof tile line).
 
-Definitions (planned production time = elapsed shift time; planned breaks are not modelled):
-- Tillgänglighet (availability) A = run time / planned time
+Definitions (planned production time so far = PlannedTime x elapsed / shift duration when the PLC
+gives PlannedTime (minutes excl. breaks), else elapsed shift time):
+- Tillgänglighet (availability) A = run time / planned time so far
 - Prestanda (performance)       P = total count / (run time [min] x nominal rate), capped at 1
 - Kvalitet (quality)            Q = good / total (only when RejectCount is known)
 - OEE = A x P x Q
@@ -255,7 +256,19 @@ async def compute_oee_details(
     stops = stop_stats(segments)
     tgt = targets(progress["elapsed_s"], progress["duration_s"], shift_target)
 
-    result["shift"] = {"start": start.isoformat(), "end": end.isoformat(), **progress}
+    from backend.opc.shifts import live_planned
+
+    planned = live_planned(data_store.get("PlannedTime"), progress["elapsed_s"], progress["duration_s"])
+    team = data_store.get("ShiftTeam")
+    result["shift"] = {
+        "start": start.isoformat(),
+        "end": end.isoformat(),
+        **progress,
+        "planned_s": planned["so_far_s"],
+        "planned_shift_s": planned["shift_s"],
+        "planned_source": planned["source"],
+        "team": None if team in (None, "") else str(team).strip(),
+    }
     result["target"] = {
         **tgt,
         "source": "ShiftTarget" if tgt["shift"] is not None else None,
@@ -265,7 +278,7 @@ async def compute_oee_details(
     result["stops"] = stops
     # Without any state info we cannot tell run time, so availability/performance stay unknown
     if segments:
-        result["oee"] = oee_factors(stops["run_s"], progress["elapsed_s"], total, good, nominal_tpm, reject)
+        result["oee"] = oee_factors(stops["run_s"], planned["so_far_s"], total, good, nominal_tpm, reject)
     else:
         result["oee"]["quality"] = quality(good, total, reject)
     try:

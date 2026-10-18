@@ -228,3 +228,15 @@ async def test_details_production_count_fallback_and_quality(db, monkeypatch):
     store = {"ShiftStart": "06:00:00", "ShiftEnd": "14:00:00", "ProductionCount": 35_140}
     d = await _details(db, monkeypatch, store)
     assert d["oee"]["quality"] is None and d["oee"]["oee"] is None and d["counts"]["scrap_pct"] is None
+
+
+async def test_live_availability_uses_planned_time_pro_rata(db, monkeypatch):
+    """PlannedTime 420 min of an 8 h shift: planned so far after 5 h = 420 x 5/8 min (breaks excluded)."""
+    base = {"ShiftStart": "06:00:00", "ShiftEnd": "14:00:00", "GoodCount": 34_440, "RejectCount": 700}
+    d = await _details(db, monkeypatch, {**base, "PlannedTime": 420, "ShiftTeam": "B"})
+    assert d["shift"]["planned_source"] == "PlannedTime" and d["shift"]["team"] == "B"
+    assert d["shift"]["planned_s"] == pytest.approx(420 * 60 * 5 / 8)
+    assert d["oee"]["availability"] == 1.0  # ran the whole 5 h > planned so far -> capped
+    d = await _details(db, monkeypatch, base)
+    assert d["shift"]["planned_source"] == "schedule" and d["shift"]["planned_s"] == 5 * 3600
+    assert d["shift"]["team"] is None

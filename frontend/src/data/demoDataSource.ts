@@ -20,6 +20,7 @@ import type {
   ShiftPatternRow,
 } from "./types";
 import { demoScreenOrder, normaliseLayout, type Layout } from "@/layout/layout";
+import { aggregateShifts, type ShiftRow } from "@/lib/shifts";
 // Built from the same dashboard.yaml as the real installation (vite.config.ts: dashboard-yaml plugin)
 import dashboardYaml from "../../../dashboard.yaml";
 // ?layout=stress: worst-case layout (long labels/units, 6-digit/negative values) for the fit check
@@ -178,6 +179,10 @@ class LineSim {
         duration_s: SHIFT_S,
         elapsed_s: this.elapsed,
         remaining_s: SHIFT_S - this.elapsed,
+        planned_s: planned,
+        planned_shift_s: SHIFT_S,
+        planned_source: "schedule",
+        team: teamFor(this.startMs),
       },
       target: {
         so_far: soFar,
@@ -229,46 +234,77 @@ function seeded(key: string, salt: number) {
 const isoDate = (d: Date) => `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
 
 /**
- * Simulated 7-day history (screen type: week), same shape as GET /api/history/days. Past days: one
- * 10 h shift at OEE 80-86 %; Saturday is a short low day (6 h, ~74 %), Sunday has no production ("–").
- * Today comes from the live simulation (good so far vs target so far).
+ * Simulated shift log (same rows as the backend's `shifts` table) for the past 7 days: Mon-Fri three
+ * 8 h shifts 06/14/22 (team A/B/C, rotating weekly), Saturday 06 and 14, Sunday no production.
+ * PlannedTime 450 min (30 min break), OEE ~80-88 %. The current shift is the live simulation; earlier
+ * slots that overlap it are cut at its start.
  */
+const TEAMS = ["A", "B", "C"];
+const SLOT_HOURS = [6, 14, 22];
+const SLOT_PLANNED_MIN = 450;
+
+function teamFor(ms: number) {
+  const d = new Date(ms);
+  const week = Math.floor((Date.UTC(d.getFullYear(), d.getMonth(), d.getDate()) / 86_400_000 + 3) / 7);
+  const h = d.getHours();
+  const slot = h >= 22 ? 2 : h >= 14 ? 1 : h >= 6 ? 0 : 2;
+  return TEAMS[(slot + week) % 3];
+}
+
+function demoShifts(sim: LineSim, nowMs: number): ShiftRow[] {
+  const rows: ShiftRow[] = [];
+  const today = new Date(nowMs);
+  for (let i = 8; i >= 0; i--) {
+    const day = new Date(today.getFullYear(), today.getMonth(), today.getDate() - i);
+    const weekday = (day.getDay() + 6) % 7;
+    if (weekday === 6) continue;
+    for (const [slot, hour] of SLOT_HOURS.entries()) {
+      if (weekday === 5 && slot === 2) continue;
+      const start = new Date(day.getFullYear(), day.getMonth(), day.getDate(), hour).getTime();
+      const end = new Date(day.getFullYear(), day.getMonth(), day.getDate(), hour + 8).getTime();
+      if (start >= sim.startMs) continue;
+      const cut = Math.min(end, sim.startMs);
+      const frac = (cut - start) / (end - start);
+      const key = `${isoDate(day)}-${hour}`;
+      const plannedS = SLOT_PLANNED_MIN * 60 * frac;
+      const a = (weekday === 5 ? 0.82 : 0.87) + seeded(key, 1) * 0.07;
+      const p = 0.93 + seeded(key, 2) * 0.05;
+      const q = 0.975 + seeded(key, 3) * 0.01;
+      const runS = plannedS * a;
+      const total = Math.round((runS / 60) * NOMINAL_TPM * p);
+      const good = Math.round(total * q);
+      rows.push({
+        start, end: cut, closed: cut, team: teamFor(start), oeeTarget: 85,
+        target: Math.round(SLOT_PLANNED_MIN * NOMINAL_TPM * DEMO_OEE_TARGET * frac),
+        plannedS, plannedSource: "PlannedTime", good, reject: total - good, total, runS,
+        stopS: plannedS - runS, stopCount: Math.round(3 + seeded(key, 4) * 6),
+      });
+    }
+  }
+  const t = sim.details();
+  rows.push({
+    start: sim.startMs, end: sim.startMs + SHIFT_S * 1000, closed: null, team: teamFor(sim.startMs),
+    target: PLC_TARGET, oeeTarget: DEMO_OEE_TARGET * 100, plannedS: SHIFT_S, plannedSource: "schedule",
+    good: t.counts.good, reject: t.counts.reject, total: t.counts.total, runS: sim.runS, stopS: sim.stopS,
+    stopCount: sim.stops.length,
+  });
+  return rows;
+}
+
+/** 7-day history (screen type: week) aggregated from the simulated shift log, like the backend. */
 function demoWeek(sim: LineSim, countOverride: number | null): DailyHistory {
-  const now = new Date();
+  const nowMs = sim.startMs + sim.elapsed * 1000;
+  const now = new Date(nowMs);
+  const shifts = demoShifts(sim, nowMs);
   const days: DailyRow[] = [];
   for (let i = 6; i >= 0; i--) {
     const d = new Date(now.getFullYear(), now.getMonth(), now.getDate() - i);
     const next = new Date(d.getFullYear(), d.getMonth(), d.getDate() + 1);
-    const key = isoDate(d);
-    const weekday = (d.getDay() + 6) % 7;
-    const base = { date: key, weekday, start: d.toISOString(), end: next.toISOString(), today: i === 0 };
-    const empty: DailyRow = {
-      ...base, has_data: false, good: null, reject: null, total: null, planned_s: null, run_s: null,
-      stop_s: null, target: null, oee: { availability: null, performance: null, quality: null, oee: null },
+    const agg = aggregateShifts(shifts, d.getTime(), next.getTime(), nowMs, NOMINAL_TPM);
+    let row: DailyRow = {
+      date: isoDate(d), weekday: (d.getDay() + 6) % 7, start: d.toISOString(), end: next.toISOString(),
+      today: i === 0, source: "shifts", good_source: "GoodCount", ...agg,
     };
-    let row: DailyRow;
-    if (i === 0) {
-      const t = sim.details();
-      row = {
-        ...base, has_data: true, good: t.counts.good, reject: t.counts.reject, total: t.counts.total,
-        planned_s: sim.elapsed, run_s: sim.runS, stop_s: sim.stopS, target: t.target?.so_far ?? null, oee: t.oee,
-      };
-    } else if (weekday === 6) {
-      row = empty; // Sunday: line not running, nothing logged
-    } else {
-      const hours = weekday === 5 ? 6 : SHIFT_HOURS;
-      const planned = hours * 3600;
-      const a = weekday === 5 ? 0.82 : 0.86 + seeded(key, 1) * 0.05;
-      const p = 0.93 + seeded(key, 2) * 0.05;
-      const q = 0.975 + seeded(key, 3) * 0.01;
-      const total = Math.round((planned / 60) * a * p * NOMINAL_TPM);
-      const good = Math.round(total * q);
-      row = {
-        ...base, has_data: true, good, reject: total - good, total, planned_s: planned, run_s: planned * a,
-        stop_s: planned * (1 - a), target: Math.round((PLC_TARGET * planned) / SHIFT_S),
-        oee: { availability: a, performance: p, quality: good / total, oee: (a * p * good) / total },
-      };
-    }
     // ?count=N: widest case for the fit check (6-digit counts and "100,0 %")
     if (countOverride !== null && row.has_data)
       row = { ...row, good: countOverride, target: countOverride, oee: { ...row.oee, oee: 1 } };
@@ -400,12 +436,13 @@ export function createDemoDataSource(): DataSource {
     setMetric("AccumulatedStoptime", hms(sim.stopS));
     setMetric("ShiftStart", hms(new Date(sim.startMs).getHours() * 3600));
     setMetric("ShiftEnd", hms(((new Date(sim.startMs).getHours() + SHIFT_HOURS) % 24) * 3600));
+    setMetric("ShiftTeam", teamFor(sim.startMs));
     publishLayoutTags(historical);
   };
 
   /** Simulated values for YAML tags the line model doesn't know (and `demo:` overrides). */
   const BUILT_IN = new Set(["TargetCount", "ShiftTarget", "OeeTarget", "ProductionCount", "GoodCount", "RejectCount", "ProductionDelta",
-    "ProductionState", "OEE", "TPM", "CurrentRuntime", "AccumulatedStoptime", "ShiftStart", "ShiftEnd"]);
+    "ProductionState", "OEE", "TPM", "CurrentRuntime", "AccumulatedStoptime", "ShiftStart", "ShiftEnd", "ShiftTeam", "PlannedTime"]);
   const publishLayoutTags = (historical: boolean) => {
     for (const [name, tag] of Object.entries(layout.tags)) {
       const demo = tag.demo;
