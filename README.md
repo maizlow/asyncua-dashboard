@@ -85,4 +85,4 @@ until then they are skipped and `ProductionCount` is used as the good count.
   Timestamps are stored in UTC. `RETENTION_DAYS` (default 30) controls how long `data_points` are kept.
 - **Shifts:** `ShiftStart`/`ShiftEnd` from the PLC are plant-local times, resolved in `TIMEZONE` (or the system local zone),
   DST-aware. Shifts crossing midnight (e.g. 22:00–06:00) are supported.
-- **Tests:** `pip install -r backend/requirements-dev.txt && python -m pytest`
+- **Tests:** `pip install -r backend/requirements-dev.txt && python -m pytest`; frontend formatters: `cd frontend && npm test`

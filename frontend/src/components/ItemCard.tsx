@@ -1,7 +1,7 @@
 import { useLayoutEffect, useRef } from "react";
 import type { MetricValue } from "@/data/types";
 import { COLOR_VAR, type ItemConfig } from "@/layout/layout";
-import { DASH } from "@/lib/format";
+import { DASH, fmtFixed, itemDecimals } from "@/lib/format";
 import { isValidNumber } from "@/lib/utils";
 
 // One tile of a grid screen, configured in dashboard.yaml (see docs/CONFIG.md).
@@ -12,7 +12,9 @@ import { isValidNumber } from "@/lib/utils";
 
 const HERO_PX = 290;
 const STATUS_PX = 200;
-const MIN_HERO_PX = 160;
+// Floor for the fit-shrink: 120 px mono = 40 px cap height at 1080p, still above the 37 px minimum.
+// Only reached by extreme combinations (docs/examples/stress.yaml); normal values keep 290 px.
+const MIN_HERO_PX = 120;
 
 type Status = "good" | "warn" | "bad";
 
@@ -25,11 +27,8 @@ function thresholdStatus(item: ItemConfig, v: number): Status | null {
 
 const STATUS_COLOR: Record<Status, string> = { good: COLOR_VAR.green, warn: COLOR_VAR.amber, bad: COLOR_VAR.red };
 
-function formatNumber(n: number, item: ItemConfig): string {
-  if (item.type === "counter") return String(Math.round(n));
-  if (item.decimals !== undefined) return n.toFixed(item.decimals);
-  return n % 1 !== 0 ? n.toFixed(1) : String(n);
-}
+/** Tags that have delivered a decimal value at least once (keeps "82,0" from turning into "82") */
+const fractionalTags = new Set<string>();
 
 /** Shrinks the font of `ref` (from maxPx) until its content fits its width; deps = displayed content. */
 function useFitFont(maxPx: number, deps: unknown[]) {
@@ -39,7 +38,7 @@ function useFitFont(maxPx: number, deps: unknown[]) {
     if (!el) return;
     let size = maxPx;
     el.style.fontSize = `${size}px`;
-    for (let i = 0; i < 4 && el.scrollWidth > el.clientWidth + 1 && size > MIN_HERO_PX; i++) {
+    for (let i = 0; i < 6 && el.scrollWidth > el.clientWidth + 1 && size > MIN_HERO_PX; i++) {
       size = Math.max(MIN_HERO_PX, Math.floor((size * el.clientWidth) / el.scrollWidth) - 2);
       el.style.fontSize = `${size}px`;
     }
@@ -57,6 +56,12 @@ interface ItemCardProps {
 
 export function ItemCard({ item, value, history, targetValue }: ItemCardProps) {
   const numeric = isValidNumber(value) ? Number(value) : null;
+  if (
+    !fractionalTags.has(item.tag) &&
+    [value, ...(history ?? [])].some((v) => isValidNumber(v) && !Number.isInteger(Number(v)))
+  )
+    fractionalTags.add(item.tag);
+  const decimals = itemDecimals(item.type, item.decimals, fractionalTags.has(item.tag));
 
   // ----- main value text + colour -----
   let text: string;
@@ -71,7 +76,7 @@ export function ItemCard({ item, value, history, targetValue }: ItemCardProps) {
   } else if (item.type === "time" || numeric === null) {
     text = String(value);
   } else {
-    text = formatNumber(numeric, item);
+    text = fmtFixed(numeric, decimals);
     status = thresholdStatus(item, numeric);
     if (status) color = STATUS_COLOR[status];
   }
@@ -86,9 +91,9 @@ export function ItemCard({ item, value, history, targetValue }: ItemCardProps) {
     const a = Number(history[history.length - 2]);
     const b = Number(history[history.length - 1]);
     if (Number.isFinite(a) && Number.isFinite(b)) {
-      const d = b - a;
-      const decimals = item.decimals ?? 1;
-      deltaText = parseFloat(Math.abs(d).toFixed(decimals)).toString().replace(/\.0$/, "");
+      const d = Number((b - a).toFixed(decimals)); // arrow follows the shown (rounded) change
+      // Same fixed decimals as the value: "▲ 0,6", "● 0,0", counters "▲ 1"
+      deltaText = fmtFixed(Math.abs(d), decimals);
       deltaArrow = d > 0 ? "▲" : d < 0 ? "▼" : "●";
       deltaColor = d === 0 ? COLOR_VAR.grey : (d > 0) === (item.better === "high") ? COLOR_VAR.green : COLOR_VAR.red;
     }
@@ -144,7 +149,7 @@ export function ItemCard({ item, value, history, targetValue }: ItemCardProps) {
             {/* Label above the value so a 6-digit hero (999999 st) + 6-digit target still fit the card */}
             <div className="text-[110px] text-zinc-300 leading-none">Mål</div>
             <div className="text-[140px] font-mono font-semibold text-zinc-200 tabular-nums leading-none whitespace-nowrap mt-4">
-              {target === null ? DASH : formatNumber(target, { ...item, type: "counter" })}
+              {target === null ? DASH : fmtFixed(target, item.type === "counter" ? 0 : decimals)}
             </div>
             {progress !== null && (
               <div className="h-14 bg-zinc-800 rounded-full mt-8 overflow-hidden">

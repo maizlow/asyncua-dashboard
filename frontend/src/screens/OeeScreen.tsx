@@ -184,7 +184,9 @@ export function OeeScreen() {
       {/* Row 2: speed, scrap, stops, shift */}
       <div className="grid grid-cols-4 gap-12 min-h-0">
         <Card title="Takt · TPM">
-          <BigValue value={speed === null ? DASH : fmtInt(speed)} unit={`/ ${fmtInt(d?.speed.nominal)}`} />
+          {/* Speed is a decimal (Real): always 1 decimal ("140,0"); nominal below so the extra digit fits */}
+          <BigValue value={fmtDec1(speed)} />
+          <SubLine>av {fmtInt(d?.speed.nominal)}</SubLine>
         </Card>
         <Card title="Kassation">
           <BigValue value={fmtInt(d?.counts.reject ?? null)} unit="st" />
