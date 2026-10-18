@@ -14,6 +14,7 @@ import type {
   DailyHistory,
   DailyRow,
   DataSource,
+  Highscores,
   MetricValue,
   OeeDetails,
   ServerMessage,
@@ -31,6 +32,7 @@ const SNAPSHOT_EVERY_MS = 10_000;
 const SHIFT_PATTERN_EVERY_MS = 30_000;
 const OEE_EVERY_MS = 2_000;
 const HISTORY_EVERY_MS = 30_000;
+const HIGHSCORE_EVERY_MS = 15_000;
 const SCREEN_CYCLE_MS = 15_000;
 const HISTORY_POINTS = 150;
 
@@ -316,6 +318,47 @@ function demoWeek(sim: LineSim, countOverride: number | null): DailyHistory {
   };
 }
 
+/**
+ * Simulated run-time highscores (screen type: highscore), same shape as GET /api/highscores: five
+ * records over the last weeks (one of them set earlier in the current shift, so it is highlighted)
+ * and the live simulation's ongoing run. ?count=N: 3-digit hours everywhere (widest case for the fit check).
+ */
+function demoHighscores(sim: LineSim, demoStartMs: number, countOverride: number | null): Highscores {
+  const DAY = 86_400_000;
+  const at = (daysAgo: number, h: number, m: number) => {
+    const d = new Date(demoStartMs - daysAgo * DAY);
+    d.setHours(h, m, 0, 0);
+    return d.getTime();
+  };
+  const base: [number, number, string][] = [
+    [18_753, at(23, 7, 41), "B"],
+    [17_230, at(9, 14, 22), "A"],
+    [15_665, at(41, 22, 10), "C"],
+    [14_322, sim.startMs + 20 * 60_000, teamFor(sim.startMs)], // set earlier in this shift
+    [13_219, at(2, 6, 35), "A"],
+  ];
+  const records = base
+    .map(([d, start, team]) => ({
+      duration_s: countOverride !== null ? 1_999_998 : d,
+      start: new Date(start).toISOString(),
+      end: new Date(start + d * 1000).toISOString(),
+      team: countOverride !== null ? "A→B" : team,
+      current_shift: start >= sim.startMs,
+    }))
+    .sort((a, b) => b.duration_s - a.duration_s || a.start.localeCompare(b.start));
+  const nowMs = sim.startMs + sim.elapsed * 1000;
+  const runS = countOverride !== null ? 999_999 : sim.runSinceStop;
+  return {
+    records,
+    current: sim.running || countOverride !== null
+      ? { start: new Date(nowMs - sim.runSinceStop * 1000).toISOString(), duration_s: runS, team: teamFor(sim.startMs), running: true, current_shift: true }
+      : null,
+    shift_start: new Date(sim.startMs).toISOString(),
+    min_stop_s: 0,
+    updated: new Date(nowMs).toISOString(),
+  };
+}
+
 /** Shift that started ~6 h before now, on a whole local hour. */
 function currentShiftStart(nowMs: number) {
   const d = new Date(nowMs);
@@ -376,6 +419,10 @@ export function createDemoDataSource(): DataSource {
     if (forceStopped && d.stops) d = { ...d, stops: { ...d.stops, count: 999, running: false } };
     return d;
   };
+
+  const demoStartMs = Date.now();
+  let lastRunning = true;
+  const scores = () => demoHighscores(sim, demoStartMs, countOverride);
 
   const alarms = new Map<string, Alarm>();
   const metrics: Record<string, MetricValue> = {};
@@ -489,6 +536,10 @@ export function createDemoDataSource(): DataSource {
       else if (active.length < 2) addAlarm(pick(WARNING_ALARMS));
     }
     publishMetrics();
+    if (sim.running !== lastRunning) {
+      lastRunning = sim.running;
+      emit({ type: "highscores", data: scores() });
+    }
   };
 
   const start = () => {
@@ -519,6 +570,7 @@ export function createDemoDataSource(): DataSource {
       emit({ type: "shift_pattern_data", data: sim.shiftPattern() });
       emit({ type: "oee_details", data: details() });
       emit({ type: "daily_history", data: demoWeek(sim, countOverride) });
+      emit({ type: "highscores", data: scores() });
     }, 400);
 
     setInterval(tick, TICK_MS);
@@ -526,6 +578,7 @@ export function createDemoDataSource(): DataSource {
     setInterval(() => emit({ type: "shift_pattern_data", data: sim.shiftPattern() }), SHIFT_PATTERN_EVERY_MS);
     setInterval(() => emit({ type: "oee_details", data: details() }), OEE_EVERY_MS);
     setInterval(() => emit({ type: "daily_history", data: demoWeek(sim, countOverride) }), HISTORY_EVERY_MS);
+    setInterval(() => emit({ type: "highscores", data: scores() }), HIGHSCORE_EVERY_MS);
     if (pinnedScreen === null) {
       setInterval(() => {
         screenIndex = (screenIndex + 1) % SCREEN_ORDER.length;
@@ -551,6 +604,7 @@ export function createDemoDataSource(): DataSource {
     getShiftPattern: async () => sim.shiftPattern(),
     getOeeDetails: async () => details(),
     getDailyHistory: async () => demoWeek(sim, countOverride),
+    getHighscores: async () => scores(),
     getLayout: async () => layout,
     requestSnapshot: () => {
       setTimeout(() => emit(snapshot()), 0);

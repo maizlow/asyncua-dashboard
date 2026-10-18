@@ -102,6 +102,7 @@ screens:
 | `alarms` | Aktiva larm från Program_Alarm (inga `items`). |
 | `shift` | Skiftmönstret (kräver taggarna `ShiftStart`, `ShiftEnd`, `ProductionState`). |
 | `oee` | OEE-skärmen (kräver dessutom `TPM` och en av taggarna `GoodCount`/`ProductionCount` under `tags`; saknar taggarna värde, liksom `RejectCount` och `ShiftTarget`, visar respektive värde `–`). |
+| `highscore` | Körtids-highscore: de fem längsta körningarna utan stopp (Körd tid, Skiftlag, Datumstämpel) och pågående körning mot rekordet (kräver `ProductionState`; `ShiftTeam` valfri). `HIGHSCORE_MIN_STOP_S` i `.env` (standard 0): kortare stopp avslutar inte en körning. Se [BERAKNINGAR.md](BERAKNINGAR.md#skärm-highscore-type-highscore). |
 | `week` | Idag + 6 dagar bakåt från skiftloggen (dagar före skiftloggen: från historiken) i databasen: OEE %, godkända per dag och dagsmål (kräver `ShiftStart`, `ShiftEnd`, `ProductionState` och `GoodCount` eller `ProductionCount`). Formler: [BERAKNINGAR.md](BERAKNINGAR.md#skärm-7-dagar-type-week). |
 
 `title` är valfri (max 40 tecken) och är till för dig; grid-skärmar visar ingen rubrik.

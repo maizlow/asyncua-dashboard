@@ -73,3 +73,37 @@ test("idle shift is unplanned unless PlannedTime; no shifts -> no data", () => {
   assert.equal(s.aggregateShifts([{ ...idle, plannedSource: "PlannedTime" }], D0, D0 + 24 * H, D0 + 30 * H, 140).planned_s, 8 * 3600);
   assert.equal(s.aggregateShifts([], D0, D0 + 24 * H, D0 + 30 * H, 140).has_data, false);
 });
+
+// ---------------------------------------------------------------- highscore helpers (src/lib/highscore.ts)
+const hsrc = readFileSync(new URL("../src/lib/highscore.ts", import.meta.url), "utf8").replace(/^import type .*$/m, "");
+const hjs = ts.transpileModule(hsrc, { compilerOptions: { module: ts.ModuleKind.ESNext, target: ts.ScriptTarget.ES2022 } }).outputText;
+const hs = await import(`data:text/javascript;base64,${Buffer.from(hjs).toString("base64")}`);
+
+test("highscore durations hh:mm:ss, also over 99 h", () => {
+  assert.equal(hs.fmtDuration(18753), "05:12:33");
+  assert.equal(hs.fmtDuration(999999), "277:46:39");
+  assert.equal(hs.fmtDuration(59.9), "00:00:59");
+  assert.equal(hs.fmtDuration(null), "–");
+});
+
+test("highscore stamp: d/m hh:mm, year only when not this year", () => {
+  const now = new Date(2026, 9, 18, 12);
+  assert.equal(hs.fmtStamp(new Date(2026, 9, 14, 6, 5).toISOString(), now), "14/10 06:05");
+  assert.equal(hs.fmtStamp(new Date(2025, 11, 31, 22, 0).toISOString(), now), "31/12/25 22:00");
+  assert.equal(hs.fmtStamp(null, now), "–");
+});
+
+test("highscore rows: ongoing run joins the list when long enough, ties earlier first, padded", () => {
+  const rec = (d, start, cs = false) => ({ start, end: start, duration_s: d, team: "A", current_shift: cs });
+  const data = {
+    records: [rec(500, "2026-10-01T00:00:00Z"), rec(300, "2026-10-02T00:00:00Z"), rec(300, "2026-10-01T05:00:00Z")],
+    current: { start: "2026-10-18T10:00:00Z", duration_s: 400, team: "B", running: true, current_shift: true },
+    shift_start: null, min_stop_s: 0, updated: "",
+  };
+  const rows = hs.highscoreRows(data, 400, 5);
+  assert.deepEqual(rows.map((r) => [r.rank, r.duration_s, r.live]), [[1, 500, false], [2, 400, true], [3, 300, false], [4, 300, false], [5, null, false]]);
+  assert.equal(rows[2].start, "2026-10-01T05:00:00Z");
+  assert.equal(hs.highscoreRows(data, 100, 3).some((r) => r.live), false);
+  assert.deepEqual(hs.versusRecord(400, 500), { newRecord: false, left_s: 100 });
+  assert.deepEqual(hs.versusRecord(501, 500), { newRecord: true, left_s: 0 });
+});

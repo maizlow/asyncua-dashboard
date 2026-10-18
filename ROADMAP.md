@@ -87,6 +87,12 @@ Lägg till nya punkter som checklistor under rätt rubrik och flytta dem till **
 - [x] 7-dagarsskärmen summerar skiftloggen (nattskift delas vid midnatt efter tidsandel, OEE räknas om från summorna, OEE-mål viktat med planerad tid); äldre dagar som förut; `GET /api/shifts`
 - [x] Demo med 2–3 skift per dag och skiftlag A/B/C
 
+### Skärm Körtids-highscore ([PR #16](https://github.com/maizlow/asyncua-dashboard/pull/16))
+- [x] Ny skärmtyp `highscore` (skärm 6 i exempelfilen): de fem längsta körningarna utan stopp med Körd tid, Skiftlag och Datumstämpel; rekordet störst, körningar i pågående skift markerade
+- [x] Pågående körning räknas upp och visas mot rekordet ("rekord om", "▲ NYTT REKORD"), och i listan när den är lång nog
+- [x] Körningar sparas i `run_records` (gallras inte), avslutas vid senast bekräftad tid vid omstart/OPC-avbrott; `HIGHSCORE_MIN_STOP_S` för korta stopp; `GET /api/highscores`
+- [x] Demo och `check:fit` (även 3-siffriga timmar och lag "A→B")
+
 ## Nästa
 
 ### Docker för drift på Fitlet3 (Linux, x86-64)
@@ -106,7 +112,7 @@ Lägg till nya punkter som checklistor under rätt rubrik och flytta dem till **
 - [ ] Frontendtester (t.ex. Vitest) i CI
 - [ ] Stöd för flera OPC UA-servrar/linjer
 
-Skärmnummer (`ActiveScreenNr`) styrs av `screens:` i `dashboard.yaml`; exempelfilen: 1 = Larm, 2 = Dashboard, 3 = Skiftmönster, 4 = OEE.
+Skärmnummer (`ActiveScreenNr`) styrs av `screens:` i `dashboard.yaml`; exempelfilen: 1 = Larm, 2 = Dashboard, 3 = Skiftmönster, 4 = OEE, 5 = 7 dagar, 6 = Highscore.
 
 ## Drift / att göra utanför koden
 - [ ] Byt lösenord för OPC-användaren `iot_user`
@@ -120,4 +126,3 @@ Passar inte en ren visningsdashboard:
 
 ## Idéer
 <!-- Lägg nya förslag här som "- [ ] ..." -->
-- [ ] Skärm med körtids-highscores – varje rad visar Körd tid, Skiftlag och Datumstämpel

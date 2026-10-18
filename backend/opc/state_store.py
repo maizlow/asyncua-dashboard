@@ -20,6 +20,9 @@ class DataStore:
     def __init__(self):
         self._data: dict[str, Any] = {}
         self._on_change_callbacks: list[Callable] = []
+        # True while the OPC UA data subscription is up (set by opc_client.main); the highscore
+        # tracker ends an ongoing run when the connection is lost instead of extending it
+        self.connected = False
 
     def set(self, key: str, value: Any):
         self._data[key] = value

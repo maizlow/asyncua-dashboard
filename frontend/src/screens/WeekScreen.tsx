@@ -1,4 +1,4 @@
-import { useLayoutEffect, useRef } from "react";
+import { useFit } from "@/hooks/useFit";
 import { useMetricsStore } from "@/stores/useMetricsStore";
 import type { DailyRow } from "@/data/types";
 import { DASH, fmtInt, fmtPct } from "@/lib/format";
@@ -7,7 +7,7 @@ import { barPct, barScale, barStatus, dayLabel } from "@/lib/week";
 // Today + the previous 6 days (screen type: week), laid out for the 3840x2160 canvas (see ScaledCanvas)
 // and read from 8-10 m (cap heights at 1080p: OEE ≈ 53 px, counts ≈ 38 px, labels ≥ 37 px). Seven fixed columns: OEE % on top, a bar of good tiles per day with the day
 // target as a white line, the good count and the day label below. 6-digit counts and "100,0 %" fit;
-// numbers shrink (never below MIN_PX) only if a value would not fit its column. Nothing scrolls.
+// numbers shrink (never below FIT_MIN_PX) only if a value would not fit its column. Nothing scrolls.
 // Status is never colour-only: under target = amber bar that ends below the white target line.
 
 const GREEN = "var(--accent-green)";
@@ -16,26 +16,7 @@ const NEUTRAL = "#71717a"; // zinc-500: no target known
 
 const OEE_PX = 160; // cap ≈ 53 px at 1080p
 const COUNT_PX = 116; // cap ≈ 38 px at 1080p; "999 999" fits without shrinking
-// Shrink floor: 112 px mono = 37 px cap height at 1080p (the minimum for anything important).
-// Only reached by "100,0 %" (OEE shrinks to ~130 px); normal values keep the full size.
-const MIN_PX = 112;
-
-/** Shrinks the font of the element (from maxPx) until its content fits its width. */
-function useFit<T extends HTMLElement>(maxPx: number, deps: unknown[]) {
-  const ref = useRef<T>(null);
-  useLayoutEffect(() => {
-    const el = ref.current;
-    if (!el) return;
-    let size = maxPx;
-    el.style.fontSize = `${size}px`;
-    for (let i = 0; i < 6 && el.scrollWidth > el.clientWidth + 1 && size > MIN_PX; i++) {
-      size = Math.max(MIN_PX, Math.floor((size * el.clientWidth) / el.scrollWidth) - 2);
-      el.style.fontSize = `${size}px`;
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, deps);
-  return ref;
-}
+// Numbers shrink only down to FIT_MIN_PX (hooks/useFit.ts, 37 px cap at 1080p): only "100,0 %" gets there.
 
 function DayColumn({ day, scale }: { day: DailyRow; scale: number }) {
   const label = dayLabel(day.date, day.today);

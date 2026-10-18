@@ -23,6 +23,7 @@ Hur du konfigurerar taggar och objekt står i [CONFIG.md](CONFIG.md).
 - [Skärm Skiftmönster (`type: shift`)](#skärm-skiftmönster-type-shift)
 - [Skiftlogg (tabellen `shifts`)](#skiftlogg-tabellen-shifts)
 - [Skärm 7 dagar (`type: week`)](#skärm-7-dagar-type-week)
+- [Skärm Highscore (`type: highscore`)](#skärm-highscore-type-highscore)
 - [Grid-skärmar, t.ex. Dashboard (`type: grid`)](#grid-skärmar-tex-dashboard-type-grid)
 - [Skärm Larm (`type: alarms`)](#skärm-larm-type-alarms)
 - [Beräknas men visas inte](#beräknas-men-visas-inte)
@@ -61,6 +62,7 @@ ingenting själv.
 | `SNAPSHOT_INTERVAL_MS` | `10000` | Hur ofta hela ögonblicksbilden + historik (för trend) skickas om |
 | `HISTORY_INTERVAL_S` | `60` | Hur ofta 7-dagarsskärmen räknas om och skickas (minst 10 s). Bara idag räknas om; tidigare dagar sparas |
 | `SHIFT_SETTLE_S` | `10` | Skiftloggen: väntetid efter ett skiftbyte innan det nya skiftets parametrar sparas, och fönstret där en nollställning av räknarna kopplas till skiftbytet ([Skiftbyte](#skiftbyte-och-taggar-som-kommer-i-olika-ordning)) |
+| `HIGHSCORE_MIN_STOP_S` | `0` | Highscore: stopp kortare än detta avslutar inte en körning (0 = varje stopp avslutar) |
 | `RETENTION_DAYS` | `30` | Hur länge historiken sparas. **Under 7** visar 7-dagarsskärmen `–` för de äldsta dagarna (varning i loggen) |
 
 Skiftmönstret skickas var 30:e sekund (fast i koden).
@@ -615,6 +617,44 @@ $$
 → `84,0 %`, `70 600`, gul stapel strax under linjen 71 400. Nattskift 22:00–06:00 med `ShiftTarget` = 57 120 som kört hela
 natten i 119 st/min: dagen före får 2 h (14 280 pannor, mål 14 280), dagen efter 6 h (42 840 pannor, mål 42 840).
 
+## Skärm Highscore (`type: highscore`)
+
+**Visas:** de **fem längsta körningarna utan stopp**, längst först, med kolumnerna **Körd tid** (`hh:mm:ss`), **Skiftlag** och
+**Datumstämpel** (körningens start, `14/10 06:12`; annat år `31/12/25 22:00`). Rekordet (rad 1) är störst. Raden längst ned
+visar **pågående körning** och hur långt det är kvar till rekordet. Beräknas i backend
+([`backend/opc/highscore.py`](../backend/opc/highscore.py)), `GET /api/highscores?n=5` och WebSocket-meddelandet `highscores`.
+
+### Körning
+
+En **körning** är en sammanhängande period där `ProductionState` = 2 (kör). Den börjar när linjen börjar köra och slutar när
+ett stopp börjar. Stopp kortare än $m$ = `HIGHSCORE_MIN_STOP_S` hoppas över (körningen fortsätter och det korta stoppet räknas
+in i tiden); standard $m = 0$ betyder att **varje** stopp avslutar körningen, även ett stopp under en sekund.
+
+$$
+d = b - a, \qquad [a,\ b) \text{ innehåller inget stopp som varar } m \text{ sekunder eller längre}
+$$
+
+$a$ = tiden då `ProductionState` blev 2, $b$ = tiden då stoppet som avslutade körningen började (exakta tidsstämplar från
+PLC-ändringarna, inte sekundsampling).
+
+- **Topplistan:** de fem största $d$ bland avslutade körningar. Lika långa: den som kom först står högre.
+- **Pågående körning:** $d_\text{nu} = t_\text{nu} - a$, grön, räknas upp varje sekund. Kommer den in bland de fem visas den
+  i listan (grön, "PÅGÅR").
+- **Rekord om** $= d_1 - d_\text{nu}$ där $d_1$ är rekordet; när $d_\text{nu} \gt d_1$ visas **"▲ NYTT REKORD"**. Utan pågående
+  körning visas `–` och, om `ProductionState` är känt och inte 2, **"LINJEN STÅR"**.
+- **Skiftlag** = `ShiftTeam` när körningen började. Går körningen över ett skiftbyte till ett annat lag visas båda, `A→B`.
+  Utan `ShiftTeam`: `–`.
+- **Markerad rad** (ljus ram, som "Idag" på 7-dagarsskärmen): körningen började i **pågående skift** (skiftloggens öppna
+  skift, annars skiftfönstret från `ShiftStart`/`ShiftEnd`).
+
+**Sparas** i tabellen `run_records`, som **inte** gallras av `RETENTION_DAYS`. Pågående körning skrivs var 5:e sekund med sin
+senast bekräftade körtid. Startas backend om, eller tappas OPC-anslutningen, avslutas körningen vid den tiden: den förlängs aldrig
+över tid som backend inte kunde se. Därför delas en körning av en omstart. Körningar från före uppgraderingen räknas inte
+(`shift_log` kan inte skilja ett avbrott i backend från att linjen körde).
+
+**Exempel:** linjen kör 06:00–07:00, står 5 min, kör 07:05–09:05:30. Med $m = 0$: två körningar, `01:00:00` och `02:00:30`
+(rekord). Med $m$ = 600 s räknas stoppet på 5 min inte och det blir en körning `03:05:30` (06:00–09:05:30).
+
 ## Grid-skärmar, t.ex. Dashboard (`type: grid`)
 
 Värdena i rutorna kommer **direkt från PLC-taggarna**; dashboarden räknar inte om dem. I exempelfilen är *Produktion*
@@ -712,4 +752,6 @@ Följande finns i `GET /api/oee` men visas inte längre på TV:n (borttagna i PR
   framåt mitt i ett skift (t.ex. 14:00 → 14:30 kl. 14:10) tolkas som ett nytt skift. Var backend nere över flera skift blir det
   ett långt skift (det gamla stängs vid det senaste skiftbytet). Parametrar som kommer mer än `SHIFT_SETTLE_S` före
   `ShiftStart` hamnar på det gamla skiftet; höj då `SHIFT_SETTLE_S`.
+- **Highscore:** ändras `HIGHSCORE_MIN_STOP_S` gäller det nya körningar; sparade körningar räknas inte om. Tidsstämpeln
+  visas i webbläsarens tidszon (som Skift kvar).
 - **Trend efter nollställning:** när en räknare nollställs vid skiftbyte visar trenden en stor ▼ (röd för `better: high`).

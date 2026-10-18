@@ -61,6 +61,7 @@ Defined in `dashboard.yaml` (`screens:`); the example file has:
 | 3 | Skiftmönster (shift pattern) |
 | 4 | OEE (availability/performance/quality, production vs target, scrap, rate, stops, remaining shift time) |
 | 5 | 7 dagar (today + previous 6 days from the SQLite history: OEE %, good count per day vs day target) |
+| 6 | Highscore (the five longest runs without a stop: run time, shift team, date; ongoing run vs record) |
 
 The UI is designed on a fixed 3840×2160 canvas that is scaled to fit any screen (`ScaledCanvas.tsx`); 21:9 screens are letterboxed.
 In demo mode, `?layout=stress` loads the worst-case layout `docs/examples/stress.yaml`, `?screen=N` pins a single screen instead of cycling, `?alarms=many` adds many long alarms and `?count=999999` forces all count fields to 6 digits, `?stopped=1` shows a stopped line with 999 stops (overflow tests).
@@ -97,6 +98,10 @@ All formulas, edge cases and worked examples: [docs/BERAKNINGAR.md](docs/BERAKNI
   `ShiftStart` (or the clock for single-shift plants) and settle for `SHIFT_SETTLE_S` (default 10 s) because tags arrive in
   different OPC frames. The 7-day screen aggregates over these rows (raw history for days before the log existed).
   `GET /api/shifts?limit=20`. Design and formulas: [docs/BERAKNINGAR.md](docs/BERAKNINGAR.md#skiftlogg-tabellen-shifts).
+- **Highscores:** `backend/opc/highscore.py` tracks runs (ProductionState == 2 without a stop; stops shorter than
+  `HIGHSCORE_MIN_STOP_S`, default 0, are bridged) from the exact state-change timestamps and stores them in `run_records`
+  (never purged). An ongoing run is closed at its last confirmed time on restart or OPC disconnect. `GET /api/highscores?n=5`,
+  pushed as `highscores`.
 - **Shifts:** `ShiftStart`/`ShiftEnd` from the PLC are plant-local times, resolved in `TIMEZONE` (or the system local zone),
   DST-aware. Shifts crossing midnight (e.g. 22:00–06:00) are supported.
 - **Tests:** `pip install -r backend/requirements-dev.txt && python -m pytest`; frontend formatters: `cd frontend && npm test`

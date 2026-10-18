@@ -1,6 +1,6 @@
 // Fit check for the TV screens: no screen may ever overflow or scroll, in X or Y.
 //
-// Loads the demo build at several TV resolutions, pins each screen (?screen=1..5, plus the alarm
+// Loads the demo build at several TV resolutions, pins each screen (?screen=1..6, plus the alarm
 // screen with many very long alarms: ?alarms=many, 6-digit counts: ?count=999999, and the worst-case
 // layout docs/examples/stress.yaml: ?layout=stress) and asserts that
 //   1. the document never scrolls (scrollWidth/Height <= clientWidth/Height on html and body),
@@ -48,8 +48,15 @@ const CASES = [
   ["week", "screen=5"],
   ["week-6digit", "screen=5&count=999999"],
   ["stress-week", "layout=stress&screen=7"],
+  // Highscore screen: demo records (one in the current shift + the ongoing run), 3-digit hours and
+  // "A→B" teams everywhere (?count), and the stress layout
+  ["highscore", "screen=6"],
+  ["highscore-3digit", "screen=6&count=999999"],
+  ["stress-highscore", "layout=stress&screen=8"],
 ];
 // Screen switch = 2 s fade out + 3 s fade in
+// ONLY=regex limits the run to matching case names, e.g. ONLY=highscore
+const ONLY = process.env.ONLY ? new RegExp(process.env.ONLY) : null;
 const SETTLE_MS = Number(process.env.SETTLE_MS ?? 5600);
 
 if (SHOT_DIR) mkdirSync(SHOT_DIR, { recursive: true });
@@ -67,6 +74,7 @@ try {
     page.on("console", (m) => m.type() === "error" && errors.push(m.text()));
     await page.setViewport({ width: w, height: h, deviceScaleFactor: 1 });
     for (const [name, query, allowClamp = false] of CASES) {
+      if (ONLY && !ONLY.test(name)) continue;
       await page.goto(`${BASE_URL}?${query}`, { waitUntil: "networkidle0" });
       await new Promise((r) => setTimeout(r, SETTLE_MS));
       const r = await page.evaluate(() => {
@@ -121,7 +129,14 @@ try {
             problems.push(`week value too wide: ${label(el)} ${el.scrollWidth} > ${el.clientWidth}`);
         const weekSizes = weekEls.map((e) => parseFloat(e.style.fontSize));
         const week = weekSizes.length ? Math.min(...weekSizes) : null;
-        return { problems, clamped, count: els.length, hero, week };
+        // Highscore values (duration, team, stamp shrink only if they would not fit their column)
+        const hsEls = [...canvas.querySelectorAll("[data-hs-value]")];
+        for (const el of hsEls)
+          if (el.scrollWidth > el.clientWidth + 1)
+            problems.push(`highscore value too wide: ${label(el)} ${el.scrollWidth} > ${el.clientWidth}`);
+        const hsSizes = hsEls.map((e) => parseFloat(e.style.fontSize || getComputedStyle(e).fontSize));
+        const hs = hsSizes.length ? Math.min(...hsSizes) : null;
+        return { problems, clamped, count: els.length, hero, week, hs };
       });
       if (SHOT_DIR) await page.screenshot({ path: `${SHOT_DIR}/${name}-${w}x${h}.png` });
       if (!allowClamp) r.problems.push(...r.clamped.map((c) => `not allowed on this screen: ${c}`));
@@ -129,7 +144,8 @@ try {
       if (!ok) failures++;
       const hero =
         (r.hero === null ? "" : `, smallest item value ${r.hero}px`) +
-        (r.week === null ? "" : `, smallest week number ${r.week}px`);
+        (r.week === null ? "" : `, smallest week number ${r.week}px`) +
+        (r.hs === null ? "" : `, smallest highscore value ${r.hs}px`);
       console.log(`${ok ? "PASS" : "FAIL"} ${name} ${w}x${h} (${r.count} elements, ${r.clamped.length} clamped${hero})`);
       for (const p of r.problems) console.log(`   ✗ ${p}`);
       for (const c of r.clamped) console.log(`   · ${c}`);

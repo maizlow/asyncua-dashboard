@@ -48,6 +48,8 @@ class Settings(BaseSettings):
     # parameters (ShiftTarget, OeeTarget, PlannedTime, ShiftTeam) are snapshotted; also the window in
     # which a counter reset is matched to the boundary. See backend/opc/shifts.py
     shift_settle_s: float = Field(default=10.0, alias="SHIFT_SETTLE_S")
+    # Highscore screen: stops shorter than this are bridged (the run continues); 0 = every stop ends a run
+    highscore_min_stop_s: float = Field(default=0.0, alias="HIGHSCORE_MIN_STOP_S")
 
     model_config = {
         "env_file": BASE_DIR / ".env",     # ← Force it to look in project root
