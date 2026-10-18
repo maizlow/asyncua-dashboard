@@ -1,8 +1,19 @@
-import asyncio
-from typing import Any, Callable
+"""In-memory state shared between the OPC thread and the API/WebSocket thread.
 
-from backend.app.routers.websocket import broadcast
+Setters are called from the OPC UA thread. They never touch WebSockets directly: messages
+go through ``broadcaster.publish`` (thread-safe hand-off to the uvicorn loop) and history
+writes go through the single SQLite writer thread.
+"""
+
+import logging
+import threading
+from collections.abc import Callable
+from typing import Any
+
+from backend.app.routers.websocket import broadcaster
 from backend.opc.data_logger import data_logger
+
+logger = logging.getLogger(__name__)
 
 
 class DataStore:
@@ -13,39 +24,28 @@ class DataStore:
     def set(self, key: str, value: Any):
         self._data[key] = value
 
-        # Best-effort async write to persistent history (non-blocking)
+        # Persistent history (queued, non-blocking) + live value to all clients
         try:
-            loop = asyncio.get_running_loop()
-            asyncio.run_coroutine_threadsafe(
-                data_logger.log_value(key, value),
-                loop
-            )
-            # Broadcast live value only (no history in the hot path)
-            asyncio.run_coroutine_threadsafe(
-                broadcast({
-                    "type": "data_update",
-                    "key": key,
-                    "value": value
-                }),
-                loop
-            )
-        except RuntimeError:
-            # Fallback if no running loop
-            print(f"⚠️ Could not broadcast data_update for {key} - no event loop")
+            data_logger.log_value(key, value)
+        except Exception:
+            logger.exception("Failed to queue history point for %s", key)
+        broadcaster.publish({"type": "data_update", "key": key, "value": value})
 
-        # Call other callbacks if any
         for callback in self._on_change_callbacks:
-            callback(key, value)
+            try:
+                callback(key, value)
+            except Exception:
+                logger.exception("DataStore on_change callback failed for %s", key)
 
     def get(self, key: str, default: Any = None) -> Any:
         return self._data.get(key, default)
 
     async def get_history(self, key: str, limit: int = 150) -> list:
-        """Return the most recent N values (oldest first) for sparklines."""
+        """The most recent N values (chronological) for sparklines."""
         return await data_logger.get_history_values(key, limit=limit)
 
     async def get_history_points(self, key: str, limit: int = 150) -> list:
-        """Return the most recent N points with timestamps."""
+        """The most recent N points with timestamps."""
         return await data_logger.get_history_points(key, limit=limit)
 
     def on_change(self, callback: Callable):
@@ -57,74 +57,72 @@ class DataStore:
 
 class AlarmStore:
     def __init__(self):
-        self._active_alarms: dict[int, Any] = {}
-        self._on_add_callbacks: list = []
-        self._on_remove_callbacks: list = []
+        self._lock = threading.Lock()
+        self._active_alarms: dict[Any, Any] = {}
+        self._on_add_callbacks: list[Callable] = []
+        self._on_remove_callbacks: list[Callable] = []
 
-    def _normalize_id(self, event_id):
+    @staticmethod
+    def _normalize_id(event_id):
         try:
             return int(event_id)
         except (ValueError, TypeError):
             return event_id
 
-    def on_add(self, callback):
+    def on_add(self, callback: Callable):
         self._on_add_callbacks.append(callback)
 
-    def on_remove(self, callback):
+    def on_remove(self, callback: Callable):
         self._on_remove_callbacks.append(callback)
 
     def add(self, event_id, alarm: Any):
         norm_id = self._normalize_id(event_id)
-        self._active_alarms[norm_id] = alarm
-
-        # Notify listeners
+        with self._lock:
+            self._active_alarms[norm_id] = alarm
         for callback in self._on_add_callbacks:
-            callback(norm_id, alarm)
+            try:
+                callback(norm_id, alarm)
+            except Exception:
+                logger.exception("AlarmStore on_add callback failed")
 
     def remove(self, event_id):
         norm_id = self._normalize_id(event_id)
-        if norm_id in self._active_alarms:
-            removed_alarm = self._active_alarms[norm_id]
-            del self._active_alarms[norm_id]
-
-            for callback in self._on_remove_callbacks:
+        with self._lock:
+            removed_alarm = self._active_alarms.pop(norm_id, None)
+        if removed_alarm is None:
+            return
+        for callback in self._on_remove_callbacks:
+            try:
                 callback(norm_id, removed_alarm)
+            except Exception:
+                logger.exception("AlarmStore on_remove callback failed")
 
     def get_all(self) -> dict:
-        return self._active_alarms.copy()
+        with self._lock:
+            return self._active_alarms.copy()
 
     def clear(self):
-        self._active_alarms.clear()
+        with self._lock:
+            self._active_alarms.clear()
 
 
 class GeneralStore:
     def __init__(self):
         self._data: dict[str, Any] = {}
-        self._on_change_callbacks: list = []
+        self._on_change_callbacks: list[Callable] = []
 
     def set(self, key: str, value: Any):
         self._data[key] = value
 
-        # === Broadcast screen changes (thread-safe) ===
         if key == "RequestedScreenNr" and isinstance(value, int):
-            print(f"📺 Screen changed to {value}, broadcasting to frontend...")
-
-            try:
-                # Get the running event loop from the main thread
-                loop = asyncio.get_running_loop()
-                asyncio.run_coroutine_threadsafe(
-                    broadcast({
-                        "type": "screen_change",
-                        "screen": value
-                    }),
-                    loop
-                )
-            except RuntimeError:
-                # Fallback if no running loop (shouldn't normally happen)
-                print("⚠️ Could not broadcast screen change - no event loop found")
+            logger.info("Screen changed to %s, broadcasting to frontend", value)
+            broadcaster.publish({"type": "screen_change", "screen": value})
 
         for callback in self._on_change_callbacks:
-            callback(key, value)
+            try:
+                callback(key, value)
+            except Exception:
+                logger.exception("GeneralStore on_change callback failed for %s", key)
 
     def get(self, key: str, default: Any = None) -> Any:
         return self._data.get(key, default)
