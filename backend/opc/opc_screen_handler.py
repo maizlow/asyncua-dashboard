@@ -1,10 +1,13 @@
 # opc_screen_handler.py
 import asyncio
+import logging
 
 from asyncua import ua
 
 import backend.config as config
 from backend.opc.state_store import general_store
+
+logger = logging.getLogger(__name__)
 
 
 class TagChangeHandler:
@@ -23,7 +26,7 @@ class TagChangeHandler:
             # Cast the raw variant value to an integer for safety
             int_val = int(val)
             general_store.set(alias, int_val)
-            print(f"📡 [Tag Sync]: {alias} updated on server -> Stored value: {int_val}")
+            logger.debug("Screen tag %s -> %s", alias, int_val)
 
             # Screen handshake (internal logic only, never driven by HTTP clients):
             # when the PLC requests a screen, the backend broadcasts it to the display
@@ -35,7 +38,7 @@ class TagChangeHandler:
     def status_change_notification(self, status):
         """Called by asyncua when the server reports a status change (common during reconnects or network issues)."""
         # We just log it at warning level so it doesn't spam the "no status_change_notification method" error.
-        print(f"⚠️ [OPC UA Screen Subscription Status]: {status}")
+        logger.warning("OPC UA screen subscription status change: %s", status)
             
 
 
@@ -45,10 +48,10 @@ async def subscribe_screen_tags(client, sync_lock=None):
     and manages the bidirectional write-back loop.
     """
     if sync_lock:
-        print("⏳ Tags waiting for Alarm Engine to clear the PLC network buffer...")
+        logger.info("Screen tags waiting for the alarm engine to clear the PLC network buffer...")
         await sync_lock.wait()
 
-    print("🚀 Initializing Screen Tag PubSub subscription pipeline...")
+    logger.info("Initializing screen tag subscription")
     
     # 1. Create ONE central handler instance to manage all nodes in this subscription
     handler_instance = TagChangeHandler()
@@ -68,14 +71,14 @@ async def subscribe_screen_tags(client, sync_lock=None):
             # ✅ FIXED: Call with only the target_node. The second parameter defaults 
             # to ua.AttributeIds.Value automatically, keeping the binary packet clean.
             await subscription.subscribe_data_change(target_node)
-            print(f"✅ DataChange monitoring active for node alias: {alias}")
+            logger.info("DataChange monitoring active for %s", alias)
             # GREEN LIGHT: Unlock the tag engine so it can safely subscribe!
             if sync_lock:
                 sync_lock.set()
 
         except Exception as e:
-            print(f"❌ CRITICAL: Failed to subscribe to node '{alias}' ({node_string}): {e}")
-            raise e
+            logger.critical("Failed to subscribe to node %r (%s): %s", alias, node_string, e)
+            raise
 
     # 3. Bidirectional Write-Back Monitoring Loop
     node_active_out = client.get_node(config.SCREEN_NODES["ActiveScreenNr"])
@@ -99,10 +102,10 @@ async def subscribe_screen_tags(client, sync_lock=None):
                 # Lock it in locally so we don't repeat this write on the next iteration
                 last_sent_screen = web_active_screen
 
-                print(f"🔄 [Handshake]: Wrote Active Screen {web_active_screen} back to PLC.")
+                logger.info("Handshake: wrote ActiveScreenNr=%s to PLC", web_active_screen)
                 
         except asyncio.CancelledError:
-            break
+            raise
         except Exception as e:
-            print(f"⚠️ Error in Tag PubSub write-back tracking thread: {e}")
-            raise e
+            logger.warning("Screen write-back loop error (reconnecting): %s", e)
+            raise

@@ -1,8 +1,11 @@
 # opc_data_tags.py
 import asyncio
+import logging
 
 import backend.config as config
 from backend.opc.state_store import data_store
+
+logger = logging.getLogger(__name__)
 
 
 class TagChangeHandler:
@@ -44,53 +47,41 @@ class TagChangeHandler:
             final_val = str(processed_val).strip()
 
         data_store.set(alias, final_val)
-        print(f"📡 [Data Tag Sync]: {alias} ({datatype}) -> {final_val} ({type(final_val).__name__})")
+        logger.debug("Data tag %s (%s) -> %r", alias, datatype, final_val)
             
     def status_change_notification(self, status):
         """Fires when the server status changes (e.g. drops offline)."""
-        print(f"⚠️ [OPC UA Connection Status Event]: {status}")
+        logger.warning("OPC UA data subscription status change: %s", status)
 
 async def subscribe_data_tags(client, sync_lock=None):
-    """
-    Sets up DataChange subscriptions using datatype from config.
+    """Set up DataChange subscriptions (datatype from config) and keep them alive.
+
+    Any error (failed subscription, dropped connection) propagates so the supervisor in
+    opc_client.main() reconnects. Cancellation is propagated, not swallowed.
     """
     if sync_lock:
-        print("⏳ Tags waiting for Alarm Engine to clear the PLC network buffer...")
+        logger.info("Data tags waiting for the alarm engine to clear the PLC network buffer...")
         await sync_lock.wait()
 
-    print("🚀 Initializing Data Tag PubSub subscription pipeline...")
-    
+    logger.info("Initializing data tag subscription")
     handler_instance = TagChangeHandler()
-    
-    # Create the subscription
     subscription = await client.create_subscription(1000, handler_instance)
-    
-    # Subscribe to each node and store its datatype
+
     for item in config.DASHBOARD_DATA_NODES:
+        alias = item.get("alias", item.get("nodeid"))
+        datatype = item.get("datatype", "Unknown")
         try:
             target_node = client.get_node(item["nodeid"])
-            alias = item["alias"]
-            datatype = item.get("datatype", "Unknown")
-
-            # Store both node mapping and datatype
             handler_instance.node_map[item["nodeid"]] = alias
             handler_instance.node_map[str(target_node.nodeid)] = alias
-            handler_instance.datatype_map[alias] = datatype   # ← New
-
+            handler_instance.datatype_map[alias] = datatype
             await subscription.subscribe_data_change(target_node)
-            print(f"✅ Subscribed: {alias} (datatype: {datatype})")
-            
-        except Exception as e:
-            print(f"❌ Failed to subscribe to '{alias}': {e}")
-            raise e
+            logger.info("Subscribed: %s (datatype: %s)", alias, datatype)
+        except Exception:
+            logger.exception("Failed to subscribe to %r", alias)
+            raise
 
-    # Keep the subscription alive
+    # Keep-alive: raises when the connection is gone -> supervisor reconnects
     while True:
-        try:
-            await asyncio.sleep(0.5)
-            await client.check_connection()
-        except asyncio.CancelledError:
-            break
-        except Exception as e:
-            print(f"⚠️ Error in subscription loop: {e}")
-            raise e
+        await asyncio.sleep(0.5)
+        await client.check_connection()
