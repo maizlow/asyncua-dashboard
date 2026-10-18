@@ -5,6 +5,9 @@ import path from 'path'
 
 // https://vitejs.dev/config/
 export default defineConfig({
+  // Public base path. "/" for the real deployment; the GitHub Pages workflow sets
+  // VITE_BASE=/asyncua-dashboard/ for the demo build.
+  base: process.env.VITE_BASE || "/",
   plugins: [react(), tailwindcss()],
   resolve: {
     alias: {
