@@ -31,9 +31,11 @@
 
 :root {
   /* ABECE Colors */
-  --accent-green: #00a436;
-  --accent-red: #fb2c36;
-  --accent-neutral: #9ca3af;
+  /* Text-safe on dark cards from 8-10 m (WCAG >= 7:1 on #18181b, see legibility analysis) */
+  --accent-green: #22c55e;
+  --accent-red: #f87171;
+  --accent-amber: #f59e0b;
+  --accent-neutral: #d4d4d8;
 
   --color-positive: var(--accent-green);
   --color-negative: var(--accent-red);
@@ -164,4 +166,23 @@
   html {
     @apply font-sans;
   }
+}
+/* TV display: nothing may ever scroll or overflow, in X or Y. The 3840x2160 canvas is scaled to fit. */
+html,
+body,
+#root {
+  margin: 0;
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+}
+
+/* Single-line ellipsis for big TV text. The taller line box keeps descenders (g, j, å...) from being
+   clipped by overflow:hidden; the negative margin keeps the layout height at 1em. */
+@utility tv-truncate {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  line-height: 1.4;
+  margin-block: -0.2em;
 }

@@ -12,8 +12,8 @@ export function ShiftPatternScreen() {
     <div data-fit className="flex flex-col h-full min-h-0 bg-zinc-950 text-white overflow-hidden">
       <div className="flex-1 min-h-0 flex flex-col p-8">
         <div className="mb-6">
-          <h1 className="text-9xl font-bold tracking-tight">Skiftmönster</h1>
-          <p className="text-6xl text-zinc-400 mt-2">
+          <h1 className="text-[150px] leading-none font-bold tracking-tight">Skiftmönster</h1>
+          <p className="text-[110px] text-zinc-300 mt-10 tv-truncate">
             Körtid <span className="text-[#22c55e]">■</span> vs stopptid <span className="text-[#ef4444]">■</span>
             {shiftData.length > 0 && ` – ${shiftData.length} timmars skift`}
           </p>
@@ -64,7 +64,7 @@ export function ShiftPatternScreen() {
           </ResponsiveContainer>
         </div>  
 
-        <div className="mt-6 text-white font-bold text-8xl flex justify-between">
+        <div className="mt-6 text-white font-bold text-[120px] leading-none flex justify-between">
           <span>{firstLabel}</span>
           <span>{endLabel}</span>
         </div>      

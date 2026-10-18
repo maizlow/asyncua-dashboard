@@ -49,6 +49,16 @@ const WARNING_ALARMS: Omit<Alarm, "timestamp">[] = [
   { ID: 2125, message: "Lågt lufttryck", displayClass: 2 },
 ];
 
+/** ?alarms=many: extra long-lived alarms with very long texts, to test that the alarm screen never overflows */
+const STRESS_ALARMS: Omit<Alarm, "timestamp">[] = [
+  { ID: 9001, message: "Nödstopp aktiverat vid station 7 – kontrollera skyddsgrind, ljusridå och återställ från huvudpanelen innan omstart", displayClass: 1 },
+  { ID: 9002, message: "Hydraultryck under minimigräns i press 2 (kontrollera pump, filter och oljenivå)", displayClass: 1 },
+  { ID: 9003, message: "Kommunikationsfel_mot_robotcell_3_ProfinetTimeout_ingen_respons_från_enheten", displayClass: 2 },
+  { ID: 9004, message: "Temperatur i torkugn zon 4 över övre larmgräns", displayClass: 2 },
+  { ID: 9005, message: "Pallmagasin tomt", displayClass: 2 },
+  { ID: 9006, message: "Glasyrpump 1 överhettad – byt till reservpump", displayClass: 1 },
+];
+
 const rand = (min: number, max: number) => min + Math.random() * (max - min);
 const clamp = (v: number, min: number, max: number) => Math.min(max, Math.max(min, v));
 const round = (v: number, d = 2) => Math.round(v * 10 ** d) / 10 ** d;
@@ -230,6 +240,7 @@ export function createDemoDataSource(): DataSource {
   const pinned = Number(new URLSearchParams(window.location.search).get("screen"));
   const pinnedScreen = SCREEN_ORDER.includes(pinned) ? pinned : null;
   let screenIndex = 0;
+  const stressAlarms = new URLSearchParams(window.location.search).get("alarms") === "many";
 
   const alarms = new Map<string, Alarm>();
   const metrics: Record<string, MetricValue> = {};
@@ -325,6 +336,7 @@ export function createDemoDataSource(): DataSource {
     if (!sim.running) addAlarm(pick(STOP_ALARMS));
     publishMetrics(false);
     addAlarm(WARNING_ALARMS[0]);
+    if (stressAlarms) STRESS_ALARMS.forEach(addAlarm);
 
     setTimeout(() => {
       status = "connected";

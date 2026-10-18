@@ -1,182 +1,108 @@
-
-import { ReactNode } from "react";
-import { Line, LineChart, ResponsiveContainer } from "recharts";
 import { isValidNumber } from "@/lib/utils";
 
 interface MetricCardProps {
   label: string;
   value: number | string;
-  stringValueColor?: string | undefined;
+  /** Colour for string values (e.g. a stop time), as a CSS colour */
+  valueColor?: string;
   unit?: string;
-  delta?: number | null;
-  deltaUnit?: string;
   decimalPlaces?: number;
-  sparklineData?: number[];
-  showSparkline?: boolean;
-  sparklineDataAsDelta?: boolean;
-  progressTarget?: number;
-  progressTargetUnit?: string;
-  showProgressBar?: boolean;
-  children?: ReactNode;
+  /** History used to show the latest change (last - previous) as a large ▲/▼ value */
+  history?: number[];
+  /** Shift target (same unit as the value); shows "Mål" + value and a progress bar on the right */
+  target?: number;
+}
+
+// Laid out for the 3840x2160 canvas (see ScaledCanvas), read from 8-10 m on a 65" TV.
+// Hero value: 290 px mono -> >= 180 px cap height on the canvas (>= 90 px at 1080p).
+// Nothing secondary below 104-140 px (>= ~37 px cap height at 1080p).
+
+function formatValue(value: number | string, decimalPlaces: number): string {
+  if (!isValidNumber(value)) return String(value);
+  const n = Number(value);
+  return n % 1 !== 0 ? n.toFixed(decimalPlaces) : String(n);
 }
 
 export function MetricCard({
   label,
   value,
-  stringValueColor,
+  valueColor,
   unit,
-  delta: externalDelta,
-  deltaUnit = "%",
   decimalPlaces = 1,
-  sparklineData,
-  showSparkline = false,
-  sparklineDataAsDelta = false,
-  progressTarget,
-  progressTargetUnit,
-  showProgressBar = false,
-  children,
+  history,
+  target,
 }: MetricCardProps) {
-
-  // Calculate delta from sparklineData when sparklineDataAsDelta is true
-  let delta = externalDelta;
-
-  if (sparklineDataAsDelta && sparklineData && sparklineData.length >= 2) {
-    const last = sparklineData[sparklineData.length - 1];
-    const secondLast = sparklineData[sparklineData.length - 2];
-    delta = last - secondLast;
+  let delta: number | null = null;
+  if (history && history.length >= 2) {
+    delta = history[history.length - 1] - history[history.length - 2];
   }
-
+  const deltaText =
+    delta === null ? null : parseFloat(Math.abs(delta).toFixed(decimalPlaces)).toString().replace(/\.0$/, "");
+  // Shape carries the meaning too (not only colour): ▲ up, ▼ down, ● unchanged
+  const deltaArrow = delta === null ? "" : delta > 0 ? "▲" : delta < 0 ? "▼" : "●";
   const deltaColor =
-  delta === null || delta === undefined
-    ? "text-[var(--color-neutral)]"
-    : delta >= 0
-    ? "text-[var(--color-positive)]"
-    : "text-[var(--color-negative)]";
+    delta === null || delta === 0
+      ? "var(--color-neutral)"
+      : delta > 0
+        ? "var(--color-positive)"
+        : "var(--color-negative)";
 
-  const deltaArrow = delta === null || delta === undefined ? "" : delta >= 0 ? "↑" : "↓";
-
-  const chartData = sparklineData?.map((val, i) => ({ index: i, value: val }));
+  const progress =
+    target !== undefined && target > 0 && isValidNumber(value)
+      ? Math.min(100, Math.max(0, (Number(value) / target) * 100))
+      : null;
 
   return (
-    <div data-fit className={`bg-zinc-900 border border-zinc-800 rounded-3xl flex flex-col`}>
-      {/* Header */}
-      <div className="px-8 pt-6 pb-12">
-        <div className="text-8xl text-zinc-400 tracking-wide uppercase font-medium">
-          {label}
+    <div
+      data-fit
+      className="bg-zinc-900 border border-zinc-800 rounded-[48px] px-14 py-10 flex flex-col min-h-0 min-w-0 overflow-hidden"
+    >
+      <div className="text-[110px] text-zinc-300 tracking-wide uppercase font-medium tv-truncate">
+        {label}
+      </div>
+
+      <div className="flex-1 min-h-0 flex items-end justify-between gap-12 min-w-0">
+        {/* Main value */}
+        <div className="flex items-baseline min-w-0 whitespace-nowrap leading-none">
+          <span
+            className="text-[290px] font-mono font-bold tracking-[-6px] tabular-nums"
+            style={valueColor ? { color: valueColor } : undefined}
+          >
+            {formatValue(value, decimalPlaces)}
+          </span>
+          {unit && <span className="text-[110px] text-zinc-300 ml-6">{unit}</span>}
         </div>
+
+        {/* Latest change */}
+        {deltaText !== null && (
+          <div
+            className="shrink-0 text-[140px] font-mono font-semibold leading-none whitespace-nowrap pb-6"
+            style={{ color: deltaColor }}
+          >
+            {deltaArrow} {deltaText}
+          </div>
+        )}
+
+        {/* Target + progress */}
+        {target !== undefined && (
+          <div className="shrink-0 pb-6">
+            <div className="flex items-baseline justify-between gap-10 leading-none whitespace-nowrap">
+              <span className="text-[110px] text-zinc-300">Mål</span>
+              <span className="text-[140px] font-mono font-semibold text-zinc-200 tabular-nums">
+                {target}
+              </span>
+            </div>
+            {progress !== null && (
+              <div className="h-14 bg-zinc-800 rounded-full mt-8 overflow-hidden">
+                <div
+                  className="h-full rounded-full transition-all duration-1000"
+                  style={{ width: `${progress}%`, backgroundColor: "var(--accent-green)" }}
+                />
+              </div>
+            )}
+          </div>
+        )}
       </div>
-
-      {/* Main Value */}
-      <div className="px-8 pb-12">
-        <span className="text-14xl leading-none font-mono font-semibold tracking-[-4px]">
-          {isValidNumber(value) && (
-            Number(value) % 1 !== 0 
-              ? Number(value).toFixed(decimalPlaces ?? 2) 
-              : Number(value)
-          )}
-          {isValidNumber(value) === false && (
-            <span className={`${stringValueColor} flex justify-center mt-30`}> {value} </span>
-          )}
-        </span>
-        {unit && <span className="text-8xl text-zinc-400 ml-3 align-super">{unit}</span>}
-      </div>
-
-      {/* Delta + Chart */}
-      <div className="px-8 pb-6 text-9xl font-mono font-medium leading-none tracking-[-4px]">
-          {/* Delta */}
-          {delta !== undefined && delta !== null && sparklineDataAsDelta === false && (
-            <div className={`${deltaColor}`}>
-              {deltaArrow} {deltaUnit === "%" ? Math.abs(delta).toFixed(decimalPlaces) : Math.abs(delta)}
-              {deltaUnit === "%" ? " %" : " " + deltaUnit}
-            </div>
-          )}
-          {delta === undefined && progressTarget !== undefined && sparklineDataAsDelta === false && (
-            <div className="text-zinc-400 flex justify-end">
-              {progressTarget}
-              {progressTargetUnit && <span className="text-6xl ml-3 align-super">{progressTargetUnit}</span>}
-            </div>
-          )}
-          {sparklineDataAsDelta === true && chartData && chartData.length > 2 && delta !== undefined && delta !== null && (
-            <div className={`${deltaColor}`}>
-              {deltaArrow} {parseFloat(Math.abs(delta).toFixed(decimalPlaces)).toString().replace(/\.0$/, '')}
-              {deltaUnit === "%" ? " %" : " " + deltaUnit}
-            </div>
-          )}
-
-      </div>
-
-      <div className="px-8 pb-12 w-full h-52"> 
-          {/* Sparkline */}
-          {showSparkline && chartData && chartData.length > 3 && (
-            <div className="w-full h-34 mt-4">          
-              <ResponsiveContainer width="100%" height="100%">
-                <LineChart 
-                  data={prepareSparklineData(sparklineData, 25)} 
-                  margin={{ top: 10, right: 10, bottom: 10, left: 10 }}
-                >
-                  <Line
-                    type="monotoneX"
-                    dataKey="value"
-                    stroke={
-                              deltaColor.includes("positive") 
-                                ? "var(--color-positive)" 
-                                : deltaColor.includes("negative") 
-                                ? "var(--color-negative)" 
-                                : "var(--color-neutral)"
-                            }
-                    strokeWidth={15}  
-                    isAnimationActive={true}                                   
-                    dot={false}
-                  />
-                </LineChart>
-              </ResponsiveContainer>
-            </div>
-          )}
-
-          {/* Progress Bar */}
-          {showProgressBar && progressTarget !== undefined && isValidNumber(value) && (
-            <div className="h-40 bg-zinc-800 rounded-2xl mt-4">
-              <div
-                className="h-40 rounded-2xl transition-all duration-1000"
-                style={{
-                  width: `${Math.min(100, Math.max(0, (Number(value) / progressTarget) * 100))}%`,
-                  backgroundColor: "var(--accent-green)",
-                }}
-              />
-            </div>
-          )}
-      </div>
-
-      {children && <div className="px-8 pb-6">{children}</div>}
     </div>
   );
-}
-
-// Combine downsampling + normalization for clean, readable sparklines
-function prepareSparklineData(data: number[] | undefined, targetPoints: number = 40) {
-  if (!data || data.length === 0) return [];
-
-  // 1. Downsample first (reduce from 300+ points to ~40)
-  let sampled = data;
-  if (data.length > targetPoints) {
-    const step = Math.floor(data.length / targetPoints);
-    sampled = [];
-    for (let i = 0; i < data.length; i += step) {
-      sampled.push(data[i]);
-    }
-    // Always keep the last point
-    if (sampled[sampled.length - 1] !== data[data.length - 1]) {
-      sampled.push(data[data.length - 1]);
-    }
-  }
-
-  // 2. Normalize so small changes become visible
-  const min = Math.min(...sampled);
-  const max = Math.max(...sampled);
-  const range = max - min || 1;
-
-  return sampled.map((val, index) => ({
-    index,
-    value: ((val - min) / range) * 100,   // scale to 0-100
-  }));
 }

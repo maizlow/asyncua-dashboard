@@ -7,52 +7,29 @@ const CUSTOMER_LOGO =
     ? `${import.meta.env.BASE_URL}demoLogo.svg`
     : `${import.meta.env.BASE_URL}customerLogo.png`;
 
+// 24-hour Swedish clock, e.g. "17:27:31". No date line: too small to read from the floor.
+const timeFmt = new Intl.DateTimeFormat("sv-SE", { hour: "2-digit", minute: "2-digit", second: "2-digit" });
+
 export function Header() {
   const [time, setTime] = useState(new Date());
 
   // Live updating clock
   useEffect(() => {
-    const timer = setInterval(() => {
-      setTime(new Date());
-    }, 1000); // Update every second
-
+    const timer = setInterval(() => setTime(new Date()), 1000);
     return () => clearInterval(timer);
   }, []);
-
-  // Format time nicely (large display)
-  const formattedTime = time.toLocaleTimeString([], {
-    hour: "2-digit",
-    minute: "2-digit",
-    second: "2-digit",
-  });
-
-  const formattedDate = time.toLocaleDateString([], {
-    weekday: "short",
-    month: "short",
-    day: "numeric",
-  });
 
   return (
     <header className="w-full bg-zinc-950 border-b-4 border-zinc-800 px-8 py-6">
       <div className="flex items-center justify-between max-w-full mx-20">
-        
         {/* LEFT: Customer Logo */}
         <div className="flex items-center justify-start flex-1">
-          <img
-            src={CUSTOMER_LOGO}
-            alt="Customer Logo"
-            className="h-48 w-auto object-contain"
-          />
+          <img src={CUSTOMER_LOGO} alt="Customer Logo" className="h-48 w-auto object-contain" />
         </div>
 
-        {/* MIDDLE: Clock */}
-        <div className="flex flex-col items-center">
-          <div className="text-[150px] font-mono font-semibold tracking-[4px] text-white leading-none">
-            {formattedTime}
-          </div>
-          <div className="text-6xl text-zinc-400 mt-1 tracking-wide uppercase">
-            {formattedDate}
-          </div>
+        {/* MIDDLE: Clock (cap height >= 62 px @1080p -> comfortable at ~8 m on a 65" TV) */}
+        <div className="text-[200px] font-mono font-semibold tracking-[4px] text-white leading-none tabular-nums">
+          {timeFmt.format(time)}
         </div>
 
         {/* RIGHT: ABECE Logo */}

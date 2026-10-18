@@ -15,12 +15,12 @@ function App() {
 
         {/* Connection Status Banner */}
         {status === "disconnected" && (
-          <div className="bg-red-600 text-white text-center py-15 text-8xl font-medium">
+          <div className="bg-red-600 text-white text-center py-15 text-[120px] font-medium tv-truncate">
             ⚠️ Anslutningen bröts – väntar på att återansluta...
           </div>
         )}
         {status === "connecting" && (
-          <div className="bg-red-600 text-white text-center py-15 text-8xl font-medium">
+          <div className="bg-red-600 text-white text-center py-15 text-[120px] font-medium tv-truncate">
             ⚠️ Anslutningen bröts – återansluter...
           </div>
         )}
