@@ -79,7 +79,15 @@ class AlarmHandler:
 
 
 async def subscribe_program_alarms(client=None, sync_lock=None):
-    
+        if not config.DEFAULT_NODES["ProgramAlarms"]:
+            # opc.alarms empty in dashboard.yaml: no alarm subscription, but keep the engine alive
+            logger.info("No alarm node configured (opc.alarms in dashboard.yaml is empty); alarms disabled")
+            if sync_lock:
+                sync_lock.set()
+            while True:
+                await asyncio.sleep(1)
+                await client.check_connection()
+
         try:
             handler = AlarmHandler()
             subscription = await client.create_subscription(1000, handler)

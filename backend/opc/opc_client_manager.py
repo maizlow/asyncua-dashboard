@@ -5,6 +5,7 @@ import logging
 from asyncua import Client
 from asyncua.crypto.security_policies import SecurityPolicyBasic256Sha256
 
+from backend.dashboard_config import get_dashboard
 from backend.settings import settings
 
 logger = logging.getLogger(__name__)
@@ -18,9 +19,12 @@ class OPCClientManager:
         if cls._client is None or not cls._client._connected:
             async with cls._lock:
                 if cls._client is None or not cls._client._connected:
+                    url = settings.opc_endpoint_url or get_dashboard().opc.url
+                    if not url:
+                        raise RuntimeError("No OPC UA endpoint: set OPC_ENDPOINT_URL in .env or opc.url in dashboard.yaml")
                     # FIX: Relax the watchdog interval and increase the request timeout
                     cls._client = Client(
-                        settings.opc_endpoint_url, 
+                        url, 
                         timeout=10,               # Wait up to 10s for replies before throwing a TimeoutError
                         watchdog_intervall=5.0    # Check server health every 5s instead of every 1s
                     )
@@ -36,7 +40,7 @@ class OPCClientManager:
 
                     await cls._client.connect()
                     await cls._client.load_data_type_definitions()
-                    logger.info("OPC UA client connected to %s", settings.opc_endpoint_url)
+                    logger.info("OPC UA client connected to %s", url)
         return cls._client
 
     @classmethod

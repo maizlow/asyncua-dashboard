@@ -1,7 +1,8 @@
 // Fit check for the TV screens: no screen may ever overflow or scroll, in X or Y.
 //
 // Loads the demo build at several TV resolutions, pins each screen (?screen=1..4, plus the alarm
-// screen with many very long alarms: ?alarms=many, and 6-digit counts: ?count=999999) and asserts that
+// screen with many very long alarms: ?alarms=many, 6-digit counts: ?count=999999, and the worst-case
+// layout docs/examples/stress.yaml: ?layout=stress) and asserts that
 //   1. the document never scrolls (scrollWidth/Height <= clientWidth/Height on html and body),
 //   2. every element inside the 3840x2160 canvas stays within the canvas bounds,
 //   3. no clipping element (overflow != visible) inside the canvas has hidden content
@@ -36,6 +37,13 @@ const CASES = [
   ["dashboard-6digit", "screen=2&count=999999"],
   // ... together with a stopped line and a 3-digit stop count (worst case for the Stopp tile)
   ["oee-6digit", "screen=4&count=999999&stopped=1"],
+  // Worst-case dashboard.yaml (docs/examples/stress.yaml): max item count, 20-char labels,
+  // 6-char units, negative/6-digit values, status texts, 1 and 3 item grids, built-in screens
+  ["stress-grid6", "layout=stress&screen=2"],
+  ["stress-grid1", "layout=stress&screen=3"],
+  ["stress-grid3", "layout=stress&screen=4"],
+  ["stress-shift", "layout=stress&screen=5"],
+  ["stress-oee", "layout=stress&screen=6"],
 ];
 // Screen switch = 2 s fade out + 3 s fade in
 const SETTLE_MS = Number(process.env.SETTLE_MS ?? 5600);
@@ -94,13 +102,17 @@ try {
           if ((overX && !ellipsis) || (overY && !lineClamp)) problems.push(`clipped overflow: ${msg}`);
           else clamped.push(`clamped (${overX ? "ellipsis" : "line-clamp"}): ${msg}`);
         }
-        return { problems, clamped, count: els.length };
+        // Grid item values (ItemCard sets the fitted font size inline): smallest one, in canvas px
+        const heroes = [...canvas.querySelectorAll("[data-hero]")].map((e) => parseFloat(e.style.fontSize));
+        const hero = heroes.length ? Math.min(...heroes) : null;
+        return { problems, clamped, count: els.length, hero };
       });
       if (SHOT_DIR) await page.screenshot({ path: `${SHOT_DIR}/${name}-${w}x${h}.png` });
       if (!allowClamp) r.problems.push(...r.clamped.map((c) => `not allowed on this screen: ${c}`));
       const ok = r.problems.length === 0;
       if (!ok) failures++;
-      console.log(`${ok ? "PASS" : "FAIL"} ${name} ${w}x${h} (${r.count} elements, ${r.clamped.length} clamped)`);
+      const hero = r.hero === null ? "" : `, smallest item value ${r.hero}px`;
+      console.log(`${ok ? "PASS" : "FAIL"} ${name} ${w}x${h} (${r.count} elements, ${r.clamped.length} clamped${hero})`);
       for (const p of r.problems) console.log(`   ✗ ${p}`);
       for (const c of r.clamped) console.log(`   · ${c}`);
     }

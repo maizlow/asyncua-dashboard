@@ -7,8 +7,9 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from backend.app import api_server
-from backend.app.routers import alarms, metrics, websocket
+from backend.app.routers import alarms, layout, metrics, websocket
 from backend.app.routers.websocket import broadcast_full_snapshot, broadcaster
+from backend.dashboard_config import ConfigError, get_dashboard
 from backend.opc import opc_client
 from backend.opc.data_logger import data_logger
 from backend.opc.oee import compute_oee_details
@@ -66,6 +67,7 @@ def create_app() -> FastAPI:
 
     app.include_router(metrics.router)
     app.include_router(alarms.router)
+    app.include_router(layout.router)
     app.include_router(websocket.router)
 
     @app.get("/")
@@ -149,6 +151,14 @@ if __name__ == "__main__":
         level=settings.log_level, format="%(asctime)s %(levelname)s [%(threadName)s] %(name)s: %(message)s"
     )
     if threading.current_thread().name == "MainThread":
+        # Fail fast with readable errors (file:line key: message) if dashboard.yaml is invalid
+        try:
+            dashboard = get_dashboard()
+        except ConfigError as e:
+            logger.critical("%s", e)
+            raise SystemExit(1) from None
+        logger.info("Dashboard config: %d screens, %d tags", len(dashboard.screens), len(dashboard.tags))
+
         # Initialize databases (shift log + metric history)
         asyncio.run(shift_logger.init_db())
         asyncio.run(data_logger.init_db())

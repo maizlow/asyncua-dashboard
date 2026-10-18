@@ -47,6 +47,15 @@ Lägg till nya punkter som checklistor under rätt rubrik och flytta dem till **
 - [x] Demo-parametrar `?count=999999` och `?stopped=1` och motsvarande fall i `check:fit` (alla 5 upplösningar); klippt text utanför larmskärmen räknas som fel
 - [x] Stopp-rutan: "STÅR" flyttad till rubrikraden så att 2–3-siffrigt antal stopp inte flödar över
 
+### Konfiguration i YAML ([PR #7](https://github.com/maizlow/asyncua-dashboard/pull/7))
+- [x] `dashboard.yaml`: OPC UA-noder, taggar (alias en gång, refereras med namn), skärmar och objekt – inga kodändringar för att lägga till/ta bort/koppla om objekt
+- [x] Objekttyper `number`, `percent`, `counter`, `time`, `status` med `unit`, `label`, `target`, `decimals`, `thresholds`, `trend`, `color`; skärmtyper `grid`, `alarms`, `shift`, `oee`
+- [x] Validering med pydantic och svenska felmeddelanden med rad och nyckel (`python -m backend.dashboard_config`), JSON-schema i `docs/dashboard.schema.json`
+- [x] `GET /api/layout`; frontenden ritar skärmarna från layouten; demoläget byggs från samma fil
+- [x] Alarmnod (`ns=3;i=1815`) och skärmnoder flyttade från `backend/config.py` till YAML; hemligheter kvar i `.env`
+- [x] Gränser som garanterar läsbarhet/ingen overflow (1–6 objekt, rubrik ≤ 20, enhet ≤ 6 tecken); `check:fit` kör även värsta-fallet `docs/examples/stress.yaml`
+- [x] Dokumentation på svenska: [docs/CONFIG.md](docs/CONFIG.md)
+
 ## Nästa
 
 ### Docker för drift på Fitlet3 (Linux, x86-64)
@@ -57,18 +66,16 @@ Lägg till nya punkter som checklistor under rätt rubrik och flytta dem till **
 - [ ] Ev. kioskläge i webbläsaren vid uppstart
 
 ## Planerat
-- [ ] Koppla nya OEE-taggar till riktiga nod-id i PLC:n (`GoodCount`, `RejectCount` i `backend/config.py`)
+- [ ] Koppla nya OEE-taggar till riktiga nod-id i PLC:n (`GoodCount`, `RejectCount` i `dashboard.yaml`)
 - [ ] Planerade raster/stopp i tillgänglighetsberäkningen (idag = hela förflutna skifttiden)
-- [ ] Konfiguration i YAML (taggar/nod-id, namn, enhet, mål, korttyp) – skärmarna genereras från filen
 - [ ] Flytta hårdkodade värden till konfig:
-  - [ ] Siemens namespace `ns=3` / alarmnod `ns=3;i=1815`
   - [ ] `ProductionState == 2` = kör
   - [ ] CORS-lista
 - [ ] Statusindikator för PLC- och WebSocket-anslutning
 - [ ] Frontendtester (t.ex. Vitest) i CI
 - [ ] Stöd för flera OPC UA-servrar/linjer
 
-Skärmnummer (`ActiveScreenNr`): 1 = Larm, 2 = Dashboard, 3 = Skiftmönster, 4 = OEE.
+Skärmnummer (`ActiveScreenNr`) styrs av `screens:` i `dashboard.yaml`; exempelfilen: 1 = Larm, 2 = Dashboard, 3 = Skiftmönster, 4 = OEE.
 
 ## Drift / att göra utanför koden
 - [ ] Byt lösenord för OPC-användaren `iot_user`

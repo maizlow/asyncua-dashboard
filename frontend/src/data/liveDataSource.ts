@@ -1,4 +1,6 @@
 import type { Alarm, ConnectionStatus, DataSource, OeeDetails, ServerMessage, ShiftPatternRow } from "./types";
+import { LayoutError } from "./types";
+import { normaliseLayout } from "@/layout/layout";
 
 /** ws(s)://<page host>/ws unless VITE_WS_URL overrides it. */
 export function resolveWebSocketUrl(): string {
@@ -96,6 +98,14 @@ export function createLiveDataSource(): DataSource {
     },
     async getOeeDetails() {
       return await getJson<OeeDetails>("/api/oee");
+    },
+    async getLayout() {
+      const res = await fetch("/api/layout");
+      if (!res.ok) {
+        const body = (await res.json().catch(() => null)) as { details?: string[] } | null;
+        throw new LayoutError(body?.details ?? [`/api/layout -> HTTP ${res.status}`]);
+      }
+      return normaliseLayout(await res.json());
     },
     requestSnapshot() {
       fetch("/api/snapshot", { method: "POST" }).catch(() => {});

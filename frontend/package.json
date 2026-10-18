@@ -39,6 +39,7 @@
     "puppeteer-core": "^25.14.0",
     "typescript": "~6.0.2",
     "typescript-eslint": "^8.59.2",
-    "vite": "^8.0.12"
+    "vite": "^8.0.12",
+    "yaml": "^2.9.1"
   }
 }

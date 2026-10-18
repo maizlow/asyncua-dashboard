@@ -2,27 +2,68 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { dataSource } from "@/data/dataSource";
 import { useServerMessages } from "@/hooks/useWebSocket";
 import { useMetricsStore } from "@/stores/useMetricsStore";
-import { DashboardScreen } from "@/screens/DashboardScreen";
+import { useLayoutStore } from "@/stores/useLayoutStore";
+import { LayoutError } from "@/data/types";
+import type { Layout, ScreenConfig } from "@/layout/layout";
+import { GridScreen } from "@/screens/GridScreen";
 import { AlarmScreen } from "@/screens/AlarmScreen";
 import { ShiftPatternScreen } from "@/screens/ShiftPatternScreen";
 import { OeeScreen } from "@/screens/OeeScreen";
 
 const FADE_OUT_MS = 2000;
 
+const LAYOUT_RETRY_MS = 5000;
+
+/** Screen number -> config; unknown numbers fall back to the first grid screen (else the first screen). */
+function resolveScreen(layout: Layout, nr: number): ScreenConfig | undefined {
+  return (
+    layout.screens.find((s) => s.nr === nr) ??
+    layout.screens.find((s) => s.type === "grid") ??
+    layout.screens[0]
+  );
+}
+
 /**
- * Shows the screen selected by the PLC: 1 = Larm, 2 = Dashboard, 3 = Skiftmönster, 4 = OEE. Display-only: the frontend never writes
- * anything back; the backend acknowledges screen changes (ActiveScreenNr) itself.
+ * Shows the screen selected by the PLC (ActiveScreenNr); what each number shows comes from
+ * dashboard.yaml (default: 1 = Larm, 2 = Dashboard, 3 = Skiftmönster, 4 = OEE). Display-only: the
+ * frontend never writes anything back; the backend acknowledges screen changes itself.
  */
 export function ScreenManager() {
+  const layout = useLayoutStore((s) => s.layout);
+  const layoutError = useLayoutStore((s) => s.error);
   const [visibleScreen, setVisibleScreen] = useState<number>(1);
   const [isLoadingScreenData, setIsLoadingScreenData] = useState(false);
   const [screenOpacity, setScreenOpacity] = useState(1);
   // Incremented on every switch so an older, still-running switch can't override a newer one
   const switchSeq = useRef(0);
 
+  // (Re)load the layout on every (re)connect: a changed dashboard.yaml only needs a backend restart
+  useEffect(() => {
+    let cancelled = false;
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    const load = () => {
+      dataSource
+        .getLayout()
+        .then((l) => !cancelled && useLayoutStore.getState().setLayout(l))
+        .catch((e) => {
+          if (cancelled) return;
+          if (e instanceof LayoutError) useLayoutStore.getState().setError(e.details);
+          else console.error("Failed to load layout:", e);
+          timer = setTimeout(load, LAYOUT_RETRY_MS);
+        });
+    };
+    load();
+    return () => {
+      cancelled = true;
+      clearTimeout(timer);
+    };
+  }, []);
+
   // Switch screens with a fade, prefetching data while the screen is faded out
   const switchToScreen = useCallback(async (newScreen: number) => {
     const seq = ++switchSeq.current;
+    const current = useLayoutStore.getState().layout;
+    const type = current ? resolveScreen(current, newScreen)?.type : undefined;
 
     // 1. Fade out current content
     setScreenOpacity(0);
@@ -30,7 +71,7 @@ export function ScreenManager() {
     if (seq !== switchSeq.current) return;
 
     // 2. Do all data fetching / side effects while the screen is faded out
-    if (newScreen === 3) {
+    if (type === "shift") {
       setIsLoadingScreenData(true);
       try {
         const rows = await dataSource.getShiftPattern();
@@ -41,7 +82,7 @@ export function ScreenManager() {
         setIsLoadingScreenData(false);
       }
       if (seq !== switchSeq.current) return;
-    } else if (newScreen === 4) {
+    } else if (type === "oee") {
       try {
         const details = await dataSource.getOeeDetails();
         if (details) useMetricsStore.getState().setOeeDetails(details);
@@ -49,8 +90,8 @@ export function ScreenManager() {
         console.error("Failed to fetch OEE details:", e);
       }
       if (seq !== switchSeq.current) return;
-    } else if (newScreen === 2) {
-      // Ask for a fresh snapshot for a better Dashboard experience (non-blocking, read-only)
+    } else if (type === "grid") {
+      // Ask for a fresh snapshot for a better grid screen experience (non-blocking, read-only)
       dataSource.requestSnapshot();
     }
 
@@ -82,7 +123,19 @@ export function ScreenManager() {
   });
 
   const renderCurrentScreen = () => {
-    if (isLoadingScreenData) {
+    if (layoutError && !layout) {
+      return (
+        <div data-fit className="h-full min-h-0 overflow-hidden px-16 py-12 flex flex-col gap-10">
+          <div className="text-[140px] font-bold text-[var(--accent-red)] tv-truncate">⚠ Fel i dashboard.yaml</div>
+          {layoutError.slice(0, 5).map((line) => (
+            <div key={line} className="text-[104px] font-mono text-zinc-200 tv-truncate">
+              {line}
+            </div>
+          ))}
+        </div>
+      );
+    }
+    if (!layout || isLoadingScreenData) {
       return (
         <div className="flex items-center justify-center h-full text-8xl text-zinc-400">
           Laddar...
@@ -90,17 +143,18 @@ export function ScreenManager() {
       );
     }
 
-    switch (visibleScreen) {
-      case 1:
+    const screen = resolveScreen(layout, visibleScreen);
+    switch (screen?.type) {
+      case "alarms":
         return <AlarmScreen />;
-      case 2:
-        return <DashboardScreen />;
-      case 3:
+      case "shift":
         return <ShiftPatternScreen />;
-      case 4:
+      case "oee":
         return <OeeScreen />;
+      case "grid":
+        return <GridScreen key={screen.nr} screen={screen} />;
       default:
-        return <DashboardScreen />;
+        return null;
     }
   };
 

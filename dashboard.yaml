@@ -1,0 +1,47 @@
+# yaml-language-server: $schema=./docs/dashboard.schema.json
+#
+# Dashboardens konfiguration: OPC UA-noder, PLC-taggar och skärmar. Se docs/CONFIG.md.
+# Lösenord och certifikat ligger i .env – aldrig här.
+# Kontrollera filen:  python -m backend.dashboard_config
+
+opc:
+  # url: opc.tcp://192.168.0.1:4840     # valfri, OPC_ENDPOINT_URL i .env vinner
+  alarms: ns=3;i=1815                    # Program_Alarm-objektet (tomt = inga larm)
+  screen:                                # PLC:n styr vilken skärm som visas
+    active: ns=3;s="DB Production TV"."screenHandler"."activeScreenNr"
+    requested: ns=3;s="DB Production TV"."screenHandler"."requestScreenNr"
+
+# Taggar: namn: nod-id. Namnet används av skärmarna nedan.
+# Tomt nod-id = inte kopplat än (hoppas över, övriga taggar fungerar).
+tags:
+  TargetCount: ns=3;s="DB Production TV"."dashboardData"."target"
+  ProductionCount: ns=3;s="DB Production TV"."dashboardData"."actual"
+  ProductionDelta: ns=3;s="DB Production TV"."dashboardData"."delta"
+  ProductionState: ns=3;s="DB Production TV"."dashboardData"."prodState"   # 2 = kör
+  OEE: ns=3;s="DB Production TV"."dashboardData"."oee"
+  TPM: ns=3;s="DB Production TV"."dashboardData"."tpm"
+  CurrentRuntime: { node: ns=3;s="DB Production TV"."dashboardData"."runtime", type: time }
+  AccumulatedStoptime: { node: ns=3;s="DB Production TV"."dashboardData"."accStoptime", type: time }
+  ShiftStart: { node: ns=3;s="DB Production TV"."dashboardData"."shiftStart", type: time }
+  ShiftEnd: { node: ns=3;s="DB Production TV"."dashboardData"."shiftEnd", type: time }
+  GoodCount: ""      # TODO(PLC): t.ex. ns=3;s="DB Production TV"."dashboardData"."goodCount"
+  RejectCount: ""    # TODO(PLC): t.ex. ns=3;s="DB Production TV"."dashboardData"."rejectCount"
+
+# Skärmar: nummer = ActiveScreenNr i PLC:n.
+# type: grid (1–6 egna objekt) | alarms | shift | oee
+screens:
+  1: { type: alarms, title: Larm }
+
+  2:
+    title: Dashboard
+    items:
+      - { label: Produktion, tag: ProductionCount, type: counter, unit: st, target: TargetCount }
+      - { label: Delta, tag: ProductionDelta, unit: st, trend: true }
+      - { label: OEE, tag: OEE, type: percent, trend: true }
+      - { label: Linjehastighet, tag: TPM, unit: TPM, trend: true }
+      - { label: Aktuell körtid, tag: CurrentRuntime, type: time }
+      - { label: Total stopptid, tag: AccumulatedStoptime, type: time, color: red }
+
+  3: { type: shift, title: Skiftmönster }
+
+  4: { type: oee, title: OEE }

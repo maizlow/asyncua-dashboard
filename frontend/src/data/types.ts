@@ -1,3 +1,5 @@
+import type { Layout } from "@/layout/layout";
+
 export type ConnectionStatus = "connecting" | "connected" | "disconnected";
 
 export type MetricValue = number | string;
@@ -87,6 +89,17 @@ export interface DataSource {
   getAlarms(): Promise<Alarm[]>;
   getShiftPattern(): Promise<ShiftPatternRow[] | undefined>;
   getOeeDetails(): Promise<OeeDetails | undefined>;
+  /** Screens + items from dashboard.yaml. Rejects with LayoutError if the file is invalid. */
+  getLayout(): Promise<Layout>;
   /** Ask for an immediate full_snapshot push (read-only, no PLC write). */
   requestSnapshot(): void;
+}
+
+/** dashboard.yaml failed validation; `details` are the "fil:rad nyckel → ...: fel" lines. */
+export class LayoutError extends Error {
+  details: string[];
+  constructor(details: string[]) {
+    super("invalid dashboard.yaml");
+    this.details = details;
+  }
 }
