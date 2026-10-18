@@ -3,10 +3,16 @@
 Definitions (planned production time = elapsed shift time; planned breaks are not modelled):
 - Tillgänglighet (availability) A = run time / planned time
 - Prestanda (performance)       P = total count / (run time [min] x nominal rate), capped at 1
-- Kvalitet (quality)            Q = good / total
-- OEE = A x P x Q  (equivalent to good / (planned time x nominal rate) when P <= 1)
-- Mål hittills (target so far) = elapsed minutes x nominal rate; skiftmål = shift minutes x nominal rate
+- Kvalitet (quality)            Q = good / total (only when RejectCount is known)
+- OEE = A x P x Q
+- Skiftmål = PLC tag ShiftTarget (whole shift, st); Mål hittills = ShiftTarget x elapsed / shift duration.
+  No ShiftTarget -> no targets (never a silent fallback to the nominal rate)
 - Prognos = good / elapsed x shift duration (current average pace, incl. stops)
+- OEE goal = PLC tag OeeTarget (%), default 85 when empty/invalid
+
+Counts: GoodCount (+ RejectCount) when GoodCount has a value. Otherwise ProductionCount is the total
+output *including* rejects: total = ProductionCount, good = ProductionCount - RejectCount.
+See docs/BERAKNINGAR.md for every formula and edge case.
 
 Everything that can be derived (stops, run time, elapsed/remaining, targets) is computed here
 from the shift log and shift window; only counts and speed come from PLC tags.
@@ -26,6 +32,7 @@ logger = logging.getLogger(__name__)
 Segment = tuple[datetime, datetime, str]  # (from, to, "Running" | other)
 
 MIN_ELAPSED_FOR_PROGNOSIS_S = 300
+DEFAULT_OEE_TARGET_PCT = 85.0
 
 
 def _num(value: Any) -> float | None:
@@ -74,11 +81,44 @@ def stop_stats(segments: list[Segment]) -> dict:
     }
 
 
-def targets(elapsed_s: float, duration_s: float, nominal_tpm: float) -> dict:
+def targets(elapsed_s: float, duration_s: float, shift_target: float | None) -> dict:
+    """Skiftmål from the PLC (ShiftTarget) and the pro-rata target so far; None without a PLC target."""
+    if shift_target is None or duration_s <= 0:
+        return {"so_far": None, "shift": None}
     return {
-        "so_far": round(elapsed_s / 60 * nominal_tpm),
-        "shift": round(duration_s / 60 * nominal_tpm),
+        "so_far": round(shift_target * elapsed_s / duration_s),
+        "shift": round(shift_target),
     }
+
+
+def production_counts(good_count: Any, production_count: Any, reject_count: Any) -> dict:
+    """good / reject / total from the PLC counters without double-counting rejects.
+
+    GoodCount set:   good = GoodCount, total = GoodCount + RejectCount (or GoodCount without rejects).
+    Otherwise:       ProductionCount is assumed to include rejects: total = ProductionCount,
+                     good = ProductionCount - RejectCount (>= 0), or ProductionCount without rejects.
+    """
+    good_c, prod_c, reject = _num(good_count), _num(production_count), _num(reject_count)
+    if good_count is not None:
+        source, good = "GoodCount", good_c
+        total = good + reject if good is not None and reject is not None else good
+    else:
+        source, total = "ProductionCount", prod_c
+        good = max(0.0, prod_c - reject) if prod_c is not None and reject is not None else prod_c
+    return {"good": good, "reject": reject, "total": total, "source": source}
+
+
+def oee_target(value: Any) -> dict:
+    """OEE goal in % from the PLC tag OeeTarget; DEFAULT_OEE_TARGET_PCT when empty or outside (0, 100]."""
+    v = _num(value)
+    if v is not None and 0 < v <= 100:
+        return {"value": v, "source": "OeeTarget"}
+    return {"value": DEFAULT_OEE_TARGET_PCT, "source": "default"}
+
+
+def quality(good: float | None, total: float | None, reject: float | None) -> float | None:
+    """Q = good / total; unknown (None) without RejectCount, since every tile would count as good."""
+    return good / total if good is not None and total and reject is not None else None
 
 
 def prognosis(good: float | None, elapsed_s: float, duration_s: float) -> int | None:
@@ -89,18 +129,23 @@ def prognosis(good: float | None, elapsed_s: float, duration_s: float) -> int | 
 
 
 def oee_factors(
-    run_s: float, planned_s: float, total: float | None, good: float | None, nominal_tpm: float
+    run_s: float,
+    planned_s: float,
+    total: float | None,
+    good: float | None,
+    nominal_tpm: float,
+    reject: float | None = 0.0,
 ) -> dict:
     """A, P, Q and OEE as fractions (0..1); None where undefined."""
     availability = min(1.0, run_s / planned_s) if planned_s > 0 else None
     performance = None
     if total is not None and run_s > 0 and nominal_tpm > 0:
         performance = min(1.0, total / (run_s / 60 * nominal_tpm))
-    quality = good / total if good is not None and total else None
+    q = quality(good, total, reject)
     oee = None
-    if availability is not None and performance is not None and quality is not None:
-        oee = availability * performance * quality
-    return {"availability": availability, "performance": performance, "quality": quality, "oee": oee}
+    if availability is not None and performance is not None and q is not None:
+        oee = availability * performance * q
+    return {"availability": availability, "performance": performance, "quality": q, "oee": oee}
 
 
 def counter_increments(boundary_values: list[float | None]) -> list[int | None]:
@@ -170,14 +215,16 @@ async def compute_oee_details(
     from backend.opc.shift_logger import hour_buckets
 
     now = now or utcnow()
-    good_tag = "GoodCount" if data_store.get("GoodCount") is not None else "ProductionCount"
-    good = _num(data_store.get(good_tag))
-    reject = _num(data_store.get("RejectCount"))
-    total = good + reject if good is not None and reject is not None else good
+    counts = production_counts(
+        data_store.get("GoodCount"), data_store.get("ProductionCount"), data_store.get("RejectCount")
+    )
+    good, reject, total, good_tag = counts["good"], counts["reject"], counts["total"], counts["source"]
     speed = _num(data_store.get("TPM"))
+    shift_target = _num(data_store.get("ShiftTarget"))
 
     result: dict[str, Any] = {
         "nominal_tpm": nominal_tpm,
+        "oee_target": oee_target(data_store.get("OeeTarget")),
         "counts": {
             "good": good,
             "reject": reject,
@@ -206,20 +253,21 @@ async def compute_oee_details(
     progress = shift_progress(start, end, now)
     segments = await shift_logger.get_state_segments(start, end, now)
     stops = stop_stats(segments)
-    tgt = targets(progress["elapsed_s"], progress["duration_s"], nominal_tpm)
+    tgt = targets(progress["elapsed_s"], progress["duration_s"], shift_target)
 
     result["shift"] = {"start": start.isoformat(), "end": end.isoformat(), **progress}
     result["target"] = {
         **tgt,
+        "source": "ShiftTarget" if tgt["shift"] is not None else None,
         "prognosis": prognosis(good, progress["elapsed_s"], progress["duration_s"]),
         "progress_pct": (good / tgt["shift"] * 100) if good is not None and tgt["shift"] else None,
     }
     result["stops"] = stops
     # Without any state info we cannot tell run time, so availability/performance stay unknown
     if segments:
-        result["oee"] = oee_factors(stops["run_s"], progress["elapsed_s"], total, good, nominal_tpm)
+        result["oee"] = oee_factors(stops["run_s"], progress["elapsed_s"], total, good, nominal_tpm, reject)
     else:
-        result["oee"]["quality"] = good / total if good is not None and total else None
+        result["oee"]["quality"] = quality(good, total, reject)
     try:
         result["hourly"] = await hourly_good(
             data_logger,

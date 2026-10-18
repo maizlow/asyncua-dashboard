@@ -58,14 +58,19 @@ eller ` #`, skriv det inom enkla citattecken: `'ns=3;s="DB: Linje 1"."oee"'`.
 **Taggnamn:** bokstäver/siffror utan mellanslag, t.ex. `Temp_Zon4`. Namnen nedan är **reserverade** – de inbyggda skärmarna och
 OEE-beräkningen läser dem, så byt inte namn på dem:
 
-| Namn | Används av |
-|---|---|
-| `ProductionState` | Skift/OEE (2 = kör) |
-| `ShiftStart`, `ShiftEnd` | Skift/OEE (skiftets tider, `type: time`) |
-| `TPM` | OEE (takt, st/min) |
-| `GoodCount`, `RejectCount`, `ProductionCount` | OEE (godkända, kassation; `ProductionCount` om `GoodCount` saknas) |
-| `TargetCount` | Mål |
-| `CurrentRuntime`, `AccumulatedStoptime` | Körtid/stopptid |
+| Namn | Används av | Krävs |
+|---|---|---|
+| `ProductionState` | Skift/OEE (2 = kör) | ja, för `shift` och `oee` |
+| `ShiftStart`, `ShiftEnd` | Skift/OEE (skiftets tider, `type: time`) | ja, för `shift` och `oee` |
+| `TPM` | OEE (takt, st/min) | ja, för `oee` |
+| `GoodCount` | OEE (godkända) | nej |
+| `ProductionCount` | OEE: total produktion **inklusive kassation**, används om `GoodCount` saknas (godkända = `ProductionCount` − `RejectCount`) | nej |
+| `RejectCount` | OEE (kassation, kvalitet) | nej – utan den visar Kvalitet, OEE och Kassation `–` |
+| `ShiftTarget` | OEE: skiftmål i st för hela skiftet (Mål hittills räknas pro rata) | nej – utan den visar målen `–` och inget PÅ/UNDER MÅL |
+| `OeeTarget` | OEE: OEE-mål i % | nej – utan den gäller 85 % |
+
+Övriga namn i exempelfilen (`TargetCount`, `ProductionDelta`, `OEE`, `CurrentRuntime`, `AccumulatedStoptime`) är vanliga taggar
+som bara används av objekten på Dashboard-skärmen; dem kan du byta namn på.
 
 Vad varje reserverad tagg används till i formlerna: [BERAKNINGAR.md → Indata](BERAKNINGAR.md#indata).
 
@@ -89,7 +94,7 @@ screens:
 | `grid` (standard) | 1–6 egna objekt (`items`). 1 objekt = hel bredd, annars 2 kolumner och upp till 3 rader. |
 | `alarms` | Aktiva larm från Program_Alarm (inga `items`). |
 | `shift` | Skiftmönstret (kräver taggarna `ShiftStart`, `ShiftEnd`, `ProductionState`). |
-| `oee` | OEE-skärmen (kräver dessutom `TPM` och `GoodCount` eller `ProductionCount`). |
+| `oee` | OEE-skärmen (kräver dessutom `TPM`; utan `GoodCount`/`ProductionCount`, `RejectCount` och `ShiftTarget` visar respektive värde `–`). |
 
 `title` är valfri (max 40 tecken) och är till för dig; grid-skärmar visar ingen rubrik.
 Okänt skärmnummer från PLC:n visar första grid-skärmen.
@@ -104,7 +109,7 @@ Varje objekt är en ruta på en grid-skärm. Bara `label` och `tag` krävs.
 | `tag` | – | Taggnamn från `tags`. |
 | `type` | `number` | `number` – tal · `percent` – procent (enhet `%`) · `counter` – heltal (räknare) · `time` – `hh:mm:ss` · `status` – text och färg från `states` |
 | `unit` | – | Enhet efter värdet, max 6 tecken, t.ex. `st`, `TPM`, `°C`. Med `trend`/`target`: håll den ≤ 4 tecken, annars kan siffran krympa ([se nedan](#storlek-på-siffrorna-automatisk-krympning)). |
-| `decimals` | `percent` 1, `number` 1 om taggen är ett decimaltal annars 0, `counter` alltid 0 | Fast antal decimaler, 0–3, med decimalkomma – även när decimalerna är 0 (`82,0 %`, `140,0`). Sätt `decimals` för decimaltal (Real), så visas kommat redan från första värdet. |
+| `decimals` | `percent` 1, `number` 1 om taggen är ett decimaltal annars 0 | Ignoreras för `counter` (alltid 0). Fast antal decimaler, 0–3, med decimalkomma – även när decimalerna är 0 (`82,0 %`, `140,0`). Sätt `decimals` för decimaltal (Real), så visas kommat redan från första värdet. |
 | `target` | – | Mål: ett taggnamn (`TargetCount`) eller ett tal (`5000`). Visar "Mål" + framdriftsstapel. |
 | `trend` | `false` | Visar senaste förändringen stort med samma decimaler som värdet (▲ 0,6 / ● 0,0; räknare ▼ 1). |
 | `color` | vit | Fast färg: `white`, `green`, `amber`, `red`, `grey`. |
@@ -112,7 +117,8 @@ Varje objekt är en ruta på en grid-skärm. Bara `label` och `tag` krävs.
 | `better` | `high` | `high` = högre är bättre (OEE), `low` = lägre är bättre (kassation, temperatur). |
 | `states` | – | Bara `type: status`: PLC-värde → `{ text, color }`, text max 10 tecken. |
 
-**Gränsvärden:** med `better: high` blir värdet grönt vid ≥ övre, gult vid ≥ lägre och annars rött (+ ▼ i rubriken).
+**Gränsvärden:** jämförs med värdet avrundat som det visas (84,96 med 1 decimal = `85,0` = övre gränsen 85).
+Med `better: high` blir värdet grönt vid ≥ övre, gult vid ≥ lägre och annars rött (+ ▼ i rubriken).
 Med `better: low` blir det grönt vid ≤ lägre, gult vid ≤ övre och annars rött (+ ▲). `thresholds` går före `color`.
 `time` och `status` har inte `target`, `trend` eller `thresholds`.
 

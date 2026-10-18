@@ -2,6 +2,14 @@ import type { ReactNode } from "react";
 import { useMetricsStore } from "@/stores/useMetricsStore";
 import type { OeeDetails } from "@/data/types";
 import { DASH, fmtClock, fmtDec1, fmtHM, fmtInt, fmtMinutes, fmtPct } from "@/lib/format";
+import {
+  DEFAULT_OEE_TARGET_PCT,
+  factorStatus,
+  oeeStatus,
+  productionOnTarget,
+  scrapStatus,
+  type Status as BaseStatus,
+} from "@/lib/status";
 
 // Laid out for the 3840x2160 canvas (see ScaledCanvas). Display-only, read from 8-10 m on a 65" TV:
 // hero values 290 px mono (>= 180 px cap on the canvas = >= 90 px at 1080p), key values 220 px,
@@ -14,14 +22,9 @@ const AMBER = "var(--accent-amber)";
 const RED = "var(--accent-red)";
 const NEUTRAL = "var(--accent-neutral)";
 
-type Status = "good" | "warn" | "bad" | null;
+// Status thresholds live in lib/status.ts and compare the value as displayed (rounded).
+type Status = BaseStatus | null;
 const statusColor = (s: Status) => (s === null ? NEUTRAL : s === "good" ? GREEN : s === "warn" ? AMBER : RED);
-
-/** OEE world-class-ish thresholds for a roof tile line (realistic target 80-85 %). */
-const oeeStatus = (f: number | null): Status => (f === null ? null : f >= 0.85 ? "good" : f >= 0.75 ? "warn" : "bad");
-const factorStatus = (f: number | null): Status => (f === null ? null : f >= 0.9 ? "good" : f >= 0.8 ? "warn" : "bad");
-const scrapStatus = (pct: number | null | undefined): Status =>
-  pct === null || pct === undefined ? null : pct <= 2 ? "good" : pct <= 3 ? "warn" : "bad";
 
 function Card({
   title,
@@ -78,7 +81,8 @@ function FactorRow({ label, value }: { label: string; value: number | null }) {
 
 function OeeCard({ d }: { d: OeeDetails | null }) {
   const oee = d?.oee.oee ?? null;
-  const s = oeeStatus(oee);
+  // OEE goal from the PLC tag OeeTarget (default 85 %); amber within 10 points below it
+  const s = oeeStatus(oee, d?.oee_target?.value ?? DEFAULT_OEE_TARGET_PCT);
   return (
     <Card title="OEE" aside={<TargetStatus ok={s === null ? null : s === "good"} />}>
       <div className="flex items-baseline gap-6 leading-none whitespace-nowrap">
@@ -116,7 +120,8 @@ function ProductionCard({ d }: { d: OeeDetails | null }) {
   const soFar = d?.target?.so_far ?? null;
   const progress = good !== null && shiftTarget ? Math.min(100, (good / shiftTarget) * 100) : 0;
   const soFarPos = soFar !== null && shiftTarget ? Math.min(100, (soFar / shiftTarget) * 100) : null;
-  const onTarget = good === null || soFar === null ? null : good >= soFar;
+  // Targets come from the PLC (ShiftTarget); without it: "–" and no PÅ/UNDER MÅL badge
+  const onTarget = productionOnTarget(good, soFar);
 
   return (
     <Card title="Produktion" aside={<TargetStatus ok={onTarget} />}>

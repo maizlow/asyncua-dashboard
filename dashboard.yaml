@@ -26,6 +26,9 @@ tags:
   ShiftEnd: { node: ns=3;s="DB Production TV"."dashboardData"."shiftEnd", type: time }
   GoodCount: ""      # TODO(PLC): t.ex. ns=3;s="DB Production TV"."dashboardData"."goodCount"
   RejectCount: ""    # TODO(PLC): t.ex. ns=3;s="DB Production TV"."dashboardData"."rejectCount"
+  # Mål från PLC:n (OEE-skärmen). Tomt = Mål hittills/Skiftmål visar "–" och inget PÅ/UNDER MÅL.
+  ShiftTarget: ""    # TODO(PLC): skiftmål i st för hela skiftet, t.ex. ns=3;s="DB Production TV"."dashboardData"."shiftTarget"
+  OeeTarget: ""      # TODO(PLC): OEE-mål i % (tomt = 85), t.ex. ns=3;s="DB Production TV"."dashboardData"."oeeTarget"
 
 # Skärmar: nummer = ActiveScreenNr i PLC:n.
 # type: grid (1–6 egna objekt) | alarms | shift | oee

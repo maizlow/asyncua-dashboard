@@ -74,9 +74,11 @@ checks all screens at 1280×720, 1366×768, 1920×1080, 2560×1080 and 3840×216
 
 OEE values are computed in the backend (`backend/opc/oee.py`) and served at `GET /api/oee` and as `oee_details` WebSocket messages
 (every `OEE_INTERVAL_S`, default 5 s). The nominal rate is `NOMINAL_RATE_TPM` (default 140 tiles/min).
-A = run time / elapsed shift time, P = total / (run minutes × nominal) (capped at 100 %), Q = good / total.
-`GoodCount` and `RejectCount` in `dashboard.yaml` are placeholders (empty node id) until the real PLC node IDs are known;
-until then they are skipped and `ProductionCount` is used as the good count.
+A = run time / elapsed shift time, P = total / (run minutes × nominal) (both capped at 100 %), Q = good / total (unknown without `RejectCount`).
+Targets come from the PLC: `ShiftTarget` (whole-shift target, tiles; target so far = pro rata) and `OeeTarget` (%, default 85).
+Without `ShiftTarget` the targets show `–` – there is no fallback to the nominal rate.
+`GoodCount`, `RejectCount`, `ShiftTarget` and `OeeTarget` in `dashboard.yaml` are placeholders (empty node id) until the real PLC
+node IDs are known; until then `ProductionCount` (assumed to include rejects) is used for the counts.
 All formulas, edge cases and worked examples: [docs/BERAKNINGAR.md](docs/BERAKNINGAR.md).
 
 ## Backend internals

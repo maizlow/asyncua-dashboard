@@ -74,6 +74,32 @@ def hour_buckets(start: datetime, end: datetime, tz: tzinfo | None) -> list[dict
     return buckets
 
 
+def shift_buckets(start: datetime, end: datetime, tz: tzinfo | None) -> list[dict]:
+    """One-hour buckets aligned to the shift start, covering exactly [start, end).
+
+    A 06:30-14:30 shift gives eight buckets 06:30, 07:30, ... 13:30; an 8.5 h shift ends with a
+    30-minute bucket. Stepped in UTC, so a DST night is simply one bucket shorter/longer.
+    Each bucket: {"start", "end" (aware UTC), "time"/"end_time" ("HH:MM" local), "minutes"}.
+    """
+    start_utc = start.astimezone(timezone.utc)
+    end_utc = end.astimezone(timezone.utc)
+    buckets = []
+    b = start_utc
+    while b < end_utc:
+        e = min(b + timedelta(hours=1), end_utc)
+        buckets.append(
+            {
+                "start": b,
+                "end": e,
+                "time": to_local(b, tz).strftime("%H:%M"),
+                "end_time": to_local(e, tz).strftime("%H:%M"),
+                "minutes": (e - b).total_seconds() / 60.0,
+            }
+        )
+        b = e
+    return buckets
+
+
 class ShiftLogger:
     def __init__(self, db: Database | None = None, tz_name: str | None = None):
         self._db = db
@@ -169,12 +195,14 @@ class ShiftLogger:
     async def get_shift_pattern(
         self, start: datetime, end: datetime, now: datetime | None = None
     ) -> list[dict]:
-        """Running vs stopped minutes per local clock hour between ``start`` and ``end``.
+        """Running vs stopped minutes per hour of the shift (buckets from ``shift_buckets``).
 
-        Rows are returned in chronological order. Time after ``now`` is not counted.
+        Rows are returned in chronological order: {"time", "end", "minutes", "running", "stopped"}
+        where ``minutes`` is the bucket length (60, or less for a final partial hour).
+        Time after ``now`` is not counted.
         """
         segments = await self.get_state_segments(start, end, now)
-        buckets = [{**b, "running": 0.0, "stopped": 0.0} for b in hour_buckets(start, end, self.tz)]
+        buckets = [{**b, "running": 0.0, "stopped": 0.0} for b in shift_buckets(start, end, self.tz)]
         for seg_start, seg_end, state in segments:
             field = "running" if state == "Running" else "stopped"
             for bucket in buckets:
@@ -183,7 +211,13 @@ class ShiftLogger:
                     bucket[field] += overlap / 60.0
 
         result = [
-            {"time": bk["time"], "running": round(bk["running"], 1), "stopped": round(bk["stopped"], 1)}
+            {
+                "time": bk["time"],
+                "end": bk["end_time"],
+                "minutes": round(bk["minutes"], 1),
+                "running": round(bk["running"], 1),
+                "stopped": round(bk["stopped"], 1),
+            }
             for bk in buckets
         ]
         logger.debug("Shift pattern %s -> %s: %s", start, end, result)
