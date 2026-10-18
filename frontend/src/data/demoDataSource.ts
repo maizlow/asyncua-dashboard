@@ -11,6 +11,8 @@
 import type {
   Alarm,
   ConnectionStatus,
+  DailyHistory,
+  DailyRow,
   DataSource,
   MetricValue,
   OeeDetails,
@@ -27,6 +29,7 @@ const TICK_MS = 1000;
 const SNAPSHOT_EVERY_MS = 10_000;
 const SHIFT_PATTERN_EVERY_MS = 30_000;
 const OEE_EVERY_MS = 2_000;
+const HISTORY_EVERY_MS = 30_000;
 const SCREEN_CYCLE_MS = 15_000;
 const HISTORY_POINTS = 150;
 
@@ -214,6 +217,67 @@ class LineSim {
       stopped: round(h.stopped / 60, 1),
     }));
   }
+}
+
+/** Deterministic 0..1 pseudo-random per (date, salt), so the simulated past days stay stable across reloads. */
+function seeded(key: string, salt: number) {
+  let h = 2166136261 ^ salt;
+  for (let i = 0; i < key.length; i++) h = Math.imul(h ^ key.charCodeAt(i), 16777619);
+  return ((h >>> 0) % 100000) / 100000;
+}
+
+const isoDate = (d: Date) => `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
+
+/**
+ * Simulated 7-day history (screen type: week), same shape as GET /api/history/days. Past days: one
+ * 10 h shift at OEE 80-86 %; Saturday is a short low day (6 h, ~74 %), Sunday has no production ("–").
+ * Today comes from the live simulation (good so far vs target so far).
+ */
+function demoWeek(sim: LineSim, countOverride: number | null): DailyHistory {
+  const now = new Date();
+  const days: DailyRow[] = [];
+  for (let i = 6; i >= 0; i--) {
+    const d = new Date(now.getFullYear(), now.getMonth(), now.getDate() - i);
+    const next = new Date(d.getFullYear(), d.getMonth(), d.getDate() + 1);
+    const key = isoDate(d);
+    const weekday = (d.getDay() + 6) % 7;
+    const base = { date: key, weekday, start: d.toISOString(), end: next.toISOString(), today: i === 0 };
+    const empty: DailyRow = {
+      ...base, has_data: false, good: null, reject: null, total: null, planned_s: null, run_s: null,
+      stop_s: null, target: null, oee: { availability: null, performance: null, quality: null, oee: null },
+    };
+    let row: DailyRow;
+    if (i === 0) {
+      const t = sim.details();
+      row = {
+        ...base, has_data: true, good: t.counts.good, reject: t.counts.reject, total: t.counts.total,
+        planned_s: sim.elapsed, run_s: sim.runS, stop_s: sim.stopS, target: t.target?.so_far ?? null, oee: t.oee,
+      };
+    } else if (weekday === 6) {
+      row = empty; // Sunday: line not running, nothing logged
+    } else {
+      const hours = weekday === 5 ? 6 : SHIFT_HOURS;
+      const planned = hours * 3600;
+      const a = weekday === 5 ? 0.82 : 0.86 + seeded(key, 1) * 0.05;
+      const p = 0.93 + seeded(key, 2) * 0.05;
+      const q = 0.975 + seeded(key, 3) * 0.01;
+      const total = Math.round((planned / 60) * a * p * NOMINAL_TPM);
+      const good = Math.round(total * q);
+      row = {
+        ...base, has_data: true, good, reject: total - good, total, planned_s: planned, run_s: planned * a,
+        stop_s: planned * (1 - a), target: Math.round((PLC_TARGET * planned) / SHIFT_S),
+        oee: { availability: a, performance: p, quality: good / total, oee: (a * p * good) / total },
+      };
+    }
+    // ?count=N: widest case for the fit check (6-digit counts and "100,0 %")
+    if (countOverride !== null && row.has_data)
+      row = { ...row, good: countOverride, target: countOverride, oee: { ...row.oee, oee: 1 } };
+    days.push(row);
+  }
+  return {
+    days, nominal_tpm: NOMINAL_TPM, oee_target: { value: DEMO_OEE_TARGET * 100, source: "default" },
+    retention_days: 30, shift: null, updated: now.toISOString(),
+  };
 }
 
 /** Shift that started ~6 h before now, on a whole local hour. */
@@ -417,12 +481,14 @@ export function createDemoDataSource(): DataSource {
       emit(snapshot());
       emit({ type: "shift_pattern_data", data: sim.shiftPattern() });
       emit({ type: "oee_details", data: details() });
+      emit({ type: "daily_history", data: demoWeek(sim, countOverride) });
     }, 400);
 
     setInterval(tick, TICK_MS);
     setInterval(() => emit(snapshot()), SNAPSHOT_EVERY_MS);
     setInterval(() => emit({ type: "shift_pattern_data", data: sim.shiftPattern() }), SHIFT_PATTERN_EVERY_MS);
     setInterval(() => emit({ type: "oee_details", data: details() }), OEE_EVERY_MS);
+    setInterval(() => emit({ type: "daily_history", data: demoWeek(sim, countOverride) }), HISTORY_EVERY_MS);
     if (pinnedScreen === null) {
       setInterval(() => {
         screenIndex = (screenIndex + 1) % SCREEN_ORDER.length;
@@ -447,6 +513,7 @@ export function createDemoDataSource(): DataSource {
     getAlarms: async () => [...alarms.values()],
     getShiftPattern: async () => sim.shiftPattern(),
     getOeeDetails: async () => details(),
+    getDailyHistory: async () => demoWeek(sim, countOverride),
     getLayout: async () => layout,
     requestSnapshot: () => {
       setTimeout(() => emit(snapshot()), 0);

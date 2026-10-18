@@ -75,7 +75,7 @@ class Item(_Strict):
 
 
 class Screen(_Strict):
-    type: Literal["grid", "alarms", "shift", "oee"] = "grid"
+    type: Literal["grid", "alarms", "shift", "oee", "week"] = Field("grid", description="grid = own items; alarms; shift = shift pattern; oee = OEE details; week = today + previous 6 days from the history")
     title: str | None = Field(None, max_length=40)
     items: list[Item] = Field(default_factory=list)
 
@@ -300,10 +300,12 @@ def _cross_check(d: Dashboard) -> list[tuple[tuple, str]]:
             problems.append(((*base, "items"), f"skärmtypen '{screen.type}' har inga egna objekt – ta bort items"))
         if screen.type == "shift":
             need_tags(nr, "shift", SHIFT_TAGS)
-        if screen.type == "oee":
-            need_tags(nr, "oee", OEE_TAGS)
+        if screen.type in ("oee", "week"):
+            need_tags(nr, screen.type, OEE_TAGS if screen.type == "oee" else SHIFT_TAGS)
             if "GoodCount" not in tags and "ProductionCount" not in tags:
-                problems.append(((*base, "type"), "skärmtypen 'oee' kräver taggen GoodCount eller ProductionCount"))
+                problems.append(
+                    ((*base, "type"), f"skärmtypen '{screen.type}' kräver taggen GoodCount eller ProductionCount")
+                )
 
         for i, item in enumerate(screen.items):
             loc = (*base, "items", i)

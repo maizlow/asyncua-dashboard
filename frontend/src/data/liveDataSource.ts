@@ -1,4 +1,4 @@
-import type { Alarm, ConnectionStatus, DataSource, OeeDetails, ServerMessage, ShiftPatternRow } from "./types";
+import type { Alarm, ConnectionStatus, DailyHistory, DataSource, OeeDetails, ServerMessage, ShiftPatternRow } from "./types";
 import { LayoutError } from "./types";
 import { normaliseLayout } from "@/layout/layout";
 
@@ -98,6 +98,9 @@ export function createLiveDataSource(): DataSource {
     },
     async getOeeDetails() {
       return await getJson<OeeDetails>("/api/oee");
+    },
+    async getDailyHistory() {
+      return await getJson<DailyHistory>("/api/history/days?n=7");
     },
     async getLayout() {
       const res = await fetch("/api/layout");

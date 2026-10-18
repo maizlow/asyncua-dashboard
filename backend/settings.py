@@ -42,6 +42,8 @@ class Settings(BaseSettings):
     nominal_rate_tpm: float = Field(default=140.0, alias="NOMINAL_RATE_TPM")
     # How often OEE details are pushed to the display
     oee_interval_s: float = Field(default=5.0, alias="OEE_INTERVAL_S")
+    # How often the 7-day history (screen type: week) is refreshed and pushed; past days are cached
+    history_interval_s: float = Field(default=60.0, alias="HISTORY_INTERVAL_S")
 
     model_config = {
         "env_file": BASE_DIR / ".env",     # ← Force it to look in project root

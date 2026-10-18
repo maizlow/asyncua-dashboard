@@ -21,6 +21,23 @@ async def get_single_value(key: str):
     return {key: value}
 
 
+@router.get("/history/days")
+async def get_daily_history(n: int = 7):
+    """Per-day aggregates for the last ``n`` local calendar days incl. today (screen type: week).
+
+    Declared before /history/{key} so "days" is not taken as a tag name. Served from the cache
+    refreshed every HISTORY_INTERVAL_S (computed on demand if empty or for another ``n``).
+    """
+    from backend.opc.daily import MAX_DAYS
+    from backend.opc.daily import get_daily_history as _daily
+
+    history = _daily()
+    n = max(1, min(MAX_DAYS, n))
+    if n == 7 and history.latest is not None:
+        return history.latest
+    return await history.compute(data_store, n=n)
+
+
 @router.get("/history/{key}")
 async def get_history(key: str, limit: int = 150):
     """Get history for a specific key (values only, for sparklines)."""

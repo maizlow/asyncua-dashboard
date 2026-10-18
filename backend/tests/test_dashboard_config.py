@@ -37,7 +37,7 @@ def errors_for(tmp_path: Path, body: str) -> list[str]:
 
 def test_example_matches_current_screens():
     d = load_dashboard(EXAMPLE)
-    assert {nr: s.type for nr, s in d.screens.items()} == {1: "alarms", 2: "grid", 3: "shift", 4: "oee"}
+    assert {nr: s.type for nr, s in d.screens.items()} == {1: "alarms", 2: "grid", 3: "shift", 4: "oee", 5: "week"}
     labels = [i.label for i in d.screens[2].items]
     assert labels == ["Produktion", "Delta", "OEE", "Linjehastighet", "Aktuell körtid", "Total stopptid"]
     assert d.opc.alarms == "ns=3;i=1815"
@@ -53,7 +53,7 @@ def test_example_placeholders_are_skipped():
 
 def test_stress_example_is_valid():
     d = load_dashboard(STRESS)
-    assert len(d.screens) == 6
+    assert len(d.screens) == 7
 
 
 def test_legacy_config_module_reads_yaml():
@@ -197,3 +197,22 @@ def test_layout_endpoint():
     res = TestClient(create_app()).get("/api/layout")
     assert res.status_code == 200
     assert res.json()["screens"]["4"]["type"] == "oee"
+
+
+def test_week_screen_needs_shift_and_count_tags(tmp_path):
+    errs = errors_for(tmp_path, """\
+        screens:
+          5: { type: week }
+        """)
+    assert any("skärmtypen 'week' kräver taggarna ShiftStart, ShiftEnd, ProductionState" in e for e in errs)
+    assert any("skärmtypen 'week' kräver taggen GoodCount eller ProductionCount" in e for e in errs)
+
+
+def test_week_screen_layout_type(tmp_path):
+    p = tmp_path / "dashboard.yaml"
+    p.write_text(
+        HEADER.replace("tags:\n", "tags:\n  ShiftStart: a\n  ShiftEnd: b\n  ProductionState: c\n  GoodCount: d\n")
+        + "screens:\n  5: { type: week, title: Senaste 7 dagarna }\n",
+        encoding="utf-8",
+    )
+    assert load_dashboard(p).layout()["screens"]["5"]["type"] == "week"

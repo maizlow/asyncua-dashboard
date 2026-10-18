@@ -29,6 +29,7 @@ async def lifespan(app: FastAPI):
         asyncio.create_task(start_periodic_shift_pattern(), name="periodic-shift-pattern"),
         asyncio.create_task(start_periodic_retention(), name="periodic-retention"),
         asyncio.create_task(start_periodic_oee(), name="periodic-oee"),
+        asyncio.create_task(start_periodic_daily_history(), name="periodic-daily-history"),
     ]
     logger.info("Background tasks started (snapshot every %d ms)", settings.snapshot_interval_ms)
 
@@ -107,6 +108,23 @@ async def start_periodic_oee():
             logger.exception("Failed to compute OEE details")
 
 
+async def start_periodic_daily_history():
+    """Refresh the 7-day history (screen type: week) every HISTORY_INTERVAL_S and push it.
+
+    Past days are cached in DailyHistory, so each refresh only re-aggregates today.
+    """
+    from backend.opc.daily import get_daily_history
+
+    history = get_daily_history()
+    while True:
+        try:
+            data = await history.compute(data_store, n=7)
+            broadcaster.publish({"type": "daily_history", "data": data})
+        except Exception:
+            logger.exception("Failed to compute daily history")
+        await asyncio.sleep(max(10.0, settings.history_interval_s))
+
+
 async def start_periodic_retention():
     """Delete data_points older than RETENTION_DAYS (once at startup, then periodically)."""
     while True:
@@ -158,6 +176,11 @@ if __name__ == "__main__":
             logger.critical("%s", e)
             raise SystemExit(1) from None
         logger.info("Dashboard config: %d screens, %d tags", len(dashboard.screens), len(dashboard.tags))
+        if settings.retention_days < 7 and any(s.type == "week" for s in dashboard.screens.values()):
+            logger.warning(
+                "RETENTION_DAYS=%d < 7: the 7-day screen shows '–' for days older than the retained history",
+                settings.retention_days,
+            )
 
         # Initialize databases (shift log + metric history)
         asyncio.run(shift_logger.init_db())

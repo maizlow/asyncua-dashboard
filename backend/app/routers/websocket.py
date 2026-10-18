@@ -68,6 +68,13 @@ async def websocket_endpoint(websocket: WebSocket):
             await websocket.send_json({"type": "oee_details", "data": details})
         except Exception as e:
             logger.warning("Failed to send initial OEE details: %s", e)
+
+        # 7-day history: only the cached result (refreshed by the periodic task), never recomputed here
+        from backend.opc.daily import get_daily_history
+
+        latest = get_daily_history().latest
+        if latest is not None:
+            await websocket.send_json({"type": "daily_history", "data": latest})
     except Exception:
         logger.exception("Failed to send initial data")
 

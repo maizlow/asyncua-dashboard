@@ -60,6 +60,7 @@ Defined in `dashboard.yaml` (`screens:`); the example file has:
 | 2 | Dashboard |
 | 3 | Skiftmönster (shift pattern) |
 | 4 | OEE (availability/performance/quality, production vs target, scrap, rate, stops, remaining shift time) |
+| 5 | 7 dagar (today + previous 6 days from the SQLite history: OEE %, good count per day vs day target) |
 
 The UI is designed on a fixed 3840×2160 canvas that is scaled to fit any screen (`ScaledCanvas.tsx`); 21:9 screens are letterboxed.
 In demo mode, `?layout=stress` loads the worst-case layout `docs/examples/stress.yaml`, `?screen=N` pins a single screen instead of cycling, `?alarms=many` adds many long alarms and `?count=999999` forces all count fields to 6 digits, `?stopped=1` shows a stopped line with 999 stops (overflow tests).
@@ -87,7 +88,10 @@ All formulas, edge cases and worked examples: [docs/BERAKNINGAR.md](docs/BERAKNI
   OPC callbacks never touch sockets directly — they call `broadcaster.publish()` (`backend/app/broadcaster.py`), which hands
   messages to the uvicorn loop with `call_soon_threadsafe`; a single consumer sends them in order.
 - **SQLite:** one writer thread with one connection (`backend/opc/database.py`); value changes are queued and batch-inserted.
-  Timestamps are stored in UTC. `RETENTION_DAYS` (default 30) controls how long `data_points` are kept.
+  Timestamps are stored in UTC. `RETENTION_DAYS` (default 30) controls how long `data_points` are kept (keep it ≥ 7 for the 7-day screen).
+- **7-day screen (`type: week`):** `backend/opc/daily.py` aggregates per local calendar day (`TIMEZONE`, DST-aware, split at
+  midnight) with SQL window functions; past days are cached and only today is recomputed every `HISTORY_INTERVAL_S` (default 60 s).
+  Served at `GET /api/history/days?n=7` and pushed as `daily_history`. Formulas: [docs/BERAKNINGAR.md](docs/BERAKNINGAR.md#skärm-7-dagar-type-week).
 - **Shifts:** `ShiftStart`/`ShiftEnd` from the PLC are plant-local times, resolved in `TIMEZONE` (or the system local zone),
   DST-aware. Shifts crossing midnight (e.g. 22:00–06:00) are supported.
 - **Tests:** `pip install -r backend/requirements-dev.txt && python -m pytest`; frontend formatters: `cd frontend && npm test`

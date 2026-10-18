@@ -73,6 +73,12 @@ Lägg till nya punkter som checklistor under rätt rubrik och flytta dem till **
 - [x] Skiftmönstret räknar timmar från skiftstart: rätt längd och etiketter för t.ex. 06:30–14:30 och 8,5 h-skift
 - [x] Rättade CONFIG.md/schema/kommentarer (krävda/reserverade taggar, `decimals` för `counter`, `thresholds`); demo med skiftmål 140 × 0,85 st/min
 
+### Skärm 7 dagar ([PR #14](https://github.com/maizlow/asyncua-dashboard/pull/14))
+- [x] Ny skärmtyp `week` (skärm 5 i exempelfilen): idag + 6 dagar bakåt med OEE %, godkända per dag och dagsmål (`ShiftTarget`) som stapeldiagram
+- [x] Dygn i `TIMEZONE` (sommartidssäkert, 23/25 h), allt delas vid midnatt; dagar utan data visar `–`
+- [x] Aggregering i SQLite (fönsterfunktioner), tidigare dagar cachas, idag räknas om var `HISTORY_INTERVAL_S`; `GET /api/history/days?n=7` och WebSocket `daily_history`
+- [x] Demo med simulerad vecka (OEE 80–86 %, kort lördag, söndag utan produktion), `check:fit` med 7-dagarsskärmen (även 6-siffriga antal och 100,0 %)
+
 ## Nästa
 
 ### Docker för drift på Fitlet3 (Linux, x86-64)
