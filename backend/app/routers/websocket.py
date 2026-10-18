@@ -57,6 +57,17 @@ async def websocket_endpoint(websocket: WebSocket):
                 await websocket.send_json({"type": "shift_pattern_data", "data": shift_data})
         except Exception as e:
             logger.warning("Failed to send initial shift pattern: %s", e)
+
+        try:
+            from backend.opc.data_logger import data_logger
+            from backend.opc.oee import compute_oee_details
+            from backend.opc.state_store import data_store
+            from backend.settings import settings
+
+            details = await compute_oee_details(data_store, shift_logger, data_logger, settings.nominal_rate_tpm)
+            await websocket.send_json({"type": "oee_details", "data": details})
+        except Exception as e:
+            logger.warning("Failed to send initial OEE details: %s", e)
     except Exception:
         logger.exception("Failed to send initial data")
 

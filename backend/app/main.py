@@ -11,6 +11,7 @@ from backend.app.routers import alarms, metrics, websocket
 from backend.app.routers.websocket import broadcast_full_snapshot, broadcaster
 from backend.opc import opc_client
 from backend.opc.data_logger import data_logger
+from backend.opc.oee import compute_oee_details
 from backend.opc.shift_logger import shift_logger
 from backend.opc.state_store import alarm_store, data_store
 from backend.settings import settings
@@ -26,6 +27,7 @@ async def lifespan(app: FastAPI):
         asyncio.create_task(start_periodic_snapshot(), name="periodic-snapshot"),
         asyncio.create_task(start_periodic_shift_pattern(), name="periodic-shift-pattern"),
         asyncio.create_task(start_periodic_retention(), name="periodic-retention"),
+        asyncio.create_task(start_periodic_oee(), name="periodic-oee"),
     ]
     logger.info("Background tasks started (snapshot every %d ms)", settings.snapshot_interval_ms)
 
@@ -90,6 +92,17 @@ async def start_periodic_shift_pattern():
                 broadcaster.publish({"type": "shift_pattern_data", "data": data})
         except Exception as e:
             logger.warning("Failed to broadcast shift pattern: %s", e)
+
+
+async def start_periodic_oee():
+    """Push OEE details (derived from PLC counts + shift log) every OEE_INTERVAL_S."""
+    while True:
+        await asyncio.sleep(max(1.0, settings.oee_interval_s))
+        try:
+            details = await compute_oee_details(data_store, shift_logger, data_logger, settings.nominal_rate_tpm)
+            broadcaster.publish({"type": "oee_details", "data": details})
+        except Exception:
+            logger.exception("Failed to compute OEE details")
 
 
 async def start_periodic_retention():

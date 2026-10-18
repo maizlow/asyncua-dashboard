@@ -59,6 +59,16 @@ async def get_current_shift_pattern():
         return {"error": str(e)}
 
 
+@router.get("/oee")
+async def get_oee_details():
+    """OEE breakdown, production vs target, scrap, speed, stops and shift progress."""
+    from backend.opc.data_logger import data_logger
+    from backend.opc.oee import compute_oee_details
+    from backend.settings import settings
+
+    return await compute_oee_details(data_store, shift_logger, data_logger, settings.nominal_rate_tpm)
+
+
 @router.post("/snapshot")
 async def trigger_full_snapshot():
     """Forces an immediate full data snapshot broadcast. Useful when entering the Dashboard.

@@ -34,6 +34,12 @@ class Settings(BaseSettings):
     # IANA zone name for shift times (e.g. "Europe/Stockholm"). Empty = system local timezone.
     timezone: str = Field(default="", alias="TIMEZONE")
 
+    # ===================== OEE =====================
+    # Nominal (ideal) line rate in tiles per minute, used for targets and performance
+    nominal_rate_tpm: float = Field(default=140.0, alias="NOMINAL_RATE_TPM")
+    # How often OEE details are pushed to the display
+    oee_interval_s: float = Field(default=5.0, alias="OEE_INTERVAL_S")
+
     model_config = {
         "env_file": BASE_DIR / ".env",     # ← Force it to look in project root
         "env_file_encoding": "utf-8",
