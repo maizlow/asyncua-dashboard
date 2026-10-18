@@ -100,9 +100,9 @@ Varje objekt är en ruta på en grid-skärm. Bara `label` och `tag` krävs.
 | `tag` | – | Taggnamn från `tags`. |
 | `type` | `number` | `number` – tal · `percent` – procent (enhet `%`) · `counter` – heltal (räknare) · `time` – `hh:mm:ss` · `status` – text och färg från `states` |
 | `unit` | – | Enhet efter värdet, max 6 tecken, t.ex. `st`, `TPM`, `°C`. |
-| `decimals` | som PLC:n (1 decimal om talet har decimaler) | Antal decimaler, 0–3. |
+| `decimals` | `percent` 1, `number` 1 om taggen är ett decimaltal annars 0, `counter` alltid 0 | Fast antal decimaler, 0–3, med decimalkomma – även när decimalerna är 0 (`82,0 %`, `140,0`). Sätt `decimals` för decimaltal (Real), så visas kommat redan från första värdet. |
 | `target` | – | Mål: ett taggnamn (`TargetCount`) eller ett tal (`5000`). Visar "Mål" + framdriftsstapel. |
-| `trend` | `false` | Visar senaste förändringen stort (▲ 0,6 / ▼ 1 / ● 0). |
+| `trend` | `false` | Visar senaste förändringen stort med samma decimaler som värdet (▲ 0,6 / ● 0,0; räknare ▼ 1). |
 | `color` | vit | Fast färg: `white`, `green`, `amber`, `red`, `grey`. |
 | `thresholds` | – | `[lägre, övre]`. Färgar värdet och visar ▼/▲ när det inte är bra (se nedan). |
 | `better` | `high` | `high` = högre är bättre (OEE), `low` = lägre är bättre (kassation, temperatur). |
@@ -145,7 +145,7 @@ screens:
   2:
     items:
       # …
-      - { label: Ugnstemperatur, tag: OvenTemp, unit: °C, decimals: 1, thresholds: [200, 230], better: low }
+      - { label: Ugnstemperatur, tag: OvenTemp, unit: °C, decimals: 1, thresholds: [200, 230], better: low }   # 215,0 °C
 ```
 
 Ta bort ett objekt: radera dess rad. Koppla om: ändra `tag:` eller taggens nod-id.
@@ -195,6 +195,6 @@ TV:n läses på 8–10 m. Gränserna garanterar att allt får plats utan att nå
 
 - **1–6 objekt per grid-skärm** i fast rutnät; värdena är 290 px på 4K-ytan (≈ 97 px versalhöjd vid 1080p).
 - **Rubrik ≤ 20 tecken, enhet ≤ 6, status-text ≤ 10.**
-- Blir ett värde med enhet, trend och mål för brett krymper bara värdet så mycket som behövs (aldrig under 160 px på 4K-ytan).
+- Blir ett värde med enhet, trend och mål för brett krymper bara värdet så mycket som behövs (aldrig under 120 px på 4K-ytan ≈ 40 px versalhöjd vid 1080p).
   Med vanliga värden (≤ 6 siffror, kort enhet) behålls full storlek. Undvik långa enheter tillsammans med `target`/`trend`.
 - Värsta fallet finns i `docs/examples/stress.yaml` och provas automatiskt i CI (`?layout=stress` i demoläget).

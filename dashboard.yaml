@@ -38,7 +38,7 @@ screens:
       - { label: Produktion, tag: ProductionCount, type: counter, unit: st, target: TargetCount }
       - { label: Delta, tag: ProductionDelta, unit: st, trend: true }
       - { label: OEE, tag: OEE, type: percent, trend: true }
-      - { label: Linjehastighet, tag: TPM, unit: TPM, trend: true }
+      - { label: Linjehastighet, tag: TPM, unit: TPM, decimals: 1, trend: true }
       - { label: Aktuell körtid, tag: CurrentRuntime, type: time }
       - { label: Total stopptid, tag: AccumulatedStoptime, type: time, color: red }
 

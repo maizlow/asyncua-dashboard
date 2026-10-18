@@ -56,6 +56,11 @@ Lägg till nya punkter som checklistor under rätt rubrik och flytta dem till **
 - [x] Gränser som garanterar läsbarhet/ingen overflow (1–6 objekt, rubrik ≤ 20, enhet ≤ 6 tecken); `check:fit` kör även värsta-fallet `docs/examples/stress.yaml`
 - [x] Dokumentation på svenska: [docs/CONFIG.md](docs/CONFIG.md)
 
+### Fasta decimaler ([PR #8](https://github.com/maizlow/asyncua-dashboard/pull/8))
+- [x] Decimaltal visas alltid med decimalkomma och fast antal decimaler, även när decimalen är 0 (82,0 %, 3,0 %, 140,0); räknare är heltal
+- [x] YAML `decimals:` är fast; standard `percent` 1, `counter` 0, `number` 1 när taggen är ett decimaltal; trender med samma decimaler
+- [x] Takt på OEE-skärmen med en decimal (nominell takt på raden under); formatteringstester (`npm test`) i CI
+
 ## Nästa
 
 ### Docker för drift på Fitlet3 (Linux, x86-64)

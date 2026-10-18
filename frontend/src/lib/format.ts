@@ -5,6 +5,33 @@ const oneDecFmt = new Intl.NumberFormat("sv-SE", { minimumFractionDigits: 1, max
 
 export const DASH = "–";
 
+/**
+ * Fixed decimals with Swedish decimal comma, also when the fraction is 0 (82 -> "82,0" at 1 decimal).
+ * No thousands grouping (keeps the hero width predictable); ASCII minus; "-0,0" -> "0,0".
+ */
+export function fmtFixed(n: number | null | undefined, decimals: number): string {
+  if (n === null || n === undefined || !Number.isFinite(n)) return DASH;
+  const d = Math.max(0, Math.min(3, Math.round(decimals)));
+  let s = n.toFixed(d);
+  if (/^-0(\.0+)?$/.test(s)) s = s.slice(1);
+  return s.replace(".", ",");
+}
+
+/** Item type as in dashboard.yaml (see layout/layout.ts) */
+type NumericItemType = "number" | "percent" | "counter" | string;
+
+/**
+ * Decimals for a grid item: `decimals:` from dashboard.yaml if set; otherwise counter 0, percent 1,
+ * number 1 once the tag has delivered a decimal value (sticky, so 82,5 -> 82,0 never drops the comma),
+ * else 0 (integer tags stay integers).
+ */
+export function itemDecimals(type: NumericItemType, decimals: number | undefined, seenFraction: boolean): number {
+  if (type === "counter") return 0;
+  if (decimals !== undefined) return decimals;
+  if (type === "percent") return 1;
+  return seenFraction ? 1 : 0;
+}
+
 export function fmtInt(n: number | null | undefined): string {
   return n === null || n === undefined || !Number.isFinite(n) ? DASH : intFmt.format(Math.round(n));
 }

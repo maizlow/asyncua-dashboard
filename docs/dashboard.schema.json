@@ -54,7 +54,7 @@
             }
           ],
           "default": null,
-          "description": "Fixed decimals (default: as received)",
+          "description": "Fixed decimals, shown with decimal comma even when 0 (82,0). Default: percent 1, counter 0, number 1 once the tag delivers a decimal value, else 0",
           "title": "Decimals"
         },
         "target": {

@@ -27,6 +27,8 @@ jobs:
           cache-dependency-path: frontend/package-lock.json
       - run: npm ci
       - run: npm run lint
+      - name: Formatter unit tests
+        run: npm test
       - run: npm run build
       - name: Build demo variant
         run: npm run build

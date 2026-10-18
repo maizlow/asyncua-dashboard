@@ -102,8 +102,13 @@ try {
           if ((overX && !ellipsis) || (overY && !lineClamp)) problems.push(`clipped overflow: ${msg}`);
           else clamped.push(`clamped (${overX ? "ellipsis" : "line-clamp"}): ${msg}`);
         }
-        // Grid item values (ItemCard sets the fitted font size inline): smallest one, in canvas px
-        const heroes = [...canvas.querySelectorAll("[data-hero]")].map((e) => parseFloat(e.style.fontSize));
+        // Grid item values (ItemCard sets the fitted font size inline): smallest one, in canvas px.
+        // Their box is not clipping, so check explicitly that the value + unit fit (no overlap with the trend/target).
+        const heroEls = [...canvas.querySelectorAll("[data-hero]")];
+        for (const el of heroEls)
+          if (el.scrollWidth > el.clientWidth + 1)
+            problems.push(`item value too wide: ${label(el)} ${el.scrollWidth} > ${el.clientWidth}`);
+        const heroes = heroEls.map((e) => parseFloat(e.style.fontSize));
         const hero = heroes.length ? Math.min(...heroes) : null;
         return { problems, clamped, count: els.length, hero };
       });
