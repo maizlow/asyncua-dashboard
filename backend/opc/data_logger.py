@@ -1,118 +1,117 @@
-from typing import Any, Dict, List
+"""Persistent append-only history of data tag values (used for sparklines)."""
 
-import aiosqlite
+from __future__ import annotations
 
-from backend.settings import settings
+import logging
+import sqlite3
+from datetime import datetime, timedelta
+from typing import Any
 
-DB_PATH = settings.db_path
+from backend.opc.database import Database, default_database
+from backend.timeutil import from_db_ts, to_db_ts, utcnow
+
+logger = logging.getLogger(__name__)
+
+_INSERT_SQL = "INSERT INTO data_points (timestamp, tag, value) VALUES (?, ?, ?)"
 
 
 class DataLogger:
-    """Persistent append-only logger for all data tag changes."""
+    def __init__(self, db: Database | None = None):
+        self._db = db
 
-    def __init__(self):
-        self.db_path = DB_PATH
+    @property
+    def db(self) -> Database:
+        if self._db is None:
+            self._db = default_database()
+        return self._db
 
-    async def init_db(self):
-        """Create table and index if they do not exist."""
-        async with aiosqlite.connect(self.db_path) as db:
-            await db.execute("""
+    async def init_db(self) -> None:
+        """Create table and indexes if they do not exist."""
+
+        def _init(conn: sqlite3.Connection) -> None:
+            conn.execute(
+                """
                 CREATE TABLE IF NOT EXISTS data_points (
                     id INTEGER PRIMARY KEY AUTOINCREMENT,
                     timestamp DATETIME DEFAULT CURRENT_TIMESTAMP,
                     tag TEXT NOT NULL,
                     value TEXT NOT NULL
                 )
-            """)
-            await db.execute("""
-                CREATE INDEX IF NOT EXISTS idx_data_points_tag_time
-                ON data_points (tag, timestamp)
-            """)
-            await db.commit()
-        print("✅ Data logger database initialized")
+                """
+            )
+            conn.execute("CREATE INDEX IF NOT EXISTS idx_data_points_tag_time ON data_points (tag, timestamp)")
+            conn.execute("CREATE INDEX IF NOT EXISTS idx_data_points_time ON data_points (timestamp)")
 
-    async def log_value(self, tag: str, value: Any):
-        """Append a new value for the given tag. Best-effort, non-blocking."""
+        await self.db.run_async(_init)
+        logger.info("Data logger database initialized")
+
+    def log_value(self, tag: str, value: Any, ts: datetime | None = None) -> None:
+        """Queue a value for the given tag (UTC timestamp). Non-blocking, thread-safe."""
         if value is None:
             return
-        # Store everything as text; frontend already handles string vs number
-        val_str = str(value)
-        try:
-            async with aiosqlite.connect(self.db_path) as db:
-                await db.execute(
-                    "INSERT INTO data_points (tag, value) VALUES (?, ?)",
-                    (tag, val_str)
-                )
-                await db.commit()
-        except Exception as e:
-            # Non-critical path — missing a point is acceptable
-            print(f"⚠️ DataLogger failed to write {tag}: {e}")
+        self.db.enqueue_insert(_INSERT_SQL, (to_db_ts(ts or utcnow()), tag, str(value)))
 
-    async def get_history_values(self, tag: str, limit: int = 150) -> List[Any]:
-        """Return the most recent N values for a tag, oldest first (for sparklines)."""
+    def _newest(self, conn: sqlite3.Connection, tag: str, limit: int) -> list[tuple[str, str]]:
+        # Newest N rows, returned oldest-first (chronological) for charts
+        rows = conn.execute(
+            """
+            SELECT timestamp, value FROM data_points
+            WHERE tag = ?
+            ORDER BY timestamp DESC, id DESC
+            LIMIT ?
+            """,
+            (tag, limit),
+        ).fetchall()
+        rows.reverse()
+        return rows
+
+    async def get_history_values(self, tag: str, limit: int = 150) -> list[Any]:
+        """The most recent ``limit`` values for a tag, in chronological order."""
         try:
-            async with aiosqlite.connect(self.db_path) as db:
-                cursor = await db.execute(
-                    """
-                    SELECT value FROM data_points
-                    WHERE tag = ?
-                    ORDER BY timestamp ASC
-                    LIMIT ?
-                    """,
-                    (tag, limit)
-                )
-                rows = await cursor.fetchall()
-            # Try to return proper types where obvious
-            result = []
-            for (v,) in rows:
-                result.append(self._coerce_value(v))
-            return result
-        except Exception as e:
-            print(f"⚠️ DataLogger get_history_values failed for {tag}: {e}")
+            rows = await self.db.run_async(lambda conn: self._newest(conn, tag, limit))
+        except Exception:
+            logger.exception("get_history_values failed for %s", tag)
             return []
+        return [self._coerce_value(v) for _, v in rows]
 
-    async def get_history_points(self, tag: str, limit: int = 150) -> List[Dict]:
-        """Return the most recent N points with timestamps, oldest first."""
+    async def get_history_points(self, tag: str, limit: int = 150) -> list[dict]:
+        """The most recent ``limit`` points with ISO-8601 UTC timestamps, chronological."""
         try:
-            async with aiosqlite.connect(self.db_path) as db:
-                cursor = await db.execute(
-                    """
-                    SELECT timestamp, value FROM data_points
-                    WHERE tag = ?
-                    ORDER BY timestamp ASC
-                    LIMIT ?
-                    """,
-                    (tag, limit)
-                )
-                rows = await cursor.fetchall()
-            result = []
-            for ts, v in rows:
-                result.append({
-                    "timestamp": ts,
-                    "value": self._coerce_value(v)
-                })
-            return result
-        except Exception as e:
-            print(f"⚠️ DataLogger get_history_points failed for {tag}: {e}")
+            rows = await self.db.run_async(lambda conn: self._newest(conn, tag, limit))
+        except Exception:
+            logger.exception("get_history_points failed for %s", tag)
             return []
+        return [{"timestamp": from_db_ts(ts).isoformat(), "value": self._coerce_value(v)} for ts, v in rows]
 
-    def _coerce_value(self, raw: str) -> Any:
+    async def purge_older_than(self, days: int, now: datetime | None = None) -> int:
+        """Delete data_points older than ``days``. Returns the number of rows removed."""
+        if days <= 0:
+            return 0
+        cutoff = to_db_ts((now or utcnow()) - timedelta(days=days))
+
+        def _purge(conn: sqlite3.Connection) -> int:
+            return conn.execute("DELETE FROM data_points WHERE timestamp < ?", (cutoff,)).rowcount
+
+        removed = await self.db.run_async(_purge)
+        if removed:
+            logger.info("Retention: removed %d data_points older than %d days", removed, days)
+        return removed
+
+    @staticmethod
+    def _coerce_value(raw: str) -> Any:
         """Best-effort conversion back to int/float when possible."""
         if raw is None:
             return None
-        # Try int first
         try:
             if "." not in raw and "e" not in raw.lower():
                 return int(raw)
         except ValueError:
             pass
-        # Try float
         try:
             return float(raw)
         except ValueError:
             pass
-        # Return as string (covers Time_Of_Day formatted strings etc.)
-        return raw
+        return raw  # e.g. Time_Of_Day strings
 
 
 # Global instance
