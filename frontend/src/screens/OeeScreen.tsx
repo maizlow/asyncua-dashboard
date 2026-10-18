@@ -120,9 +120,10 @@ function ProductionCard({ d }: { d: OeeDetails | null }) {
 
   return (
     <Card title="Produktion" aside={<TargetStatus ok={onTarget} />}>
-      <div className="flex items-baseline gap-8 leading-none whitespace-nowrap min-w-0">
-        <span className="text-[290px] font-mono font-bold tracking-[-6px] tabular-nums">{fmtInt(good)}</span>
-        <span className="text-[110px] text-zinc-300 tv-truncate">st godkända</span>
+      {/* Sized so "999 999 st godkända" fits even with wider fallback fonts (e.g. DejaVu Sans) */}
+      <div className="flex items-baseline gap-5 leading-none whitespace-nowrap min-w-0">
+        <span className="text-[290px] font-mono font-bold tracking-[-8px] tabular-nums">{fmtInt(good)}</span>
+        <span className="text-[104px] text-zinc-300 tv-truncate">st godkända</span>
       </div>
 
       {/* Progress vs shift target, marker = target so far */}
