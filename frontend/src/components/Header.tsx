@@ -32,7 +32,7 @@ export function Header() {
         {/* LEFT: Customer Logo */}
         <div className="flex items-center justify-start flex-1">
           <img
-            src="/customerLogo.png"
+            src={`${import.meta.env.BASE_URL}customerLogo.png`}
             alt="Customer Logo"
             className="h-48 w-auto object-contain"
           />
@@ -51,7 +51,7 @@ export function Header() {
         {/* RIGHT: ABECE Logo */}
         <div className="flex items-center justify-end flex-1">
           <img
-            src="/abeceLogo.svg"
+            src={`${import.meta.env.BASE_URL}abeceLogo.svg`}
             alt="ABECE Logo"
             className="h-48 w-auto object-contain brightness-0 invert"
           />

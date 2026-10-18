@@ -1,29 +1,9 @@
-import { useEffect, useState } from "react";
 import { AreaChart, Area, XAxis, YAxis, ResponsiveContainer, CartesianGrid } from 'recharts';
-import { useWebSocket } from "@/hooks/useWebSocket";
+import { useMetricsStore } from "@/stores/useMetricsStore";
 
-interface ShiftPatternScreenProps {
-  data?: Array<{ time: string; running: number; stopped: number }>;
-}
-
-export function ShiftPatternScreen({ data }: ShiftPatternScreenProps) {
-  const [shiftData, setShiftData] = useState<Array<{ time: string; running: number; stopped: number }>>([]);
-  const { lastMessage } = useWebSocket();
-
-  // Use prefetched data from ScreenManager when available
-  useEffect(() => {
-    if (data && data.length > 0) {
-      setShiftData(data);
-    }
-  }, [data]);
-
-  // Still listen for live updates while already on the screen
-  useEffect(() => {
-    if (lastMessage?.type === "shift_pattern_data" && Array.isArray(lastMessage.data)) {
-      console.log("📊 Received live shift pattern data");
-      setShiftData(lastMessage.data);
-    }
-  }, [lastMessage]);
+export function ShiftPatternScreen() {
+  // Prefetched by ScreenManager and kept live by shift_pattern_data messages (useDataFeed)
+  const shiftData = useMetricsStore((s) => s.shiftPattern) ?? [];
 
   return (
     <div className="flex flex-col h-screen bg-zinc-950 text-white overflow-hidden">

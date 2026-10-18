@@ -1,9 +1,11 @@
 import { Header } from "@/components/Header";
 import { ScreenManager } from "@/components/ScreenManager";
-import { useWebSocket } from "@/hooks/useWebSocket";
+import { useConnectionStatus } from "@/hooks/useWebSocket";
+import { useDataFeed } from "@/hooks/useDataFeed";
 
 function App() {
-  const { status } = useWebSocket();
+  const status = useConnectionStatus();
+  useDataFeed();
 
   return (
     <div className="flex flex-col h-screen bg-zinc-950 text-white">
