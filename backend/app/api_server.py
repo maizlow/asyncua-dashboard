@@ -1,6 +1,7 @@
 import uvicorn
 from fastapi import FastAPI
 
+
 def run_fastapi_server(app: FastAPI = None):
     if app is None:
         app = FastAPI(title="Production Dashboard API")

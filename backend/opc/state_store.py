@@ -1,8 +1,9 @@
-from typing import Any, Callable
-from backend.app.routers.websocket import broadcast
 import asyncio
+from typing import Any, Callable
 
+from backend.app.routers.websocket import broadcast
 from backend.opc.data_logger import data_logger
+
 
 class DataStore:
     def __init__(self):
