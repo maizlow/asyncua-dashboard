@@ -104,7 +104,7 @@ $$
 
 $$
 \begin{array}{lll}
-\texttt{GoodCount} \text{ har värde:} & G = \texttt{GoodCount}, & N = G + K \ (\text{eller } G \text{ utan } K) \\
+\texttt{GoodCount} \text{ har värde:} & G = \texttt{GoodCount}, & N = G + K \ (\text{eller } G \text{ utan } K) \cr
 \text{annars:} & N = \texttt{ProductionCount}, & G = \max\bigl(0,\ N - K\bigr) \ (\text{eller } N \text{ utan } K)
 \end{array}
 \qquad K = \texttt{RejectCount}
@@ -182,7 +182,7 @@ $$
 - `–` om $N$ saknas, $t_\text{kör} = 0$ eller $R = 0$.
 - Använder **totalt** antal (godkända + kassation), inte `TPM`.
 
-**Exempel:** $35\,140 / (267 \cdot 140) = 35\,140 / 37\,380 = 0{,}940$ → `94,0 %`.
+**Exempel:** $35\thinspace 140 / (267 \cdot 140) = 35\thinspace 140 / 37\thinspace 380 = 0{,}940$ → `94,0 %`.
 
 ### Kvalitet
 
@@ -196,7 +196,7 @@ $$
   och därför visar även OEE `–`).
 - Kvalitet räknas även utan tillståndslogg, men **inte** utan skiftfönster (då är alla fyra `–`).
 
-**Exempel:** $34\,440 / 35\,140 = 0{,}980$ → `98,0 %`.
+**Exempel:** $34\thinspace 440 / 35\thinspace 140 = 0{,}980$ → `98,0 %`.
 
 ### Färg på Tillgänglighet, Prestanda, Kvalitet
 
@@ -239,7 +239,7 @@ $$
 
 - Skiftmålet fördelat jämnt över skiftet (pro rata). Heltal (st). `–` när Skiftmål är `–`.
 
-**Exempel:** $57\,120 \cdot 300 / 480 = 35\,700$. Nattskift kl. 02:00: $85\,680 \cdot 480 / 720 = 57\,120$.
+**Exempel:** $57\thinspace 120 \cdot 300 / 480 = 35\thinspace 700$. Nattskift kl. 02:00: $85\thinspace 680 \cdot 480 / 720 = 57\thinspace 120$.
 
 ### Prognos
 
@@ -250,19 +250,19 @@ $$
 $$
 
 - Godkända vid skiftslut om nuvarande **medeltakt inklusive stopp** håller i sig. Heltal (st).
-- `–` de **första 5 minuterna** av skiftet ($t < 300$ s), utan skiftfönster eller utan $G$.
+- `–` de **första 5 minuterna** av skiftet ($t \lt  300$ s), utan skiftfönster eller utan $G$.
 - Mellan skift ($t = T$) blir prognosen lika med $G$.
 - Prognosen behöver inget mål och visas även utan `ShiftTarget`; den färgas inte.
 
-**Exempel:** $34\,440 / 300 \cdot 480 = 55\,104$.
+**Exempel:** $34\thinspace 440 / 300 \cdot 480 = 55\thinspace 104$.
 
 ### Framdriftsstapel och "PÅ MÅL"/"UNDER MÅL" i Produktion
 
 **Visas:** den tjocka stapeln och texten uppe till höger i rutan Produktion.
 
 $$
-\text{stapel} = \min\left(100\,\%,\ \frac{G}{M_\text{skift}}\right), \qquad
-\text{markör} = \min\left(100\,\%,\ \frac{M_\text{hittills}}{M_\text{skift}}\right)
+\text{stapel} = \min\left(1,\ \frac{G}{M_\text{skift}}\right), \qquad
+\text{markör} = \min\left(1,\ \frac{M_\text{hittills}}{M_\text{skift}}\right)
 $$
 
 $$
@@ -273,7 +273,7 @@ $$
 - **Utan `ShiftTarget`:** Mål hittills och Skiftmål `–`, ingen text, tom stapel och ingen markör. Ingen reserv med nominell takt.
 - Med ett skiftmål på 85 % av nominell takt betyder "PÅ MÅL" ungefär OEE ≥ 85 %.
 
-**Exempel:** stapel $34\,440 / 57\,120 = 60{,}3\,\%$, markör $35\,700 / 57\,120 = 62{,}5\,\%$; $34\,440 < 35\,700$ →
+**Exempel:** stapel $34\thinspace 440 / 57\thinspace 120 = 60{,}3$ %, markör $35\thinspace 700 / 57\thinspace 120 = 62{,}5$ %; $34\thinspace 440 \lt  35\thinspace 700$ →
 "▼ UNDER MÅL". Med 36 000 godkända: "● PÅ MÅL".
 
 ### Takt · TPM
@@ -302,7 +302,7 @@ $$
 - **Färg på andelen** (visat värde): grön ≤ 2,0 %, gul ≤ 3,0 %, annars röd med **▲** framför. 2,04 % visas `2,0 %` och är grön.
 - `–` (och neutral färg) utan `RejectCount` eller om $N = 0$. Räknas även utan skiftfönster.
 
-**Exempel:** $700 / 35\,140 \cdot 100 = 1{,}99\,\%$ → `700 st`, `2,0 %` grön.
+**Exempel:** $700 / 35\thinspace 140 \cdot 100 = 1{,}99$ % → `700 st`, `2,0 %` grön.
 
 ### Stopp
 
@@ -336,12 +336,12 @@ $$
 
 **Visas:** staplad yta grön (kör) / röd (stopp) per skifttimme, etikett skiftstart och skiftslut och "– N timmars skift".
 
-Skiftet delas i timmar räknat **från skiftstart**: $[t_\text{start} + i\,\text{h},\ \min(t_\text{start} + (i+1)\,\text{h},\ t_\text{slut}))$.
+Skiftet delas i timmar räknat **från skiftstart**: $[t_\text{start} + i\thinspace \text{h},\ \min(t_\text{start} + (i+1)\thinspace \text{h},\ t_\text{slut}))$.
 Ett skift som inte är ett helt antal timmar slutar med en kortare timme. För varje timme $i$:
 
 $$
-\text{kör}_i = \frac{1}{60} \sum_{\text{kör-segment}} \bigl|\,\text{segment} \cap \text{timme}_i\,\bigr|_\text{s}, \qquad
-\text{stopp}_i = \frac{1}{60} \sum_{\text{stopp-segment}} \bigl|\,\text{segment} \cap \text{timme}_i\,\bigr|_\text{s}
+\text{kör}_i = \frac{1}{60} \sum_{\text{kör-segment}} \bigl|\thinspace \text{segment} \cap \text{timme}_i\thinspace \bigr|_\text{s}, \qquad
+\text{stopp}_i = \frac{1}{60} \sum_{\text{stopp-segment}} \bigl|\thinspace \text{segment} \cap \text{timme}_i\thinspace \bigr|_\text{s}
 $$
 
 $$
@@ -378,9 +378,9 @@ $d$ = `decimals` från YAML (0–3); annars `percent` 1, `number` 1 när taggen 
 ### Gränsvärdesfärg (`thresholds: [lägre, övre]`)
 
 $$
-\texttt{better: high}:\ \begin{cases} \text{grön} & x \ge \text{övre} \\ \text{gul} & x \ge \text{lägre} \\ \text{röd} & \text{annars} \end{cases}
+\texttt{better: high}:\ \begin{cases} \text{grön} & x \ge \text{övre} \cr \text{gul} & x \ge \text{lägre} \cr \text{röd} & \text{annars} \end{cases}
 \qquad
-\texttt{better: low}:\ \begin{cases} \text{grön} & x \le \text{lägre} \\ \text{gul} & x \le \text{övre} \\ \text{röd} & \text{annars} \end{cases}
+\texttt{better: low}:\ \begin{cases} \text{grön} & x \le \text{lägre} \cr \text{gul} & x \le \text{övre} \cr \text{röd} & \text{annars} \end{cases}
 $$
 
 Gul och röd visar ▼ (`high`) eller ▲ (`low`) i rubrikraden. $x$ är värdet **avrundat till $d$ decimaler**, som det visas.
@@ -394,7 +394,7 @@ $$
 $$
 
 - De två senaste värdena i taggens historik (varje värdeändring från PLC:n loggas; historiken laddas om var 10:e s).
-- ▲ om $\Delta > 0$, ▼ om $\Delta < 0$, ● om $\Delta = 0$ efter avrundning till $d$ decimaler; visat som $|\Delta|$ med $d$ decimaler.
+- ▲ om $\Delta \gt  0$, ▼ om $\Delta \lt  0$, ● om $\Delta = 0$ efter avrundning till $d$ decimaler; visat som $|\Delta|$ med $d$ decimaler.
 - **Färg:** grön när förändringen går åt det bättre hållet (`better: high` och ▲, eller `better: low` och ▼), röd åt det sämre, grå vid ●.
 - Kräver minst två numeriska värden, annars visas ingen trend.
 
@@ -403,7 +403,7 @@ $$
 ### Mål och framdriftsstapel (`target`)
 
 $$
-\text{stapel} = \min\left(100\,\%,\ \max\left(0,\ \frac{x}{\text{mål}}\right)\right)
+\text{stapel} = \min\left(1,\ \max\left(0,\ \frac{x}{\text{mål}}\right)\right)
 $$
 
 - `target` = taggnamn (t.ex. `TargetCount`) eller fast tal. "Mål" visas med samma decimaler som värdet (`counter`: 0).
