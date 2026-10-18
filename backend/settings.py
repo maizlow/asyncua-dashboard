@@ -28,9 +28,11 @@ class Settings(BaseSettings):
     client_key_path: Optional[Path] = None
 
     db_path: str = Field(default="data.db", alias="DB_PATH")
-
-
-
+    # How long raw metric history (data_points) is kept
+    retention_days: int = Field(default=30, alias="RETENTION_DAYS")
+    retention_cleanup_interval_s: int = Field(default=3600, alias="RETENTION_CLEANUP_INTERVAL_S")
+    # IANA zone name for shift times (e.g. "Europe/Stockholm"). Empty = system local timezone.
+    timezone: str = Field(default="", alias="TIMEZONE")
 
     model_config = {
         "env_file": BASE_DIR / ".env",     # ← Force it to look in project root

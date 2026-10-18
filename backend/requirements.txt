@@ -5,9 +5,6 @@ uvicorn[standard]==0.34.0
 # OPC UA
 asyncua==1.1.5
 
-# Persistence (shift log + metric history)
-aiosqlite==0.22.1
-
 # Configuration
 python-dotenv==1.0.1
 pydantic-settings==2.8.1

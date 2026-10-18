@@ -7,9 +7,8 @@ from asyncua import ua
 import backend.config as config
 from backend.opc.models import AlarmDetails
 from backend.opc.state_store import alarm_store
-from backend.settings import settings
 
-logging.basicConfig(level=settings.log_level)
+logger = logging.getLogger(__name__)
 
 class AlarmHandler:
     def get_associated_value(self, event, index):
@@ -39,7 +38,7 @@ class AlarmHandler:
             except Exception:
                 return str(val)              
 
-        placeholder_pattern = r'@(\d+)%([0-9]*[a-zA-Z])@'
+        placeholder_pattern = r'@(\d+)%([-+ #0-9.]*[a-zA-Z])@'  # e.g. @2%u@, @1%5.2f@
         return re.sub(placeholder_pattern, replace_match, msg)
 
     def event_notification(self, event):
@@ -56,7 +55,7 @@ class AlarmHandler:
             timestamp = timestamp.strftime('%Y-%m-%d %H:%M:%S')
        
         id = getattr(event, 'ID', None)
-        print(f"Raw ID value: {id}")
+        logger.debug("Alarm event raw ID: %r", id)
                
         displayclass = getattr(event, 'DisplayClass', None)
 
@@ -132,7 +131,7 @@ async def subscribe_program_alarms(client=None, sync_lock=None):
               
             server_node = client.get_node(config.DEFAULT_NODES["ProgramAlarms"])
             await subscription._subscribe(server_node, ua.AttributeIds.EventNotifier, event_filter)
-            print("✅ Subscribed to Program Alarms with States. Monitoring active...")
+            logger.info("Subscribed to Program Alarms with states; monitoring active")
             
             # Base ConditionType Node ID is fixed across ALL OPC UA servers worldwide (ns=0;i=2782)
             condition_type_node = client.get_node(config.DEFAULT_NODES["ConditionType"])
@@ -159,11 +158,11 @@ async def subscribe_program_alarms(client=None, sync_lock=None):
                 await client.check_connection()
                 
         except (Exception) as e:
-            print(f"\n❌ Error in alarm event handling: {e}.")
+            logger.error("Error in alarm event handling: %s", e)
             raise  # Re-raise to let opc_client.py handle reconnection logic
 
 if __name__ == "__main__":
     try:
         asyncio.run(subscribe_program_alarms())
     except KeyboardInterrupt:
-        print("\nApplication closed.")
+        logger.info("Application closed.")

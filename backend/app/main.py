@@ -1,38 +1,52 @@
 import asyncio
+import logging
 import threading
-from contextlib import asynccontextmanager
+from contextlib import asynccontextmanager, suppress
 
 from fastapi import FastAPI
+from fastapi.middleware.cors import CORSMiddleware
 
 from backend.app import api_server
 from backend.app.routers import alarms, metrics, websocket
-from backend.app.routers.websocket import broadcast, broadcast_full_snapshot
+from backend.app.routers.websocket import broadcast_full_snapshot, broadcaster
 from backend.opc import opc_client
 from backend.opc.data_logger import data_logger
 from backend.opc.shift_logger import shift_logger
 from backend.opc.state_store import alarm_store, data_store
 from backend.settings import settings
 
+logger = logging.getLogger(__name__)
+
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    # ===================== STARTUP =====================
-    print("✅ Starting periodic snapshot task (every 10 seconds)")
-    asyncio.create_task(start_periodic_snapshot())
-    asyncio.create_task(start_periodic_shift_pattern())
+    # ===================== STARTUP (runs on uvicorn's event loop) =====================
+    await broadcaster.start()
+    tasks = [
+        asyncio.create_task(start_periodic_snapshot(), name="periodic-snapshot"),
+        asyncio.create_task(start_periodic_shift_pattern(), name="periodic-shift-pattern"),
+        asyncio.create_task(start_periodic_retention(), name="periodic-retention"),
+    ]
+    logger.info("Background tasks started (snapshot every %d ms)", settings.snapshot_interval_ms)
 
     yield  # App is now running
 
     # ===================== SHUTDOWN =====================
-    print("🛑 Shutting down...")
+    logger.info("Shutting down...")
+    for task in tasks:
+        task.cancel()
+    for task in tasks:
+        with suppress(asyncio.CancelledError):
+            await task
+    await broadcaster.stop()
+
 
 def create_app() -> FastAPI:
     app = FastAPI(
         title="Production Dashboard API",
         lifespan=lifespan,
-        description="API for Production Dashboard with OPC-UA integration, shift logging, and real-time WebSocket updates.")
-
-    from fastapi.middleware.cors import CORSMiddleware
+        description="API for Production Dashboard with OPC-UA integration, shift logging, and real-time WebSocket updates.",
+    )
 
     origins = [
         "http://localhost:5173",
@@ -64,6 +78,7 @@ async def start_periodic_snapshot():
         await asyncio.sleep(settings.snapshot_interval_ms / 1000)
         await broadcast_full_snapshot()
 
+
 async def start_periodic_shift_pattern():
     """Send shift pattern data every 30 seconds using the PLC-defined shift window (supports overnight shifts)."""
     while True:
@@ -71,85 +86,78 @@ async def start_periodic_shift_pattern():
         try:
             start, end = await shift_logger.get_current_shift_window()
             data = await shift_logger.get_shift_pattern(start, end)
-            if data and len(data) > 0:
-                await broadcast({
-                    "type": "shift_pattern_data",
-                    "data": data
-                })
+            if data:
+                broadcaster.publish({"type": "shift_pattern_data", "data": data})
         except Exception as e:
-            print(f"⚠️ Failed to broadcast shift pattern: {e}")
+            logger.warning("Failed to broadcast shift pattern: %s", e)
+
+
+async def start_periodic_retention():
+    """Delete data_points older than RETENTION_DAYS (once at startup, then periodically)."""
+    while True:
+        try:
+            await data_logger.purge_older_than(settings.retention_days)
+        except Exception:
+            logger.exception("Retention cleanup failed")
+        await asyncio.sleep(max(60, settings.retention_cleanup_interval_s))
+
+
+def wire_store_callbacks() -> None:
+    """Connect store changes (fired on the OPC thread) to logging and WebSocket broadcast."""
+
+    def on_production_state_change(key, value):
+        if key == "ProductionState":
+            shift_logger.log_state_change("Running" if value == 2 else "Stopped")
+
+    def broadcast_alarm_added(alarm_id, alarm):
+        broadcaster.publish({"type": "alarm_added", "alarm_id": alarm_id, "alarm": alarm})
+
+    def broadcast_alarm_removed(alarm_id, alarm):
+        broadcaster.publish({"type": "alarm_removed", "alarm_id": alarm_id, "alarm": alarm})
+
+    data_store.on_change(on_production_state_change)
+    alarm_store.on_add(broadcast_alarm_added)
+    alarm_store.on_remove(broadcast_alarm_removed)
+
 
 def run_opc_background_engine():
     loop = asyncio.new_event_loop()
     asyncio.set_event_loop(loop)
     try:
         loop.run_until_complete(opc_client.main())
-    except Exception as e:
-        print(f"❌ OPC Background Error: {e}")
+    except Exception:
+        logger.exception("OPC background engine stopped")
     finally:
         loop.close()
 
 
 if __name__ == "__main__":
+    logging.basicConfig(
+        level=settings.log_level, format="%(asctime)s %(levelname)s [%(threadName)s] %(name)s: %(message)s"
+    )
     if threading.current_thread().name == "MainThread":
-        print("🧵 Starting background OPC-UA thread...")
-
-        # Initialize shift logger database
+        # Initialize databases (shift log + metric history)
         asyncio.run(shift_logger.init_db())
-
-        # Initialize data history database
         asyncio.run(data_logger.init_db())
 
-        # Start OPC UA in background thread
-        opc_thread = threading.Thread(
-            target=run_opc_background_engine,
-            name="OPC_UA_Background_Worker",
-            daemon=True
-        )
+        wire_store_callbacks()
+
+        logger.info("Starting background OPC-UA thread...")
+        opc_thread = threading.Thread(target=run_opc_background_engine, name="OPC_UA_Background_Worker", daemon=True)
         opc_thread.start()
 
-        # Create FastAPI app
         app = create_app()
-
-        # Connect ProductionState changes to shift logger
-        def on_production_state_change(key, value):
-            if key == "ProductionState":
-                state = "Running" if value == 2 else "Stopped"
-                asyncio.create_task(shift_logger.log_state_change(state))
-
-        data_store.on_change(on_production_state_change)
-
-        # Connect AlarmStore to WebSocket broadcast
-        def broadcast_alarm_added(alarm_id, alarm):
-            asyncio.create_task(broadcast({
-                "type": "alarm_added",
-                "alarm_id": alarm_id,
-                "alarm": alarm
-            }))
-
-        def broadcast_alarm_removed(alarm_id, alarm):
-            asyncio.create_task(broadcast({
-                "type": "alarm_removed",
-                "alarm_id": alarm_id,
-                "alarm": alarm
-            }))
-
-        alarm_store.on_add(broadcast_alarm_added)
-        alarm_store.on_remove(broadcast_alarm_removed)
 
         # Start FastAPI server in its own thread
         api_thread = threading.Thread(
-            target=api_server.run_fastapi_server,
-            args=(app,),
-            name="FastAPI_Server",
-            daemon=True
+            target=api_server.run_fastapi_server, args=(app,), name="FastAPI_Server", daemon=True
         )
         api_thread.start()
 
-        print("✅ System running. API + WebSocket + Shift Logging ready.")
+        logger.info("System running. API + WebSocket + Shift Logging ready.")
 
         try:
             while True:
                 threading.Event().wait(1)
         except KeyboardInterrupt:
-            print("\n🛑 Shutting down...")
+            logger.info("Shutting down...")

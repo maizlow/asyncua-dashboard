@@ -7,7 +7,7 @@ from asyncua.crypto.security_policies import SecurityPolicyBasic256Sha256
 
 from backend.settings import settings
 
-logging.basicConfig(level=settings.log_level)
+logger = logging.getLogger(__name__)
 
 class OPCClientManager:
     _client = None
@@ -36,7 +36,7 @@ class OPCClientManager:
 
                     await cls._client.connect()
                     await cls._client.load_data_type_definitions()
-                    print("✅ OPC UA Client connected")
+                    logger.info("OPC UA client connected to %s", settings.opc_endpoint_url)
         return cls._client
 
     @classmethod
