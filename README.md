@@ -1,3 +1,5 @@
+> 📋 Planerade och genomförda funktioner: se [ROADMAP.md](ROADMAP.md).
+
 # Using `config.py` – DASHBOARD_DATA_NODES
 
 ## Overview
