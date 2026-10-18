@@ -147,7 +147,7 @@ $$
 - **"● PÅ MÅL"** (grön) när visat värde ≥ $O$, annars **"▼ UNDER MÅL"** (gul text, även när siffran är röd). Ingen text när OEE saknas.
 
 $$
-\text{PÅ MÅL} \iff \operatorname{round}_1(100 \cdot \mathrm{OEE}) \ge O
+\text{PÅ MÅL} \iff \mathrm{round}_1(100 \cdot \mathrm{OEE}) \ge O
 $$
 
 **Exempel:** $0{,}890 \cdot 0{,}940 \cdot 0{,}980 = 0{,}820$ → `82,0 %`, gul, "▼ UNDER MÅL". Med `OeeTarget` = 80 blir det
@@ -221,7 +221,7 @@ Med `ProductionCount` och `RejectCount`: $G = \texttt{ProductionCount} - \texttt
 **Visas:** *Skiftmål* i rutan Produktion.
 
 $$
-M_\text{skift} = \operatorname{round}(M), \qquad M = \texttt{ShiftTarget}
+M_\text{skift} = \mathrm{round}(M), \qquad M = \texttt{ShiftTarget}
 $$
 
 - Hela skiftets mål i st, **från PLC:n**. Heltal. `–` om `ShiftTarget` saknar värde eller skiftfönster saknas.
@@ -234,7 +234,7 @@ $$
 **Visas:** *Mål hittills* i rutan Produktion (och vit markör i stapeln).
 
 $$
-M_\text{hittills} = \operatorname{round}\left(M \cdot \frac{t}{T}\right)
+M_\text{hittills} = \mathrm{round}\left(M \cdot \frac{t}{T}\right)
 $$
 
 - Skiftmålet fördelat jämnt över skiftet (pro rata). Heltal (st). `–` när Skiftmål är `–`.
@@ -246,7 +246,7 @@ $$
 **Visas:** *Prognos* i rutan Produktion.
 
 $$
-\text{Prognos} = \operatorname{round}\left(\frac{G}{t} \cdot T\right)
+\text{Prognos} = \mathrm{round}\left(\frac{G}{t} \cdot T\right)
 $$
 
 - Godkända vid skiftslut om nuvarande **medeltakt inklusive stopp** håller i sig. Heltal (st).
@@ -367,7 +367,7 @@ och *Total stopptid* (`AccumulatedStoptime`) alla PLC-värden. Det som räknas i
 ### Värde och decimaler
 
 $$
-\text{visat} = \operatorname{toFixed}(x,\ d) \ \text{med decimalkomma}
+\text{visat} = \mathrm{toFixed}(x,\ d) \ \text{med decimalkomma}
 $$
 
 $d$ = `decimals` från YAML (0–3); annars `percent` 1, `number` 1 när taggen någon gång levererat ett decimaltal annars 0,
@@ -390,7 +390,7 @@ Gul och röd visar ▼ (`high`) eller ▲ (`low`) i rubrikraden. $x$ är värdet
 ### Trend (`trend: true`)
 
 $$
-\Delta = \operatorname{round}_d\bigl(x_\text{senaste} - x_\text{näst senaste}\bigr)
+\Delta = \mathrm{round}_d\bigl(x_\text{senaste} - x_\text{näst senaste}\bigr)
 $$
 
 - De två senaste värdena i taggens historik (varje värdeändring från PLC:n loggas; historiken laddas om var 10:e s).
