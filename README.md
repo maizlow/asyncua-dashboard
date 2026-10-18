@@ -277,3 +277,14 @@ set `VITE_WS_URL` at build time to override.
 
 The dashboard is display-only: the REST API is read-only, and the only value written to the PLC is `ActiveScreenNr`,
 set internally by the backend's screen handler when the PLC requests a screen.
+
+## Backend internals
+
+- **Threads/loops:** the OPC UA client runs on its own thread and event loop; FastAPI/WebSockets run on uvicorn's loop.
+  OPC callbacks never touch sockets directly — they call `broadcaster.publish()` (`backend/app/broadcaster.py`), which hands
+  messages to the uvicorn loop with `call_soon_threadsafe`; a single consumer sends them in order.
+- **SQLite:** one writer thread with one connection (`backend/opc/database.py`); value changes are queued and batch-inserted.
+  Timestamps are stored in UTC. `RETENTION_DAYS` (default 30) controls how long `data_points` are kept.
+- **Shifts:** `ShiftStart`/`ShiftEnd` from the PLC are plant-local times, resolved in `TIMEZONE` (or the system local zone),
+  DST-aware. Shifts crossing midnight (e.g. 22:00–06:00) are supported.
+- **Tests:** `pip install -r backend/requirements-dev.txt && python -m pytest`
