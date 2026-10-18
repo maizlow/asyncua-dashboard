@@ -11,6 +11,8 @@ Everything that is shown — OPC UA nodes, PLC tags, screens and the items on ea
 
 📖 **[docs/CONFIG.md](docs/CONFIG.md)** (svenska): format reference and step by step *Lägga till ett nytt dashboard-objekt*.
 
+🧮 **[docs/BERAKNINGAR.md](docs/BERAKNINGAR.md)** (svenska): formulas for every calculated value on the screens (OEE, mål, prognos, kassation, stopp, skift kvar, trend, colours).
+
 ```yaml
 tags:
   OEE: ns=3;s="DB Production TV"."dashboardData"."oee"
@@ -75,6 +77,7 @@ OEE values are computed in the backend (`backend/opc/oee.py`) and served at `GET
 A = run time / elapsed shift time, P = total / (run minutes × nominal) (capped at 100 %), Q = good / total.
 `GoodCount` and `RejectCount` in `dashboard.yaml` are placeholders (empty node id) until the real PLC node IDs are known;
 until then they are skipped and `ProductionCount` is used as the good count.
+All formulas, edge cases and worked examples: [docs/BERAKNINGAR.md](docs/BERAKNINGAR.md).
 
 ## Backend internals
 
