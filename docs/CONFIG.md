@@ -99,7 +99,7 @@ Varje objekt är en ruta på en grid-skärm. Bara `label` och `tag` krävs.
 | `label` | – | Rubrik på svenska, max 20 tecken. Visas med versaler. |
 | `tag` | – | Taggnamn från `tags`. |
 | `type` | `number` | `number` – tal · `percent` – procent (enhet `%`) · `counter` – heltal (räknare) · `time` – `hh:mm:ss` · `status` – text och färg från `states` |
-| `unit` | – | Enhet efter värdet, max 6 tecken, t.ex. `st`, `TPM`, `°C`. |
+| `unit` | – | Enhet efter värdet, max 6 tecken, t.ex. `st`, `TPM`, `°C`. Med `trend`/`target`: håll den ≤ 4 tecken, annars kan siffran krympa ([se nedan](#storlek-på-siffrorna-automatisk-krympning)). |
 | `decimals` | `percent` 1, `number` 1 om taggen är ett decimaltal annars 0, `counter` alltid 0 | Fast antal decimaler, 0–3, med decimalkomma – även när decimalerna är 0 (`82,0 %`, `140,0`). Sätt `decimals` för decimaltal (Real), så visas kommat redan från första värdet. |
 | `target` | – | Mål: ett taggnamn (`TargetCount`) eller ett tal (`5000`). Visar "Mål" + framdriftsstapel. |
 | `trend` | `false` | Visar senaste förändringen stort med samma decimaler som värdet (▲ 0,6 / ● 0,0; räknare ▼ 1). |
@@ -193,8 +193,16 @@ Fel på enskilda nycklar visas först; regler mellan nycklar (okända taggar, an
 TV:n läses på 8–10 m. Gränserna garanterar att allt får plats utan att något flödar över eller scrollar, i alla upplösningar
 (720p–4K och 21:9):
 
-- **1–6 objekt per grid-skärm** i fast rutnät; värdena är 290 px på 4K-ytan (≈ 97 px versalhöjd vid 1080p).
+- **1–6 objekt per grid-skärm** i fast rutnät.
 - **Rubrik ≤ 20 tecken, enhet ≤ 6, status-text ≤ 10.**
-- Blir ett värde med enhet, trend och mål för brett krymper bara värdet så mycket som behövs (aldrig under 120 px på 4K-ytan ≈ 40 px versalhöjd vid 1080p).
-  Med vanliga värden (≤ 6 siffror, kort enhet) behålls full storlek. Undvik långa enheter tillsammans med `target`/`trend`.
+
+### Storlek på siffrorna (automatisk krympning)
+
+- **Normalt** är värdet i varje ruta **290 px** på 4K-ytan, **≈ 97 px versalhöjd vid 1080p** – över målet 90 px.
+- **Långa värden + långa enheter (upp till 6 tecken) + `trend`/`target`** får inte alltid plats i rutan. Då **krymper värdet
+  automatiskt** så mycket som behövs – rubrik, enhet, trend och mål behåller sin storlek och ingenting flödar över.
+- Krympningen går **ned till minst 120 px (≈ 40 px versalhöjd vid 1080p)**. Det är **under målet 90 px** och syns sämre på
+  8–10 m, men aldrig under minimigränsen 37 px. Exempel ur `docs/examples/stress.yaml`: `-99999,9 mmmmmm` med trend ≈ 130 px.
+- **Rekommendation:** håll enheten **≤ 4 tecken** (t.ex. `st`, `TPM`, `°C`, `m/s`) i objekt som har `trend` eller `target`.
+  Med vanliga värden (≤ 6 siffror) och kort enhet behålls full storlek (290 px).
 - Värsta fallet finns i `docs/examples/stress.yaml` och provas automatiskt i CI (`?layout=stress` i demoläget).
