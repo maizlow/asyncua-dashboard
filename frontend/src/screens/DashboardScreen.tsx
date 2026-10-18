@@ -1,5 +1,14 @@
 import { MetricCard } from "@/components/MetricCard";
 import { useLiveMetrics } from "@/hooks/useLiveMetrics";
+import type { MetricValue } from "@/data/types";
+
+const toNumber = (v: MetricValue | undefined, fallback = 0): number => {
+  const n = typeof v === "number" ? v : Number(v);
+  return Number.isFinite(n) ? n : fallback;
+};
+
+const toNumbers = (values: MetricValue[] | undefined): number[] =>
+  (values ?? []).map((v) => toNumber(v)).filter((n) => Number.isFinite(n));
 
 export function DashboardScreen() {
   const { metrics, histories } = useLiveMetrics();
@@ -11,7 +20,7 @@ export function DashboardScreen() {
         label="Production"
         value={metrics.ProductionCount ?? 0}
         unit="pcs"
-        progressTarget={metrics.TargetCount ?? 0}
+        progressTarget={toNumber(metrics.TargetCount)}
         progressTargetUnit="pcs"
         showProgressBar={true}
       />
@@ -23,7 +32,7 @@ export function DashboardScreen() {
         delta={-24}
         deltaUnit="pcs"
         showSparkline={true}
-        sparklineData={histories.ProductionDelta || []}
+        sparklineData={toNumbers(histories.ProductionDelta)}
         sparklineDataAsDelta={true}
       />
       
@@ -33,7 +42,7 @@ export function DashboardScreen() {
         unit="%"
         delta={2.1}
         showSparkline={true}
-        sparklineData={histories.OEE || []}
+        sparklineData={toNumbers(histories.OEE)}
         sparklineDataAsDelta={true}
       />
 
@@ -44,7 +53,7 @@ export function DashboardScreen() {
         delta={1.2}
         deltaUnit="TPM"
         showSparkline={true}
-        sparklineData={histories.TPM || []}
+        sparklineData={toNumbers(histories.TPM)}
         sparklineDataAsDelta={true}
       />
       

@@ -1,0 +1,11 @@
+# Minimal ruff configuration for the backend.
+target-version = "py311"
+line-length = 120
+extend-exclude = ["frontend"]
+
+[lint]
+# pycodestyle errors, pyflakes, import sorting, bugbear
+select = ["E4", "E7", "E9", "F", "I", "B"]
+
+[lint.isort]
+known-first-party = ["backend"]

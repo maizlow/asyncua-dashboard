@@ -1,40 +1,25 @@
 import { useEffect } from "react";
+import { dataSource } from "@/data/dataSource";
 import { useAlarmStore } from "@/stores/useAlarmStore";
-import { useWebSocket } from "@/hooks/useWebSocket";
 
 export function AlarmScreen() {
-  const { alarms, setAlarms, addAlarm, removeAlarm } = useAlarmStore();
-  const lastMessage = useWebSocket();
+  // Live alarm_added / alarm_removed messages are applied to the store by useDataFeed (App)
+  const alarms = useAlarmStore((s) => s.alarms);
+  const setAlarms = useAlarmStore((s) => s.setAlarms);
 
-  // Fetch current alarms when screen mounts
+  // Fetch the authoritative list of active alarms when the screen mounts
   useEffect(() => {
-    const fetchAlarms = async () => {
-      try {
-        const res = await fetch("/api/alarms");
-        const data = await res.json();
-        if (data.alarms) {
-          setAlarms(data.alarms);
-        }
-      } catch (err) {
-        console.error("Failed to fetch alarms", err);
-      }
+    let cancelled = false;
+    dataSource
+      .getAlarms()
+      .then((list) => {
+        if (!cancelled) setAlarms(list);
+      })
+      .catch((err) => console.error("Failed to fetch alarms", err));
+    return () => {
+      cancelled = true;
     };
-
-    fetchAlarms();
   }, [setAlarms]);
-
-  // Listen to live WebSocket updates
-  useEffect(() => {
-    if (!lastMessage) return;
-
-    if (lastMessage.type === "alarm_added" && lastMessage.alarm) {
-      addAlarm(lastMessage.alarm);
-    }
-
-    if (lastMessage.type === "alarm_removed" && lastMessage.alarm_id) {
-      removeAlarm(lastMessage.alarm_id);
-    }
-  }, [lastMessage, addAlarm, removeAlarm]);
 
   return (
     <div

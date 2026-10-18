@@ -1,6 +1,6 @@
+from typing import Any, Dict, List
+
 import aiosqlite
-from datetime import datetime
-from typing import Any, List, Dict, Optional
 
 from backend.settings import settings
 

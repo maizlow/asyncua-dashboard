@@ -1,86 +1,78 @@
-import { useEffect, useState } from "react";
-import { useWebSocket } from "@/hooks/useWebSocket";
+import { useCallback, useEffect, useRef, useState } from "react";
+import { dataSource } from "@/data/dataSource";
+import { useServerMessages } from "@/hooks/useWebSocket";
+import { useMetricsStore } from "@/stores/useMetricsStore";
 import { DashboardScreen } from "@/screens/DashboardScreen";
 import { AlarmScreen } from "@/screens/AlarmScreen";
 import { ShiftPatternScreen } from "@/screens/ShiftPatternScreen";
 
+const FADE_OUT_MS = 2000;
+
+/**
+ * Shows the screen selected by the PLC. Display-only: the frontend never writes
+ * anything back; the backend acknowledges screen changes (ActiveScreenNr) itself.
+ */
 export function ScreenManager() {
-  const [currentScreen, setCurrentScreen] = useState<number>(1);
   const [visibleScreen, setVisibleScreen] = useState<number>(1);
-  const [shiftPatternData, setShiftPatternData] = useState<any[] | null>(null);
   const [isLoadingScreenData, setIsLoadingScreenData] = useState(false);
   const [screenOpacity, setScreenOpacity] = useState(1);
-  const { lastMessage } = useWebSocket();   // ← Destructure correctly
+  // Incremented on every switch so an older, still-running switch can't override a newer one
+  const switchSeq = useRef(0);
 
-    // Helper to switch screens with best UX (prefetch data when needed) + reliable fade
-    const switchToScreen = async (newScreen: number) => {
-      // 1. Fade out current content
-      setScreenOpacity(0);
-      await new Promise(resolve => setTimeout(resolve, 2000));
+  // Switch screens with a fade, prefetching data while the screen is faded out
+  const switchToScreen = useCallback(async (newScreen: number) => {
+    const seq = ++switchSeq.current;
 
-      // 2. Do all data fetching / side effects while the screen is faded out
-      if (newScreen === 3) {
-        setIsLoadingScreenData(true);
-        try {
-          const res = await fetch("/api/shift-pattern");
-          const json = await res.json();
-          if (json.data) {
-            setShiftPatternData(json.data);
-          }
-        } catch (e) {
-          console.error("Failed to fetch shift pattern:", e);
-        } finally {
-          setIsLoadingScreenData(false);
-        }
-      } else if (newScreen === 2) {
-        // Trigger a fresh snapshot for better Dashboard experience (non-blocking)
-        fetch("/api/snapshot", { method: "POST" }).catch(() => {});
+    // 1. Fade out current content
+    setScreenOpacity(0);
+    await new Promise((resolve) => setTimeout(resolve, FADE_OUT_MS));
+    if (seq !== switchSeq.current) return;
+
+    // 2. Do all data fetching / side effects while the screen is faded out
+    if (newScreen === 3) {
+      setIsLoadingScreenData(true);
+      try {
+        const rows = await dataSource.getShiftPattern();
+        if (rows) useMetricsStore.getState().setShiftPattern(rows);
+      } catch (e) {
+        console.error("Failed to fetch shift pattern:", e);
+      } finally {
+        setIsLoadingScreenData(false);
       }
+      if (seq !== switchSeq.current) return;
+    } else if (newScreen === 2) {
+      // Ask for a fresh snapshot for a better Dashboard experience (non-blocking, read-only)
+      dataSource.requestSnapshot();
+    }
 
-      // 3. Update both the logical screen and the actually visible screen
-      setCurrentScreen(newScreen);
-      setVisibleScreen(newScreen);
+    // 3. Show the new screen
+    setVisibleScreen(newScreen);
 
-      // 4. Small delay then fade the new content back in
-      await new Promise(resolve => setTimeout(resolve, 30));
-      setScreenOpacity(1);
-    };
+    // 4. Small delay then fade the new content back in
+    await new Promise((resolve) => setTimeout(resolve, 30));
+    if (seq !== switchSeq.current) return;
+    setScreenOpacity(1);
+  }, []);
 
   // Initial screen load
   useEffect(() => {
-    fetch("/api/general")
-      .then((res) => res.json())
-      .then(async (data) => {
-        if (data.ActiveScreenNr !== undefined) {
-          const initialScreen = data.ActiveScreenNr;
-          await switchToScreen(initialScreen);
-        }
+    dataSource
+      .getActiveScreen()
+      .then((screen) => {
+        if (screen !== undefined) return switchToScreen(screen);
       })
       .catch(console.error);
-  }, []);
+  }, [switchToScreen]);
 
-    // Listen for screen change messages
-  useEffect(() => {
-    if (lastMessage?.type === "screen_change" && typeof lastMessage.screen === "number") {
-      const newScreen = lastMessage.screen;
-      console.log("📺 Switching to screen:", newScreen);
-
-      // Use our improved switch function (prefetches data when needed)
-      switchToScreen(newScreen);
-
-      // Confirm back to backend
-      fetch("/api/general", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          key: "ActiveScreenNr",
-          value: newScreen
-        })
-      }).catch(console.error);
+  // Screen change requested by the PLC (pushed by the backend)
+  useServerMessages((msg) => {
+    if (msg.type === "screen_change" && typeof msg.screen === "number") {
+      console.log("📺 Switching to screen:", msg.screen);
+      void switchToScreen(msg.screen);
     }
-  }, [lastMessage]);
+  });
 
-        const renderCurrentScreen = () => {
+  const renderCurrentScreen = () => {
     if (isLoadingScreenData) {
       return (
         <div className="flex items-center justify-center h-full text-4xl text-zinc-400">
@@ -95,13 +87,13 @@ export function ScreenManager() {
       case 2:
         return <DashboardScreen />;
       case 3:
-        return <ShiftPatternScreen data={shiftPatternData ?? undefined} />;
+        return <ShiftPatternScreen />;
       default:
         return <DashboardScreen />;
     }
   };
 
-    return (
+  return (
     <div className="flex flex-col h-full">
       <div
         className="transition-opacity duration-3000 ease-in-out h-full"

@@ -253,3 +253,27 @@ The `MetricCard` component is a flexible, reusable UI block used to display live
 - **Status Mode**: Used for time-based or non-numeric values with optional color theming.
 
 ---
+---
+
+## Demo mode / preview
+
+The frontend can run without backend or PLC using built-in simulated data:
+
+```bash
+cd frontend
+VITE_DEMO=true npm run dev          # local demo
+VITE_DEMO=true VITE_BASE=/asyncua-dashboard/ npm run build   # what GitHub Pages builds
+```
+
+Pushes to `main` deploy the demo to https://maizlow.github.io/asyncua-dashboard/ (`.github/workflows/pages.yml`).
+
+## Configuration & secrets
+
+Copy `.env.example` to `.env` in the project root and fill in the OPC UA endpoint, credentials and certificate file names.
+Certificates/private keys live in `certificates/` and are git-ignored. Never commit `.env` or key material.
+
+The WebSocket URL defaults to `ws(s)://<page host>/ws` (the Vite dev server proxies `/ws` and `/api` to `localhost:8000`);
+set `VITE_WS_URL` at build time to override.
+
+The dashboard is display-only: the REST API is read-only, and the only value written to the PLC is `ActiveScreenNr`,
+set internally by the backend's screen handler when the PLC requests a screen.
