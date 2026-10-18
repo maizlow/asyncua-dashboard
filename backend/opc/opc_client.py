@@ -64,14 +64,17 @@ async def main():
                 "watchdog": asyncio.create_task(_connection_watchdog(client)),
             }
             logger.info("Monitoring sub-engines engaged")
+            data_store.connected = True
 
             # 3. Circuit breaker: any sub-engine failing or the connection dropping -> reconnect
             await run_supervised(tasks)
 
         except asyncio.CancelledError:
+            data_store.connected = False
             await OPCClientManager.close()
             raise
         except Exception as e:
+            data_store.connected = False
             logger.error("Connection lost: %s. Reconnecting in %d seconds...", e, RECONNECT_DELAY_S)
             await OPCClientManager.close()
             await asyncio.sleep(RECONNECT_DELAY_S)

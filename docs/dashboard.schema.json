@@ -188,13 +188,14 @@
       "properties": {
         "type": {
           "default": "grid",
-          "description": "grid = own items; alarms; shift = shift pattern; oee = OEE details; week = today + previous 6 days from the history",
+          "description": "grid = own items; alarms; shift = shift pattern; oee = OEE details; week = today + previous 6 days from the history; highscore = longest runs without a stop (top 5)",
           "enum": [
             "grid",
             "alarms",
             "shift",
             "oee",
-            "week"
+            "week",
+            "highscore"
           ],
           "title": "Type",
           "type": "string"

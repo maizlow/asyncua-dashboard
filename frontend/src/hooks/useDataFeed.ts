@@ -21,6 +21,9 @@ export function useDataFeed() {
       case "daily_history":
         if (msg.data) useMetricsStore.getState().setDailyHistory(msg.data);
         break;
+      case "highscores":
+        if (msg.data) useMetricsStore.getState().setHighscores(msg.data);
+        break;
       case "oee_details":
         if (msg.data) useMetricsStore.getState().setOeeDetails(msg.data);
         break;

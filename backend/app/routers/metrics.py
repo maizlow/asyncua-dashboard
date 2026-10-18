@@ -38,6 +38,14 @@ async def get_daily_history(n: int = 7):
     return await history.compute(data_store, n=n)
 
 
+@router.get("/highscores")
+async def get_highscores(n: int = 5):
+    """Run-time highscores: the ``n`` longest runs without a stop, plus the ongoing run (backend/opc/highscore.py)."""
+    from backend.opc.highscore import compute_highscores, current_shift_start, get_run_tracker
+
+    return await compute_highscores(get_run_tracker(), await current_shift_start(), max(1, min(20, n)))
+
+
 @router.get("/shifts")
 async def get_shifts(limit: int = 20):
     """The shift log (newest first): one row per shift with parameters, counts and run/stop time.

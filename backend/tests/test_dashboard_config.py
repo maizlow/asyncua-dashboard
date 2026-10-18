@@ -37,7 +37,7 @@ def errors_for(tmp_path: Path, body: str) -> list[str]:
 
 def test_example_matches_current_screens():
     d = load_dashboard(EXAMPLE)
-    assert {nr: s.type for nr, s in d.screens.items()} == {1: "alarms", 2: "grid", 3: "shift", 4: "oee", 5: "week"}
+    assert {nr: s.type for nr, s in d.screens.items()} == {1: "alarms", 2: "grid", 3: "shift", 4: "oee", 5: "week", 6: "highscore"}
     labels = [i.label for i in d.screens[2].items]
     assert labels == ["Produktion", "Delta", "OEE", "Linjehastighet", "Aktuell körtid", "Total stopptid"]
     assert d.opc.alarms == "ns=3;i=1815"
@@ -53,7 +53,7 @@ def test_example_placeholders_are_skipped():
 
 def test_stress_example_is_valid():
     d = load_dashboard(STRESS)
-    assert len(d.screens) == 7
+    assert len(d.screens) == 8
 
 
 def test_legacy_config_module_reads_yaml():
@@ -216,3 +216,11 @@ def test_week_screen_layout_type(tmp_path):
         encoding="utf-8",
     )
     assert load_dashboard(p).layout()["screens"]["5"]["type"] == "week"
+
+
+def test_highscore_screen_needs_production_state(tmp_path):
+    errs = errors_for(tmp_path, """\
+        screens:
+          6: { type: highscore }
+        """)
+    assert any("skärmtypen 'highscore' kräver" in e and "ProductionState" in e for e in errs)

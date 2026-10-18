@@ -34,7 +34,7 @@ tags:
   ShiftTeam: ""      # TODO(PLC): skiftlag, text eller nummer (tomt = "–"), t.ex. ns=3;s="DB Production TV"."dashboardData"."shiftTeam"
 
 # Skärmar: nummer = ActiveScreenNr i PLC:n.
-# type: grid (1–6 egna objekt) | alarms | shift | oee | week (idag + 6 dagar bakåt)
+# type: grid (1–6 egna objekt) | alarms | shift | oee | week (idag + 6 dagar bakåt) | highscore (längsta körning utan stopp)
 screens:
   1: { type: alarms, title: Larm }
 
@@ -53,3 +53,5 @@ screens:
   4: { type: oee, title: OEE }
 
   5: { type: week, title: Senaste 7 dagarna }
+
+  6: { type: highscore, title: Körtids-highscore }

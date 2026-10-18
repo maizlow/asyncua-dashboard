@@ -49,3 +49,4 @@ screens:
   5: { type: shift }
   6: { type: oee }
   7: { type: week }
+  8: { type: highscore }

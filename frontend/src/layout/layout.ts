@@ -6,7 +6,7 @@
 
 export type ColorName = "white" | "green" | "amber" | "red" | "grey";
 export type ItemType = "number" | "percent" | "counter" | "time" | "status";
-export type ScreenType = "grid" | "alarms" | "shift" | "oee" | "week";
+export type ScreenType = "grid" | "alarms" | "shift" | "oee" | "week" | "highscore";
 
 export interface ItemConfig {
   type: ItemType;
@@ -112,6 +112,6 @@ function normaliseItem(i: Raw): ItemConfig {
 
 /** Screen order for the demo cycle: own grid screens first, then OEE, 7 days, shift pattern, alarms. */
 export function demoScreenOrder(layout: Layout): number[] {
-  const rank: Record<ScreenType, number> = { grid: 0, oee: 1, week: 2, shift: 3, alarms: 4 };
+  const rank: Record<ScreenType, number> = { grid: 0, oee: 1, week: 2, highscore: 3, shift: 4, alarms: 5 };
   return [...layout.screens].sort((a, b) => rank[a.type] - rank[b.type] || a.nr - b.nr).map((s) => s.nr);
 }

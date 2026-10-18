@@ -75,6 +75,14 @@ async def websocket_endpoint(websocket: WebSocket):
         latest = get_daily_history().latest
         if latest is not None:
             await websocket.send_json({"type": "daily_history", "data": latest})
+
+        # Highscores: fresh (cheap top-N query), so the ongoing run's duration is exact on connect
+        from backend.opc.highscore import compute_highscores, current_shift_start, get_run_tracker
+
+        tracker = get_run_tracker()
+        if tracker.loaded:
+            scores = await compute_highscores(tracker, await current_shift_start())
+            await websocket.send_json({"type": "highscores", "data": scores})
     except Exception:
         logger.exception("Failed to send initial data")
 

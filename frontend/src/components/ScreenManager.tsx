@@ -10,6 +10,7 @@ import { AlarmScreen } from "@/screens/AlarmScreen";
 import { ShiftPatternScreen } from "@/screens/ShiftPatternScreen";
 import { OeeScreen } from "@/screens/OeeScreen";
 import { WeekScreen } from "@/screens/WeekScreen";
+import { HighscoreScreen } from "@/screens/HighscoreScreen";
 
 const FADE_OUT_MS = 2000;
 
@@ -26,7 +27,7 @@ function resolveScreen(layout: Layout, nr: number): ScreenConfig | undefined {
 
 /**
  * Shows the screen selected by the PLC (ActiveScreenNr); what each number shows comes from
- * dashboard.yaml (default: 1 = Larm, 2 = Dashboard, 3 = Skiftmönster, 4 = OEE, 5 = 7 dagar). Display-only: the
+ * dashboard.yaml (default: 1 = Larm, 2 = Dashboard, 3 = Skiftmönster, 4 = OEE, 5 = 7 dagar, 6 = Highscore). Display-only: the
  * frontend never writes anything back; the backend acknowledges screen changes itself.
  */
 export function ScreenManager() {
@@ -99,6 +100,14 @@ export function ScreenManager() {
         console.error("Failed to fetch daily history:", e);
       }
       if (seq !== switchSeq.current) return;
+    } else if (type === "highscore") {
+      try {
+        const scores = await dataSource.getHighscores();
+        if (scores) useMetricsStore.getState().setHighscores(scores);
+      } catch (e) {
+        console.error("Failed to fetch highscores:", e);
+      }
+      if (seq !== switchSeq.current) return;
     } else if (type === "grid") {
       // Ask for a fresh snapshot for a better grid screen experience (non-blocking, read-only)
       dataSource.requestSnapshot();
@@ -162,6 +171,8 @@ export function ScreenManager() {
         return <OeeScreen />;
       case "week":
         return <WeekScreen />;
+      case "highscore":
+        return <HighscoreScreen />;
       case "grid":
         return <GridScreen key={screen.nr} screen={screen} />;
       default:

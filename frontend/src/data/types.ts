@@ -114,6 +114,27 @@ export interface DailyHistory {
   updated: string;
 }
 
+/** One completed run without a stop (backend/opc/highscore.py). */
+export interface RunRecord {
+  start: string;
+  end: string;
+  duration_s: number;
+  /** ShiftTeam at the start ("A→B" if the run spanned a team change); null without ShiftTeam */
+  team: string | null;
+  /** Started in the current shift (highlighted) */
+  current_shift: boolean;
+}
+
+export interface Highscores {
+  /** Longest completed runs, longest first */
+  records: RunRecord[];
+  /** Ongoing run (null when the line is not running); duration as of `updated` */
+  current: { start: string; duration_s: number; team: string | null; running: boolean; current_shift: boolean } | null;
+  shift_start: string | null;
+  min_stop_s: number;
+  updated: string;
+}
+
 export type ServerMessage =
   | { type: "data_update"; key: string; value: MetricValue }
   | {
@@ -126,7 +147,8 @@ export type ServerMessage =
   | { type: "shift_pattern_data"; data: ShiftPatternRow[] }
   | { type: "screen_change"; screen: number }
   | { type: "oee_details"; data: OeeDetails }
-  | { type: "daily_history"; data: DailyHistory };
+  | { type: "daily_history"; data: DailyHistory }
+  | { type: "highscores"; data: Highscores };
 
 /**
  * Everything the UI needs from "the outside world". The real implementation talks
@@ -146,6 +168,8 @@ export interface DataSource {
   getOeeDetails(): Promise<OeeDetails | undefined>;
   /** Today + the previous 6 days (GET /api/history/days?n=7). */
   getDailyHistory(): Promise<DailyHistory | undefined>;
+  /** Run-time highscores (GET /api/highscores). */
+  getHighscores(): Promise<Highscores | undefined>;
   /** Screens + items from dashboard.yaml. Rejects with LayoutError if the file is invalid. */
   getLayout(): Promise<Layout>;
   /** Ask for an immediate full_snapshot push (read-only, no PLC write). */

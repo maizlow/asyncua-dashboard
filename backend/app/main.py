@@ -31,6 +31,7 @@ async def lifespan(app: FastAPI):
         asyncio.create_task(start_periodic_oee(), name="periodic-oee"),
         asyncio.create_task(start_periodic_daily_history(), name="periodic-daily-history"),
         asyncio.create_task(start_shift_tracker(), name="shift-tracker"),
+        asyncio.create_task(start_run_tracker(), name="run-tracker"),
     ]
     logger.info("Background tasks started (snapshot every %d ms)", settings.snapshot_interval_ms)
 
@@ -139,6 +140,28 @@ async def start_shift_tracker():
         await asyncio.sleep(1.0)
 
 
+async def start_run_tracker():
+    """Run-time highscores: apply ProductionState changes every second, push when the list changes
+    (and every 15 s for the ongoing run; the display counts the seconds itself)."""
+    from backend.opc.highscore import compute_highscores, current_shift_start, get_run_tracker
+
+    tracker = get_run_tracker()
+    sent_version, last_push, last_running = -1, 0.0, None
+    loop = asyncio.get_running_loop()
+    while True:
+        try:
+            await tracker.tick(connected=data_store.connected, team=data_store.get("ShiftTeam"))
+            running = tracker.run is not None
+            if tracker.version != sent_version or running != last_running or loop.time() - last_push >= 15:
+                data = await compute_highscores(tracker, await current_shift_start())
+                tracker.latest = data
+                broadcaster.publish({"type": "highscores", "data": data})
+                sent_version, last_push, last_running = tracker.version, loop.time(), running
+        except Exception:
+            logger.exception("Run tracker tick failed")
+        await asyncio.sleep(1.0)
+
+
 async def start_periodic_retention():
     """Delete data_points older than RETENTION_DAYS (once at startup, then periodically)."""
     while True:
@@ -152,13 +175,16 @@ async def start_periodic_retention():
 def wire_store_callbacks() -> None:
     """Connect store changes (fired on the OPC thread) to logging and WebSocket broadcast."""
 
+    from backend.opc.highscore import get_run_tracker
     from backend.opc.shifts import get_shift_tracker
 
     tracker = get_shift_tracker()
+    runs = get_run_tracker()
 
     def on_production_state_change(key, value):
         if key == "ProductionState":
             shift_logger.log_state_change("Running" if value == 2 else "Stopped")
+            runs.on_state(value == 2)
 
     def on_shift_tag_change(key, value):
         tracker.on_value(key, value)  # cheap; decisions happen in start_shift_tracker()
@@ -210,6 +236,9 @@ if __name__ == "__main__":
         from backend.opc.shifts import get_shift_store
 
         asyncio.run(get_shift_store().init_db())
+        from backend.opc.highscore import get_run_store
+
+        asyncio.run(get_run_store().init_db())
 
         wire_store_callbacks()
 
