@@ -33,6 +33,17 @@ jobs:
         env:
           VITE_DEMO: "true"
           VITE_BASE: /asyncua-dashboard/
+      - name: Fit check (no overflow/scroll on any screen at 5 TV resolutions)
+        run: |
+          npx vite preview --port 4173 --strictPort &
+          for i in $(seq 1 30); do curl -sf http://localhost:4173/asyncua-dashboard/ > /dev/null && break; sleep 1; done
+          npm run check:fit
+        env:
+          # vite preview must use the same base as the demo build above
+          VITE_DEMO: "true"
+          VITE_BASE: /asyncua-dashboard/
+          CHROME: /usr/bin/google-chrome
+          BASE_URL: http://localhost:4173/asyncua-dashboard/
 
   backend:
     name: Backend (ruff + pytest + import smoke test)

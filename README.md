@@ -287,10 +287,16 @@ set internally by the backend's screen handler when the PLC requests a screen.
 | 1 | Larm (alarms) |
 | 2 | Dashboard |
 | 3 | Skiftmönster (shift pattern) |
-| 4 | OEE (availability/performance/quality, production vs target, scrap, rate, stops, shift, good per hour) |
+| 4 | OEE (availability/performance/quality, production vs target, scrap, rate, stops, remaining shift time) |
 
 The UI is designed on a fixed 3840×2160 canvas that is scaled to fit any screen (`ScaledCanvas.tsx`); 21:9 screens are letterboxed.
-In demo mode, `?screen=N` pins a single screen instead of cycling.
+In demo mode, `?screen=N` pins a single screen instead of cycling, and `?alarms=many` adds many long alarms (overflow test).
+
+Sized for a 65" 1080p TV read from 8–10 m: hero numbers ≥ 90 px cap height at 1080p (290 px on the canvas), alarm text
+≈ 79 px, nothing important below ≈ 37 px (≈ 12 arcmin at 8 m). Status is never colour-only (▲/▼/●, "UNDER MÅL", "LARM"/"VARNING").
+
+No screen may overflow or scroll. `npm run check:fit` (needs a served demo build and Chrome, see `frontend/scripts/check-fit.mjs`)
+checks all screens at 1280×720, 1366×768, 1920×1080, 2560×1080 and 3840×2160; CI runs it on every push.
 
 ### OEE
 
