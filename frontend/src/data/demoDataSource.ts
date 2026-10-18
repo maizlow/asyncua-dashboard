@@ -249,15 +249,17 @@ export function createDemoDataSource(): DataSource {
       ? Math.min(999_999, Math.max(0, Math.round(Number(countParam))))
       : null;
 
+  // ?stopped=1: show the line as stopped with 3-digit stop count on the OEE screen (worst-case width)
+  const forceStopped = new URLSearchParams(window.location.search).get("stopped") === "1";
+
   const details = (): OeeDetails => {
-    const d = sim.details();
-    if (countOverride === null) return d;
-    const n = countOverride;
-    return {
-      ...d,
-      counts: { ...d.counts, good: n },
-      target: { so_far: n, shift: n, prognosis: n, progress_pct: 100 },
-    };
+    let d = sim.details();
+    if (countOverride !== null) {
+      const n = countOverride;
+      d = { ...d, counts: { ...d.counts, good: n }, target: { so_far: n, shift: n, prognosis: n, progress_pct: 100 } };
+    }
+    if (forceStopped && d.stops) d = { ...d, stops: { ...d.stops, count: 999, running: false } };
+    return d;
   };
 
   const alarms = new Map<string, Alarm>();

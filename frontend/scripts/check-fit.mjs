@@ -34,7 +34,8 @@ const CASES = [
   ["oee", "screen=4"],
   // 6-digit counts (production, good count, targets, prognosis) must fit too
   ["dashboard-6digit", "screen=2&count=999999"],
-  ["oee-6digit", "screen=4&count=999999"],
+  // ... together with a stopped line and a 3-digit stop count (worst case for the Stopp tile)
+  ["oee-6digit", "screen=4&count=999999&stopped=1"],
 ];
 // Screen switch = 2 s fade out + 3 s fade in
 const SETTLE_MS = Number(process.env.SETTLE_MS ?? 5600);

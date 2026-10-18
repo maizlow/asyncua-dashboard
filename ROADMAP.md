@@ -44,7 +44,8 @@ Lägg till nya punkter som checklistor under rätt rubrik och flytta dem till **
 
 ### 6-siffriga antal ([PR #6](https://github.com/maizlow/asyncua-dashboard/pull/6))
 - [x] Produktion/godkända, mål, skiftmål och prognos får plats upp till 999 999 utan overflow; hjältesiffror kvar på ≈ 97 px versalhöjd vid 1080p
-- [x] Demo-parameter `?count=999999` och motsvarande fall i `check:fit` (alla 5 upplösningar)
+- [x] Demo-parametrar `?count=999999` och `?stopped=1` och motsvarande fall i `check:fit` (alla 5 upplösningar); klippt text utanför larmskärmen räknas som fel
+- [x] Stopp-rutan: "STÅR" flyttad till rubrikraden så att 2–3-siffrigt antal stopp inte flödar över
 
 ## Nästa
 

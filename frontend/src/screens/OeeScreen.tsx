@@ -146,14 +146,13 @@ function ProductionCard({ d }: { d: OeeDetails | null }) {
   );
 }
 
-function BigValue({ value, unit, color, extra }: { value: string; unit?: string; color?: string; extra?: ReactNode }) {
+function BigValue({ value, unit, color }: { value: string; unit?: string; color?: string }) {
   return (
     <div className="flex items-baseline leading-none whitespace-nowrap min-w-0">
       <span className="text-[220px] font-mono font-bold tracking-[-4px] tabular-nums" style={color ? { color } : undefined}>
         {value}
       </span>
       {unit && <span className="text-[110px] text-zinc-300 ml-6">{unit}</span>}
-      {extra}
     </div>
   );
 }
@@ -196,13 +195,9 @@ export function OeeScreen() {
             </span>
           </SubLine>
         </Card>
-        <Card title="Stopp">
-          <BigValue
-            value={stops ? fmtInt(stops.count) : DASH}
-            unit="st"
-            color={stopped ? RED : undefined}
-            extra={stopped ? <span className="text-[110px] font-bold ml-10" style={{ color: RED }}>■ STÅR</span> : undefined}
-          />
+        {/* "STÅR" in the title row (not next to the value) so 2-3 digit stop counts still fit */}
+        <Card title="Stopp" aside={stopped ? <span style={{ color: RED }}>STÅR</span> : undefined}>
+          <BigValue value={stops ? fmtInt(stops.count) : DASH} unit="st" color={stopped ? RED : undefined} />
           <SubLine>
             <span className="text-zinc-100">{fmtMinutes(stops?.total_s ?? null)}</span> totalt
           </SubLine>

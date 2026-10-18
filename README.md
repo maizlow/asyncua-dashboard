@@ -290,7 +290,7 @@ set internally by the backend's screen handler when the PLC requests a screen.
 | 4 | OEE (availability/performance/quality, production vs target, scrap, rate, stops, remaining shift time) |
 
 The UI is designed on a fixed 3840×2160 canvas that is scaled to fit any screen (`ScaledCanvas.tsx`); 21:9 screens are letterboxed.
-In demo mode, `?screen=N` pins a single screen instead of cycling, `?alarms=many` adds many long alarms and `?count=999999` forces all count fields to 6 digits (overflow tests).
+In demo mode, `?screen=N` pins a single screen instead of cycling, `?alarms=many` adds many long alarms and `?count=999999` forces all count fields to 6 digits, `?stopped=1` shows a stopped line with 999 stops (overflow tests).
 
 Sized for a 65" 1080p TV read from 8–10 m: hero numbers ≥ 90 px cap height at 1080p (290 px on the canvas), alarm text
 ≈ 79 px, nothing important below ≈ 37 px (≈ 12 arcmin at 8 m). Status is never colour-only (▲/▼/●, "UNDER MÅL", "LARM"/"VARNING").
