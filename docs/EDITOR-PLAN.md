@@ -494,8 +494,9 @@ Räkna därför med en avstämning efter varje etapp. Kalendertiden styrs av nä
 
 - ~~**Skalad canvas och dra/släpp:**~~ löst i spiken med en egen positionsstrategi (se ovan). Kvar att testa i etapp 2:
   dra in från paletten, touch och tangentbord.
-- **Typsnitt:** versalhöjden beror på installerade typsnitt (Noto Sans 0,719 em på utvecklingsboxen). Läsbarhetsspärrarna
-  räknar därför bara rätt med egna, paketerade typsnitt (etapp 5).
+- **Typsnitt:** `font-sans` (Geist, versalhöjd 0,719 em) ingår i appen och ser likadan ut överallt. `font-mono` (klockan och
+  stora tal) använder systemets typsnitt och kan därför se olika ut på olika datorer. Etapp 5 paketerar även ett
+  mono-typsnitt, så att läsbarhetsspärrarna räknar rätt överallt.
 - **Fri layout ger oläsliga skärmar:** spärrarna måste vara beräknade och blockerande, inte bara råd. Värsta fallets värden
   måste täcka verkligheten (6-siffriga antal, 3-siffriga timmar).
 - **Omladdning av prenumerationer:** att byta noder under drift kan ge luckor i historiken eller dubbla prenumerationer.

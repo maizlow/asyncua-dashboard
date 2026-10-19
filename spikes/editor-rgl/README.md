@@ -47,18 +47,19 @@ Fem kontroller per storlek:
 
 ## Typsnittsmått
 
-Uppmätta i Chrome på utvecklingsboxen (`npm run fonts`):
+Uppmätta i Chrome på utvecklingsboxen (`npm run fonts`, kräver `npm ci` i `frontend/`):
 
-| Stack (Tailwind) | Typsnitt här | Versalhöjd | Höjd för siffran 0 | Siffrans bredd | Radhöjd `normal` |
+| Stack | Typsnitt | Versalhöjd | Höjd för siffran 0 | Siffrans bredd 400 / 700 | Radhöjd `normal` |
 |---|---|---|---|---|---|
-| `font-sans` | Noto Sans | 0,719 em | 0,734 em | 0,572 em | 1,362 em |
-| `font-mono` | DejaVu Sans Mono | 0,672 em | 0,672 em | 0,600 em | 1,133 em |
+| `font-sans` | Geist Variable (paketerad, `@fontsource-variable/geist`) | 0,719 em | 0,734 em | 0,663 / 0,693 em | 1,30 em |
+| `font-mono` | systemets (DejaVu Sans Mono här) | 0,672 em | 0,672 em | 0,600 em | 1,133 em |
 
-Vikt 400 och 700 ger samma mått.
-
-- **Typsnitten avgör måtten:** versalhöjden (och därmed 90/37 px-reglerna) beror på vilka typsnitt som är installerade på
-  datorn. Fitlet3 och TV-webbläsaren kan ha andra typsnitt än utvecklingsboxen.
-- **Etapp 5 bör paketera egna typsnitt** (woff2, servas lokalt). Då blir måtten desamma överallt och läsbarhetsspärrarna
-  räknar rätt.
-- **Radhöjden förklarar en tidigare overflow:** `font-sans` har en innehållshöjd på 1,36 em. Därför flödade highscore-raderna
-  över med `leading-none` (PR #16). Editorns minsta storlekar måste räkna med den, inte bara med versalhöjden.
+- **`font-sans` ser likadan ut överallt:** typsnittet ingår redan i appen, så måtten är desamma på alla datorer.
+  Editorns spärrar kan räkna med versalhöjden 0,719 em.
+- **`font-mono` beror på datorn:** stacken använder systemets typsnitt (klockan och stora tal). Fitlet3 och TV:n kan ha
+  ett annat typsnitt än utvecklingsboxen. Etapp 5 bör paketera även ett mono-typsnitt, t.ex. Geist Mono, som woff2.
+- **Siffrorna i Geist har olika bredd i olika vikter:** 0,663 em i normal vikt och 0,693 em i fet. Breddspärrarna måste
+  räkna med den fetaste vikten som används.
+- **Radhöjden spelar roll:** innehållshöjden 1,30 em är större än versalhöjden. Det förklarar att highscore-raderna
+  flödade över med `leading-none` (PR #16). Editorns minsta storlekar måste räkna med radhöjden, inte bara med
+  versalhöjden.
