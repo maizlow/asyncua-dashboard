@@ -10,6 +10,9 @@ och ett räkneexempel från takpannelinjen. Dokumentet beskriver **koden som den
   skiftmönstret per timme.
 - **Backend** [`backend/opc/shifts.py`](../backend/opc/shifts.py) för skiftloggen (tabellen `shifts`): en rad per skift med
   parametrar, räknare och kör-/stopptid, och summering över skift (`GET /api/shifts`).
+- **Backend** [`backend/opc/aggregates.py`](../backend/opc/aggregates.py) samlar historiken för diagramelementen: dagar,
+  summor över 7/14/30 dagar, senaste skiften och kör/stopp-segment (`GET /api/aggregates` och WebSocket-meddelandet
+  `aggregates`).
 - **Frontend** räknar bara visningen: avrundning, trend (▲/▼), framdriftsstaplar, färger och ▲/▼/"UNDER MÅL"
   ([`ItemCard.tsx`](../frontend/src/components/ItemCard.tsx), [`OeeScreen.tsx`](../frontend/src/screens/OeeScreen.tsx),
   [`format.ts`](../frontend/src/lib/format.ts)).
@@ -26,6 +29,7 @@ Hur du konfigurerar taggar och objekt står i [CONFIG.md](CONFIG.md).
 - [Skärm Highscore (`type: highscore`)](#skärm-highscore-type-highscore)
 - [Grid-skärmar, t.ex. Dashboard (`type: grid`)](#grid-skärmar-tex-dashboard-type-grid)
 - [Skärm Larm (`type: alarms`)](#skärm-larm-type-alarms)
+- [Diagram och historik (`GET /api/aggregates`)](#diagram-och-historik-get-apiaggregates)
 - [Beräknas men visas inte](#beräknas-men-visas-inte)
 - [Att känna till](#att-känna-till)
 
@@ -715,6 +719,49 @@ $$
 $$
 
 De 3 första larmen visas (stoppande larm, klass 1, först); resten som "+ N fler aktiva larm".
+
+## Diagram och historik (`GET /api/aggregates`)
+
+Diagram- och KPI-element som visar historik (idag, igår, 7/14/30 dagar, per skift) läser ett färdigräknat paket från backend
+([`backend/opc/aggregates.py`](../backend/opc/aggregates.py)). Inga formler räknas i webbläsaren: samma funktioner som för
+OEE-skärmen, skiftloggen och 7 dagar används. Paketet räknas om var `HISTORY_INTERVAL_S` (60 s) i samma bakgrundsjobb som
+7 dagar, sparas i minnet och skickas som WebSocket-meddelandet `aggregates` (och direkt när en TV ansluter). `GET /api/aggregates`
+svarar från samma minne. Endast läsning; inga frågor per bildruta.
+
+| Fält | Innehåll | Formel |
+|---|---|---|
+| `days` | de senaste 30 dygnen, äldst först, idag sist | [7 dagar](#skärm-7-dagar-type-week) per dag, midnatt–midnatt i `TIMEZONE` |
+| `today`, `yesterday` | sista respektive näst sista raden i `days` | som ovan |
+| `sums.7`, `sums.14`, `sums.30` | summa över de senaste 7/14/30 dygnen (idag inräknat) | se nedan |
+| `shifts` | de 14 senaste skiften i skiftloggen, äldst först | [Värden per skift](#värden-per-skift) med A, P, Q, OEE från skiftets egna summor |
+| `current_shift` | det öppna skiftet (sista i `shifts`), annars `null` | som ovan, "hittills" |
+| `shift_window`, `segments` | nuvarande skiftfönster och dess kör/stopp-segment | [Körtid och stopp](#körtid-och-stopp) |
+
+Varje dag-, summa- och skiftrad har även **Kassation %** `scrap_pct` $= K / N \cdot 100$ (som på OEE-skärmen; saknas utan
+`RejectCount` eller utan produktion).
+
+**Summa över flera dygn.** Dygnens råa summor adderas och A, P, Q, OEE räknas om med samma formel som
+[summering över skift](#summering-över-skift-dag-vecka) (funktionen `factors_from_sums`), alltså inte medelvärde av dygnens OEE:
+
+$$
+G_P = \sum_D G_D, \quad N_P = \sum_D N_D, \quad t_{\text{kör},P} = \sum_D t_{\text{kör},D}, \quad t_{\text{plan},P} = \sum_D t_{\text{plan},D}, \quad
+\mathrm{OEE}_P = \min\left(1,\ \frac{G_P}{t_{\text{plan},P}^{\text{min}} \cdot R}\right)
+$$
+
+och $A_P$, $P_P$, $Q_P$ på samma sätt. Mål $M_P = \sum_D M_D$, OEE-mål viktat med planerad tid. Dygn utan data hoppas över
+(`days` = antal dygn med data). Saknar något dygn `RejectCount` blir Q och OEE för perioden `–`.
+
+**Nattskift:** i `days` delas ett nattskift efter tidsandel vid midnatt (2/8 till dagen före och 6/8 till dagen efter). I `shifts`
+är skiftet en rad med hela skiftets värden.
+
+**Exempel:** ett nattskift 22–06 med $G_S$ = 40 000 ger 10 000 på dag 1 och 30 000 på dag 2, och 40 000 i `sums.7` och i
+skifttabellen.
+
+**Flera PLC:er:** historiken (databasen) finns bara för displayens standardanslutning tills etapp 4. Fältet `connection` anger
+vilken. Diagramelement som läser historik visar alltså alltid standardanslutningen.
+
+**Dygn före skiftloggen** räknas direkt ur `data_points` (`source: raw`). Med `RETENTION_DAYS` < 31 saknas de äldsta dygnen i
+`sums.30` innan skiftloggen har fyllts på (skiftloggen rensas inte).
 
 ## Beräknas men visas inte
 

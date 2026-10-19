@@ -202,8 +202,9 @@ class DailyHistory:
             if final:
                 self._past[key] = row
             days.append(row)
-        # Forget cached days that left the window
-        oldest = windows[0][0]
+        # Forget cached days older than the longest window anyone asks for (the 7-day screen and the
+        # 30-day aggregates share this cache, so a short window must not evict the long one's days)
+        oldest = windows[-1][0] - timedelta(days=MAX_DAYS)
         self._past = {k: v for k, v in self._past.items() if k[0] >= oldest}
 
         today = windows[-1][0]

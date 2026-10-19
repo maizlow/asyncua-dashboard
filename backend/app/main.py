@@ -121,19 +121,33 @@ async def start_periodic_oee():
 
 
 async def start_periodic_daily_history():
-    """Refresh the 7-day history (screen type: week) every HISTORY_INTERVAL_S and push it.
+    """Refresh the history every HISTORY_INTERVAL_S and push it: the 7-day screen (daily_history) and
+    the aggregates of the chart elements (aggregates: 30 days, 7/14/30-day sums, last shifts, run/stop
+    segments of the current shift).
 
-    Past days are cached in DailyHistory, so each refresh only re-aggregates today.
+    Past days are cached in DailyHistory, so each refresh only re-aggregates today; the 7-day screen
+    is the last 7 days of the same 30-day computation.
     """
+    from backend.opc.aggregates import MAX_DAYS_SHOWN, compute_aggregates, get_aggregate_cache
     from backend.opc.daily import get_daily_history
+    from backend.opc.shifts import get_shift_store
+    from backend.opc.state_store import connection_id
 
     history = get_daily_history()
+    cache = get_aggregate_cache()
     while True:
         try:
-            data = await history.compute(data_store, n=7)
-            broadcaster.publish({"type": "daily_history", "data": data})
+            daily = await history.compute(data_store, n=MAX_DAYS_SHOWN)
+            week = {**daily, "days": daily["days"][-7:]}
+            history.latest = week
+            broadcaster.publish({"type": "daily_history", "data": week})
+            cache.latest = await compute_aggregates(
+                history, data_store, get_shift_store(), shift_logger, settings.nominal_rate_tpm,
+                connection=connection_id(), daily=daily,
+            )
+            broadcaster.publish({"type": "aggregates", "data": cache.latest})
         except Exception:
-            logger.exception("Failed to compute daily history")
+            logger.exception("Failed to compute daily history / aggregates")
         await asyncio.sleep(max(10.0, settings.history_interval_s))
 
 

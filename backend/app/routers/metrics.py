@@ -38,6 +38,28 @@ async def get_daily_history(n: int = 7):
     return await history.compute(data_store, n=n)
 
 
+@router.get("/aggregates")
+async def get_aggregates():
+    """History aggregates for the chart elements (backend/opc/aggregates.py): the last 30 days
+    (midnight to midnight in TIMEZONE), 7/14/30-day sums, the last 14 shifts of the shift log, today,
+    yesterday, the current shift and its run/stop segments. Default connection only (until etapp 4).
+
+    Served from the cache refreshed every HISTORY_INTERVAL_S (computed on demand if empty).
+    """
+    from backend.opc.aggregates import compute_aggregates, get_aggregate_cache
+    from backend.opc.daily import get_daily_history as _daily
+    from backend.opc.shifts import get_shift_store
+    from backend.opc.state_store import connection_id
+    from backend.settings import settings
+
+    cache = get_aggregate_cache()
+    if cache.latest is None:
+        cache.latest = await compute_aggregates(
+            _daily(), data_store, get_shift_store(), shift_logger, settings.nominal_rate_tpm, connection=connection_id()
+        )
+    return cache.latest
+
+
 @router.get("/highscores")
 async def get_highscores(n: int = 5):
     """Run-time highscores: the ``n`` longest runs without a stop, plus the ongoing run (backend/opc/highscore.py)."""

@@ -77,6 +77,12 @@ async def websocket_endpoint(websocket: WebSocket):
         latest = get_daily_history().latest
         if latest is not None:
             await websocket.send_json({"type": "daily_history", "data": latest})
+        # Chart aggregates: also only the cached result
+        from backend.opc.aggregates import get_aggregate_cache
+
+        aggregates = get_aggregate_cache().latest
+        if aggregates is not None:
+            await websocket.send_json({"type": "aggregates", "data": aggregates})
 
         # Highscores: fresh (cheap top-N query), so the ongoing run's duration is exact on connect
         from backend.opc.highscore import compute_highscores, current_shift_start, get_run_tracker
