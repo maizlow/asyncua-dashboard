@@ -1,4 +1,4 @@
-import { IS_DEMO } from "@/data/dataSource";
+import { IS_DEMO } from "@/lib/env";
 import type { LogoAsset } from "@/layout/layout";
 import { useLayoutStore } from "@/stores/useLayoutStore";
 import { useEffect, useState } from "react";

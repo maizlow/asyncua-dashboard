@@ -50,6 +50,35 @@ python -m backend.layout_store restore 3   # publicera version 3 igen som en ny 
 Backend läser layouten vid start. En publicering från editorn laddar om TV:n direkt (`layout_changed`), men nya eller
 ändrade taggar kräver omstart av backend tills prenumerationerna laddas om live (etapp 4).
 
+## Editorn: konton och inloggning
+
+Editorn finns på **`/editor/`**, bredvid TV-vyn (`/`), t.ex. `http://fitlet3:5173/editor/`. Vite proxar `/api` till
+backend. Den gör bara ändringar i layouten: den skriver aldrig till PLC:n, och värdena i förhandsvisningen är simulerade.
+
+**Konton (två, inga roller, ingen registreringssida):** de skapas på servern, från projektets rotmapp:
+
+```bash
+python -m backend.users add johan       # frågar efter lösenordet två gånger (minst 10 tecken)
+python -m backend.users passwd johan    # byt lösenord (loggar ut alla sessioner)
+python -m backend.users list
+python -m backend.users remove johan
+```
+
+- **Lösenord:** lagras som argon2id-hash i `data.db`, tabellen `editor_users`. Inget lagras i klartext.
+- **Session:** gäller i 12 timmar. Kakan `aud_editor` är `HttpOnly`, har `SameSite=Strict` och gäller bara för
+  `/api/editor`. Databasen sparar bara sessionens sha256.
+- **Skydd:** varje ändrande anrop kräver huvudet `X-Editor: 1`, så en annan webbplats kan inte skicka formulär i ditt
+  namn. Efter 5 felaktiga inloggningar från samma adress spärras inloggningen i 5 minuter.
+- **Nätverket:** editorn är tänkt för fabriksnätet. Exponera den inte mot internet.
+
+**Demo-editorn** på GitHub Pages
+([maizlow.github.io/asyncua-dashboard/editor/](https://maizlow.github.io/asyncua-dashboard/editor/)):
+
+- **Ingen inloggning och ingen backend:** den gör inga anrop alls och kan aldrig nå en PLC.
+- **Exempeldata:** den bygger på exempeldokumenten med påhittade nod-id och adresser. Välj dokument med `?layout=multi`
+  eller `?layout=stress`.
+- **Lagring:** ändringar sparas bara i webbläsaren (`localStorage`).
+
 ## Layoutdokumentet (schema_version 2)
 
 I databasen sparas layouten som ett **layoutdokument**:
