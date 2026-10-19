@@ -16,3 +16,9 @@ declare module "*.yaml" {
   const value: Record<string, unknown>;
   export default value;
 }
+
+/** `file.yaml?doc`: the whole layout document (demo editor only, connection URLs replaced). */
+declare module "*.yaml?doc" {
+  const value: Record<string, unknown>;
+  export default value;
+}

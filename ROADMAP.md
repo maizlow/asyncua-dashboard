@@ -109,6 +109,12 @@ Lägg till nya punkter som checklistor under rätt rubrik och flytta dem till **
 - [x] Headern har bara logotyp, klocka och logotyp (`left`/`right`: `customer`, `vendor` eller `none`)
 - [x] `LAYOUT_YAML_IMPORT=auto` importerar en ändrad `dashboard.yaml` bara tills editorn publicerat; `always` och `off`
 
+### Editor etapp 2b: inloggning och editorns skal ([PR #21](https://github.com/maizlow/asyncua-dashboard/pull/21))
+- [x] Två lokala konton i SQLite (argon2id), `python -m backend.users add|passwd|list|remove`, ingen registreringssida
+- [x] `/api/editor/login|logout|session|document`: sessionskaka (`HttpOnly`, `SameSite=Strict`), `X-Editor`-huvud mot CSRF, spärr efter 5 fel
+- [x] Editorn på `/editor/` (egen sida i Vite-bygget): inloggning, val av display, skärmlista med nummer, typ och PLC, förhandsvisning i TV-skala med simulerade värden
+- [x] Demo-editorn på Pages utan inloggning och backend, med påhittade nod-id
+
 ## Nästa
 
 ### Docker för drift på Fitlet3 (Linux, x86-64)

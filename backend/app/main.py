@@ -7,7 +7,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from backend.app import api_server
-from backend.app.routers import alarms, layout, metrics, websocket
+from backend.app.routers import alarms, editor, layout, metrics, websocket
 from backend.app.routers.websocket import broadcast_full_snapshot, broadcaster
 from backend.dashboard_config import ConfigError
 from backend.opc import opc_client
@@ -71,6 +71,7 @@ def create_app() -> FastAPI:
     app.include_router(metrics.router)
     app.include_router(alarms.router)
     app.include_router(layout.router)
+    app.include_router(editor.router)
     app.include_router(websocket.router)
 
     @app.get("/")
@@ -245,6 +246,9 @@ if __name__ == "__main__":
         from backend.opc.highscore import get_run_store
 
         asyncio.run(get_run_store().init_db())
+        from backend.users import get_user_store
+
+        asyncio.run(get_user_store().init_db())
 
         wire_store_callbacks()
 
