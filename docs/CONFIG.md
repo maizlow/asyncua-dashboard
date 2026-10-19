@@ -79,6 +79,35 @@ python -m backend.users remove johan
   eller `?layout=stress`.
 - **Lagring:** ändringar sparas bara i webbläsaren (`localStorage`).
 
+### Använda editorn
+
+- **Duken:** samma 3840×2160 som TV:n, med header och rutnätet 24 × 12. Elementen visas som på TV:n, med simulerade värden.
+- **Element:**
+  - **Lägga till:** dra in från paletten (Tal, Procent, Räknare, Tid, Status), eller klicka för att lägga det på första
+    lediga plats. Ett nytt element är 12 × 4 rutor, det minsta som är läsbart på 8–10 m.
+  - **Flytta och ändra storlek:** dra elementet för att flytta det, och hörnet nere till höger för att ändra storleken.
+  - **Krockar:** element kan aldrig överlappa. Om du drar mot ett annat element stannar ditt på sista lediga plats.
+- **Skärmar:**
+  - **Ny skärm:** ett rutnät eller en inbyggd skärm (Larm, Skiftmönster, OEE, 7 dagar, Highscore). En inbyggd skärm fyller
+    hela ytan och visar en vald PLC (linje).
+  - **Numret är det `ActiveScreenNr` som PLC:n skickar.** Det kan bytas, men dubbletter spärras. Flytta upp/ned byter
+    nummer med grannen.
+  - Skärmar kan också dupliceras och tas bort.
+- **Display:** logotyp till vänster och höger (kundens, ABECE eller ingen) och standard-PLC för korta taggnamn. Klockan
+  sitter alltid i mitten.
+- **Kortkommandon:**
+
+  | Tangenter | Gör |
+  |---|---|
+  | Ctrl+Z / Ctrl+Y | ångra / gör om |
+  | Ctrl+C / Ctrl+V / Ctrl+D | kopiera / klistra in / duplicera, även till en annan skärm eller display |
+  | Delete | ta bort elementet |
+  | pilar / Shift+pilar | flytta en ruta / ändra storlek en ruta |
+  | Esc | avmarkera |
+
+- **Kopior mellan displayer:** en kopia behåller sin PLC även om displayerna har olika standard-PLC. `OEE` från tv1 blir
+  `plc1.OEE` på tv2.
+
 ## Layoutdokumentet (schema_version 2)
 
 I databasen sparas layouten som ett **layoutdokument**:

@@ -1,0 +1,40 @@
+/* Editor canvas on the 3840x2160 TV canvas (scaled ~0.3): handles and outlines in canvas px. */
+.aud-canvas .react-grid-item {
+  transition: none;
+}
+.aud-canvas .react-grid-item.react-grid-placeholder {
+  background: rgb(56 189 248 / 0.18);
+  border: 8px dashed rgb(56 189 248 / 0.8);
+  border-radius: 48px;
+  opacity: 1;
+}
+.aud-canvas .react-grid-item > .react-resizable-handle {
+  position: absolute;
+  width: 96px;
+  height: 96px;
+  right: 0;
+  bottom: 0;
+  cursor: se-resize;
+  opacity: 1;
+  z-index: 5;
+}
+.aud-canvas .react-grid-item > .react-resizable-handle::after {
+  content: "";
+  position: absolute;
+  right: 20px;
+  bottom: 20px;
+  width: 44px;
+  height: 44px;
+  border-right: 12px solid rgb(56 189 248);
+  border-bottom: 12px solid rgb(56 189 248);
+  border-radius: 0 0 16px 0;
+  opacity: 0;
+}
+.aud-canvas .react-grid-item:hover > .react-resizable-handle::after,
+.aud-canvas .react-grid-item.aud-selected > .react-resizable-handle::after {
+  opacity: 1;
+}
+.aud-canvas .react-grid-item.react-draggable-dragging {
+  z-index: 10;
+  cursor: grabbing;
+}
