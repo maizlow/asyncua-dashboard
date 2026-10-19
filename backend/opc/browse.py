@@ -63,14 +63,13 @@ async def make_client(url: str) -> Client:
     No load_data_type_definitions: browsing doesn't need it and it is slow on an S7-1500."""
     from asyncua.crypto.security_policies import SecurityPolicyBasic256Sha256
 
+    from backend.opc.opc_client_manager import apply_credentials
     from backend.settings import settings
 
     client = Client(url, timeout=REQUEST_TIMEOUT_S)
     client.application_uri = "urn:asyncua-dashboard:client"
     await client.set_security(SecurityPolicyBasic256Sha256, certificate=settings.client_cert_path, private_key=settings.client_key_path)
-    if settings.opc_username:
-        client.set_user(settings.opc_username)
-        client.set_password(settings.opc_password)
+    apply_credentials(client)
     return client
 
 
