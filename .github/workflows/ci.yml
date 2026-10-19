@@ -46,6 +46,10 @@ jobs:
           VITE_BASE: /asyncua-dashboard/
           CHROME: /usr/bin/google-chrome
           BASE_URL: http://localhost:4173/asyncua-dashboard/
+      - name: Editor e2e (Playwright in the installed Chrome, demo editor, no backend)
+        run: npm run test:e2e
+        env:
+          CHROME: /usr/bin/google-chrome
 
   backend:
     name: Backend (ruff + pytest + import smoke test)

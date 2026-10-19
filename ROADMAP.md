@@ -115,6 +115,13 @@ Lägg till nya punkter som checklistor under rätt rubrik och flytta dem till **
 - [x] Editorn på `/editor/` (egen sida i Vite-bygget): inloggning, val av display, skärmlista med nummer, typ och PLC, förhandsvisning i TV-skala med simulerade värden
 - [x] Demo-editorn på Pages utan inloggning och backend, med påhittade nod-id
 
+### Editor etapp 2c: duken ([PR #24](https://github.com/maizlow/asyncua-dashboard/pull/24))
+- [x] Duken i TV-skala med react-grid-layout och spikens positionsstrategi: dra, ändra storlek, inga överlapp, stopp vid kanterna, samma pixlar som TV:n
+- [x] Palett med dagens fem elementtyper (dra in eller klicka), nya skärmar: rutnät eller inbyggd skärm (helskärm, med PLC)
+- [x] Skärmar: lägg till, duplicera, numrera om (ActiveScreenNr, dubbletter spärras), flytta upp/ned, ta bort; logotyper och standard-PLC per display
+- [x] Ångra/gör om, kopiera/klistra in/duplicera (även mellan skärmar och displayer), pilar flyttar och Shift+pilar ändrar storlek
+- [x] Playwright-test i CI (dra, storlek, krockar, ångra vid tre fönsterstorlekar, kopiera, tangentbord, skärmnummer)
+
 ## Nästa
 
 ### Docker för drift på Fitlet3 (Linux, x86-64)

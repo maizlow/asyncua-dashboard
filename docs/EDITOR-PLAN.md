@@ -5,7 +5,8 @@
 > - **Etapp 2 (MVP-editor) pågår:**
 >   - modellen för flera PLC:er per display och den förenklade headern (PR #20)
 >   - inloggning och editorns skal på `/editor/` med display, skärmlista och förhandsvisning (PR #23)
->   - sedan duken, egenskapspanelen och publiceringen
+>   - duken med dra och släpp, palett, skärmhantering, ångra, kopiera och klistra in (PR #24)
+>   - sedan egenskapspanelen, läsbarhetskontrollen och publiceringen
 > - **Driften** stöder fortfarande en PLC och en display tills etapp 4. Se
 >   [CONFIG.md](CONFIG.md#layoutdokumentet-schema_version-2).
 
@@ -394,6 +395,15 @@ börjar i fönstrets hörn. Under vår header-yta hamnar y därför cirka 2 rade
 `positionStrategy` på 10 rader drar av rutnätets position innan den delar med skalan. Den klarade 30 av 30 kontroller
 (dra, storlek, kollision och gränser) i sex fönsterstorlekar från 1280×720 till 3840×2160, även 21:9 och 4:3. Gridstack
 behövs inte. Detaljer och mått finns i [spikes/editor-rgl](../spikes/editor-rgl/README.md).
+
+**Byggt i etapp 2c (PR #24):**
+- **Duken:** `frontend/src/editor/Canvas.tsx` använder samma strategi (`createCanvasStrategy`) och TV:ns mått (marginal
+  64/48/56 px, mellanrum 48 px), så ett element hamnar på samma pixlar som på TV:n. Det kontrolleras i Playwright.
+- **Paletten:** HTML5-dra-och-släpp med egen cellberäkning i stället för bibliotekets `dropConfig`. Det nya elementet
+  centreras under pekaren, och en röd skugga visar en plats som är upptagen.
+- **Ångra/gör om:** en stack med hela dokument (de är små), inte patchar.
+- **Skärmordningen:** flytta upp/ned byter nummer, så dnd-kit behövs inte än.
+- **Inte gjort:** touch, och att markera flera element samtidigt.
 
 ## Redigering, spara och publicera
 
