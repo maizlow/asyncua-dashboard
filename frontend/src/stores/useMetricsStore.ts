@@ -1,5 +1,5 @@
 import { create } from "zustand";
-import type { DailyHistory, Highscores, MetricValue, OeeDetails, ShiftPatternRow } from "@/data/types";
+import type { Aggregates, DailyHistory, Highscores, MetricValue, OeeDetails, ShiftPatternRow } from "@/data/types";
 
 // How many points we keep per tag for sparklines (rolling buffer)
 const MAX_SPARKLINE_POINTS = 300;
@@ -14,6 +14,8 @@ interface MetricsStore {
   oeeDetails: OeeDetails | null;
   dailyHistory: DailyHistory | null;
   highscores: Highscores | null;
+  /** History for the chart elements (default connection) */
+  aggregates: Aggregates | null;
   /** Date.now() when `highscores` arrived (the ongoing run is counted on from here) */
   highscoresAt: number;
   applyUpdate: (key: string, value: MetricValue) => void;
@@ -24,6 +26,7 @@ interface MetricsStore {
   setOeeDetails: (details: OeeDetails) => void;
   setDailyHistory: (history: DailyHistory) => void;
   setHighscores: (data: Highscores) => void;
+  setAggregates: (data: Aggregates) => void;
 }
 
 export const useMetricsStore = create<MetricsStore>((set) => ({
@@ -34,6 +37,7 @@ export const useMetricsStore = create<MetricsStore>((set) => ({
   oeeDetails: null,
   dailyHistory: null,
   highscores: null,
+  aggregates: null,
   highscoresAt: 0,
 
   applyUpdate: (key, value) =>
@@ -62,4 +66,6 @@ export const useMetricsStore = create<MetricsStore>((set) => ({
   setDailyHistory: (history) => set({ dailyHistory: history }),
 
   setHighscores: (data) => set({ highscores: data, highscoresAt: Date.now() }),
+
+  setAggregates: (data) => set({ aggregates: data }),
 }));

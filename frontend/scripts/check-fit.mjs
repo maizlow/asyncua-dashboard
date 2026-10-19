@@ -59,6 +59,16 @@ const CASES = [
   ["multi-tv2", "layout=multi&display=tv2&screen=1"],
   // One of the three PLCs down: its elements show "–" with ⚠, the others keep their values
   ["multi-plc2-down", "layout=multi&display=tv1&screen=2&down=plc2"],
+  // Chart/KPI elements (docs/examples/*-element.yaml, diagram.yaml): the OEE and 7-day screens rebuilt from
+  // elements, every element type, and every element at its minimum size, with 6-digit counts, 100,0 %,
+  // a stopped line and 3-digit stop counts (?count=999999&stopped=1)
+  ["oee-element-6digit", "layout=oee-element&screen=1&count=999999&stopped=1"],
+  ["week-element-6digit", "layout=7dagar-element&screen=1&count=999999"],
+  ["diagram", "layout=diagram&screen=1"],
+  ["diagram-6digit", "layout=diagram&screen=1&count=999999&stopped=1"],
+  ["diagram-shifts-6digit", "layout=diagram&screen=2&count=999999"],
+  ["diagram-min1-6digit", "layout=diagram&screen=3&count=999999&stopped=1"],
+  ["diagram-min2-6digit", "layout=diagram&screen=4&count=999999&stopped=1"],
 ];
 // Screen switch = 2 s fade out + 3 s fade in
 // ONLY=regex limits the run to matching case names, e.g. ONLY=highscore
@@ -142,7 +152,21 @@ try {
             problems.push(`highscore value too wide: ${label(el)} ${el.scrollWidth} > ${el.clientWidth}`);
         const hsSizes = hsEls.map((e) => parseFloat(e.style.fontSize || getComputedStyle(e).fontSize));
         const hs = hsSizes.length ? Math.min(...hsSizes) : null;
-        return { problems, clamped, count: els.length, hero, week, hs };
+        // Chart/KPI elements (src/charts): fitted numbers must fit, and every label and number is at least
+        // 104 px on the canvas (≥ 37 px cap height at 1080p, the same floor as the rest of the TV)
+        const fitEls = [...canvas.querySelectorAll("[data-chart] [data-fit-value]")];
+        for (const el of fitEls)
+          if (el.scrollWidth > el.clientWidth + 1)
+            problems.push(`chart value too wide: ${label(el)} ${el.scrollWidth} > ${el.clientWidth}`);
+        let chartMin = null;
+        for (const el of canvas.querySelectorAll("[data-chart], [data-chart] *")) {
+          if (el instanceof SVGElement) continue;
+          if (![...el.childNodes].some((n) => n.nodeType === Node.TEXT_NODE && n.textContent.trim())) continue;
+          const px = parseFloat(getComputedStyle(el).fontSize);
+          chartMin = chartMin === null ? px : Math.min(chartMin, px);
+          if (px < 104) problems.push(`chart text below 104 px: ${label(el)} ${px}px`);
+        }
+        return { problems, clamped, count: els.length, hero, week, hs, chartMin };
       });
       if (SHOT_DIR) await page.screenshot({ path: `${SHOT_DIR}/${name}-${w}x${h}.png` });
       if (!allowClamp) r.problems.push(...r.clamped.map((c) => `not allowed on this screen: ${c}`));
@@ -151,7 +175,8 @@ try {
       const hero =
         (r.hero === null ? "" : `, smallest item value ${r.hero}px`) +
         (r.week === null ? "" : `, smallest week number ${r.week}px`) +
-        (r.hs === null ? "" : `, smallest highscore value ${r.hs}px`);
+        (r.hs === null ? "" : `, smallest highscore value ${r.hs}px`) +
+        (r.chartMin === null ? "" : `, smallest chart text ${r.chartMin}px`);
       console.log(`${ok ? "PASS" : "FAIL"} ${name} ${w}x${h} (${r.count} elements, ${r.clamped.length} clamped${hero})`);
       for (const p of r.problems) console.log(`   ✗ ${p}`);
       for (const c of r.clamped) console.log(`   · ${c}`);

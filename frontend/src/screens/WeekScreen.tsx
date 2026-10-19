@@ -1,115 +1,27 @@
-import { useFit } from "@/hooks/useFit";
+import { useMemo } from "react";
+import { BarsElement } from "@/charts/Elements";
+import { ChartDataContext, useChartData } from "@/charts/context";
+import { WEEK_SCREEN } from "@/charts/presets";
 import { useMetricsStore } from "@/stores/useMetricsStore";
-import type { DailyRow } from "@/data/types";
-import { DASH, fmtInt, fmtPct } from "@/lib/format";
-import { barPct, barScale, barStatus, dayLabel } from "@/lib/week";
+import type { Aggregates } from "@/data/types";
 
 // Today + the previous 6 days (screen type: week), laid out for the 3840x2160 canvas (see ScaledCanvas)
-// and read from 8-10 m (cap heights at 1080p: OEE ≈ 53 px, counts ≈ 38 px, labels ≥ 37 px). Seven fixed columns: OEE % on top, a bar of good tiles per day with the day
-// target as a white line, the good count and the day label below. 6-digit counts and "100,0 %" fit;
-// numbers shrink (never below FIT_MIN_PX) only if a value would not fit its column. Nothing scrolls.
-// Status is never colour-only: under target = amber bar that ends below the white target line.
-
-const GREEN = "var(--accent-green)";
-const AMBER = "var(--accent-amber)";
-const NEUTRAL = "#71717a"; // zinc-500: no target known
-
-const OEE_PX = 160; // cap ≈ 53 px at 1080p
-const COUNT_PX = 116; // cap ≈ 38 px at 1080p; "999 999" fits without shrinking
-// Numbers shrink only down to FIT_MIN_PX (hooks/useFit.ts, 37 px cap at 1080p): only "100,0 %" gets there.
-
-function DayColumn({ day, scale }: { day: DailyRow; scale: number }) {
-  const label = dayLabel(day.date, day.today);
-  const oee = day.has_data ? day.oee.oee : null;
-  const good = day.has_data ? day.good : null;
-  const target = day.has_data ? day.target : null;
-  const status = barStatus(good, target);
-  const barColor = status === "good" ? GREEN : status === "warn" ? AMBER : NEUTRAL;
-  const oeeText = fmtPct(oee);
-  const countText = fmtInt(good);
-  const oeeRef = useFit<HTMLDivElement>(OEE_PX, [oeeText]);
-  const countRef = useFit<HTMLDivElement>(COUNT_PX, [countText]);
-
-  return (
-    <div
-      data-fit
-      className={`rounded-[40px] px-4 pt-8 pb-8 flex flex-col min-h-0 min-w-0 overflow-hidden border-4 ${
-        day.today ? "bg-zinc-800 border-zinc-200" : "bg-zinc-900 border-zinc-800"
-      }`}
-    >
-      {/* OEE % (largest number) */}
-      <div
-        ref={oeeRef}
-        data-week-oee
-        className="min-w-0 flex items-baseline justify-center whitespace-nowrap leading-none font-mono font-bold tabular-nums tracking-[-4px]"
-      >
-        {oeeText}
-        {oee !== null && <span className="text-[104px] font-sans font-normal tracking-normal text-zinc-300 ml-3">%</span>}
-      </div>
-
-      {/* Bar of good tiles, white line = day target (today: target so far) */}
-      <div className="relative flex-1 min-h-0 mt-8 mb-6">
-        {good !== null && (
-          <div
-            className="absolute bottom-0 left-[14%] right-[14%] rounded-t-[24px] transition-all duration-1000"
-            style={{ height: `${barPct(good, scale)}%`, backgroundColor: barColor }}
-          />
-        )}
-        {target !== null && (
-          <div
-            className="absolute left-0 right-0 h-3 bg-white rounded"
-            style={{ bottom: `calc(${barPct(target, scale)}% - 6px)` }}
-          />
-        )}
-      </div>
-
-      {/* Good count */}
-      <div
-        ref={countRef}
-        data-week-count
-        className="min-w-0 text-center whitespace-nowrap leading-none font-mono font-bold tabular-nums tracking-[-4px]"
-      >
-        {countText}
-      </div>
-
-      {/* Day label */}
-      <div className={`mt-6 text-center leading-none whitespace-nowrap text-[120px] font-bold ${day.today ? "text-white" : "text-zinc-300"}`}>
-        {label.weekday}
-      </div>
-      <div className="mt-4 text-center leading-none whitespace-nowrap text-[110px] text-zinc-300">{label.date || "\u00a0"}</div>
-    </div>
-  );
-}
-
+// and read from 8-10 m (cap heights at 1080p: OEE ≈ 53 px, counts ≈ 38 px, labels ≥ 37 px). The same
+// bar chart element an editor grid screen can use (kind bars, docs/examples/7dagar-element.yaml), fed
+// by the screen's own message daily_history: OEE % on top, a bar of good tiles per day with the day
+// target as a white line, the good count and the day label below. Nothing scrolls.
 export function WeekScreen() {
   const history = useMetricsStore((s) => s.dailyHistory);
-  const days = history?.days ?? [];
-  const scale = barScale(days.filter((d) => d.has_data));
-  const anyTarget = days.some((d) => d.has_data && d.target !== null);
-
+  const base = useChartData();
+  const data = useMemo(
+    () => ({ ...base, aggregates: history ? ({ days: history.days, nominal_tpm: history.nominal_tpm, shifts: [] } as unknown as Aggregates) : null }),
+    [base, history],
+  );
   return (
     <div data-fit className="h-full min-h-0 flex flex-col px-16 pt-10 pb-14 overflow-hidden">
-      <div className="flex items-baseline justify-between gap-12 leading-none whitespace-nowrap min-w-0">
-        <div className="text-[110px] text-zinc-300 uppercase tracking-wide font-medium tv-truncate">
-          7 dagar · OEE % · godkända st
-        </div>
-        {anyTarget && (
-          <div className="shrink-0 flex items-center gap-6 text-[104px] text-zinc-300">
-            <span className="inline-block w-28 h-3 bg-white rounded" aria-hidden />
-            dagsmål
-          </div>
-        )}
-      </div>
-
-      {days.length === 0 ? (
-        <div className="flex-1 min-h-0 flex items-center justify-center text-[160px] text-zinc-300">{DASH}</div>
-      ) : (
-        <div className="flex-1 min-h-0 grid grid-cols-7 gap-6 mt-10">
-          {days.map((d) => (
-            <DayColumn key={d.date} day={d} scale={scale} />
-          ))}
-        </div>
-      )}
+      <ChartDataContext.Provider value={data}>
+        <BarsElement item={WEEK_SCREEN} />
+      </ChartDataContext.Provider>
     </div>
   );
 }

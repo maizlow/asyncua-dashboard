@@ -1,4 +1,5 @@
 import { ItemCard } from "@/components/ItemCard";
+import { ChartElement } from "@/charts/Elements";
 import { useLiveMetrics } from "@/hooks/useLiveMetrics";
 import { bound } from "@/lib/connection";
 import { useMetricsStore } from "@/stores/useMetricsStore";
@@ -50,13 +51,17 @@ export function GridScreen({
             gridTemplate: "minmax(0, 1fr) / minmax(0, 1fr)",
           }}
         >
-          <ItemCard
-            item={item}
-            value={value}
-            history={down ? undefined : histories[item.tag]}
-            targetValue={target ? target.value : item.target}
-            offline={down}
-          />
+          {item.chart ? (
+            <ChartElement item={item.chart} />
+          ) : (
+            <ItemCard
+              item={item}
+              value={value}
+              history={down ? undefined : histories[item.tag]}
+              targetValue={target ? target.value : item.target}
+              offline={down}
+            />
+          )}
         </div>
         );
       })}

@@ -1,0 +1,74 @@
+# yaml-language-server: $schema=../layout.schema.json
+#
+# Alla diagram- och KPI-element: OEE-ring, trendlinje, KPI-rutor för olika perioder och en live-tagg, kör/stopp-
+# tidslinje, tabell och staplar per skift. Skärm 3 och 4 visar varje element i minsta storlek (fit-kontrollen kör
+# dem med 6-siffriga värden: ?layout=diagram&screen=3&count=999999).
+#
+# Importera i editorn (Versioner → Importera YAML) eller visa i demon: ?layout=diagram
+# Diagram och KPI-element: docs/CONFIG.md (Diagram och KPI). Beräknade värden och historik gäller displayens
+# standardanslutning (default_connection) tills historik per anslutning finns (etapp 4).
+schema_version: 2
+
+connections:
+  plc1:
+    url: opc.tcp://192.168.0.1:4840
+    alarms: ns=3;i=1815
+    tags:
+        TargetCount: ns=3;s="DB Production TV"."dashboardData"."target"
+        ProductionCount: ns=3;s="DB Production TV"."dashboardData"."actual"
+        ProductionDelta: ns=3;s="DB Production TV"."dashboardData"."delta"
+        ProductionState: ns=3;s="DB Production TV"."dashboardData"."prodState"   # 2 = kör
+        OEE: ns=3;s="DB Production TV"."dashboardData"."oee"
+        TPM: ns=3;s="DB Production TV"."dashboardData"."tpm"
+        CurrentRuntime: { node: ns=3;s="DB Production TV"."dashboardData"."runtime", type: time }
+        AccumulatedStoptime: { node: ns=3;s="DB Production TV"."dashboardData"."accStoptime", type: time }
+        ShiftStart: { node: ns=3;s="DB Production TV"."dashboardData"."shiftStart", type: time }
+        ShiftEnd: { node: ns=3;s="DB Production TV"."dashboardData"."shiftEnd", type: time }
+        GoodCount: ""      # TODO(PLC): t.ex. ns=3;s="DB Production TV"."dashboardData"."goodCount"
+        RejectCount: ""    # TODO(PLC): t.ex. ns=3;s="DB Production TV"."dashboardData"."rejectCount"
+        # Mål från PLC:n (OEE-skärmen). Tomt = Mål hittills/Skiftmål visar "–" och inget PÅ/UNDER MÅL.
+        ShiftTarget: ""    # TODO(PLC): skiftmål i st för hela skiftet, t.ex. ns=3;s="DB Production TV"."dashboardData"."shiftTarget"
+        OeeTarget: ""      # TODO(PLC): OEE-mål i % (tomt = 85), t.ex. ns=3;s="DB Production TV"."dashboardData"."oeeTarget"
+        # Skiftlogg (tabellen shifts): PLC:n visar bara pågående skift; backend sparar en rad per skift.
+        PlannedTime: ""    # TODO(PLC): planerad tid i minuter exkl. raster för hela skiftet (tomt = ShiftEnd − ShiftStart), t.ex. ns=3;s="DB Production TV"."dashboardData"."plannedTime"
+        ShiftTeam: ""      # TODO(PLC): skiftlag, text eller nummer (tomt = "–"), t.ex. ns=3;s="DB Production TV"."dashboardData"."shiftTeam"
+
+displays:
+  tv1:
+    default_connection: plc1
+    screen:
+      connection: plc1
+      active: ns=3;s="DB Production TV"."screenHandler"."activeScreenNr"
+      requested: ns=3;s="DB Production TV"."screenHandler"."requestScreenNr"
+    screens:
+      1:
+        title: Diagram
+        items:
+          - { id: d-gauge, kind: gauge, x: 0, y: 0, w: 6, h: 8, label: OEE skift, metric: oee }
+          - { id: d-trend, kind: trend, x: 6, y: 0, w: 18, h: 4, label: OEE per dag, series: days, count: 14, metric: oee, target_metric: oee_target }
+          - { id: d-oee7, kind: kpi, x: 6, y: 4, w: 6, h: 4, label: OEE 7 d, metric: oee, period: 7d }
+          - { id: d-today, kind: kpi, x: 12, y: 4, w: 6, h: 4, label: Idag, metric: good, period: today, target_metric: target, sub_metric: scrap_pct }
+          - { id: d-yday, kind: kpi, x: 18, y: 4, w: 6, h: 4, label: Igår, metric: good, period: yesterday, sub_metric: oee, sub_text: "OEE {}" }
+          - { id: d-timeline, kind: timeline, x: 0, y: 8, w: 24, h: 4, label: Kör / stopp }
+      2:
+        title: Per skift
+        items:
+          - { id: d-table, kind: table, x: 0, y: 0, w: 12, h: 12, label: Senaste skiften, series: shifts, count: 8, columns: [label, good, oee] }
+          - { id: d-shiftbars, kind: bars, x: 12, y: 0, w: 12, h: 8, label: Per skift · OEE % · st, series: shifts, count: 3 }
+          - { id: d-tag, kind: kpi, x: 12, y: 8, w: 6, h: 4, label: OEE (PLC), source: tag, tag: OEE, unit: "%", thresholds: [75, 85] }
+          - { id: d-oee30, kind: kpi, x: 18, y: 8, w: 6, h: 4, label: OEE 30 d, metric: oee, period: 30d }
+      3:
+        title: Minsta storlek 1
+        items:
+          - { id: m-breakdown, kind: breakdown, x: 0, y: 0, w: 10, h: 8 }
+          - { id: m-progress, kind: progress, x: 10, y: 0, w: 13, h: 6 }
+          - { id: m-gauge, kind: gauge, x: 10, y: 6, w: 6, h: 6, metric: oee }
+          - { id: m-kpi, kind: kpi, x: 16, y: 6, w: 6, h: 4, label: Godkända, metric: good, target_metric: target, sub_metric: scrap_pct }
+          - { id: m-trend, kind: trend, x: 0, y: 8, w: 8, h: 4, label: Per dag, series: days, count: 7, metric: good }
+      4:
+        title: Minsta storlek 2
+        items:
+          - { id: m-bars, kind: bars, x: 0, y: 0, w: 12, h: 6, label: Per dag, series: days, count: 3 }
+          - { id: m-table, kind: table, x: 12, y: 0, w: 12, h: 6, series: shifts, count: 3, columns: [label, good, oee] }
+          - { id: m-timeline, kind: timeline, x: 0, y: 6, w: 12, h: 3 }
+          - { id: m-trend-tag, kind: trend, x: 12, y: 6, w: 8, h: 4, label: Takt, source: tag, tag: TPM, unit: TPM }

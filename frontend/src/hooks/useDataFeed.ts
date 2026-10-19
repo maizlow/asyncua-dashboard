@@ -33,6 +33,9 @@ export function useDataFeed() {
       case "highscores":
         if (msg.data) useMetricsStore.getState().setHighscores(msg.data);
         break;
+      case "aggregates":
+        if (msg.data) useMetricsStore.getState().setAggregates(msg.data);
+        break;
       case "oee_details":
         if (msg.data) useMetricsStore.getState().setOeeDetails(msg.data);
         break;

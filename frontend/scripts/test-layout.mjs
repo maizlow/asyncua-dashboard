@@ -5,17 +5,11 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
-import ts from "typescript";
+import { loadTs } from "./load-ts.mjs";
 import { parse } from "yaml";
 
-const load = async (rel) => {
-  const src = readFileSync(new URL(rel, import.meta.url), "utf8").replace(/from "\.\/doc"/g, 'from "DOC"');
-  return ts.transpileModule(src, { compilerOptions: { module: ts.ModuleKind.ESNext, target: ts.ScriptTarget.ES2022 } }).outputText;
-};
-const toUrl = (js) => `data:text/javascript;base64,${Buffer.from(js).toString("base64")}`;
-const docUrl = toUrl(await load("../src/layout/doc.ts"));
-const d = await import(docUrl);
-const l = await import(toUrl((await load("../src/layout/layout.ts")).replace('"DOC"', JSON.stringify(docUrl))));
+const d = await loadTs("layout/doc.ts");
+const l = await loadTs("layout/layout.ts");
 
 const read = (rel) => readFileSync(new URL(rel, import.meta.url), "utf8");
 const yaml = (rel) => parse(read(rel));
@@ -61,7 +55,7 @@ test("normaliseLayout: screen type from its items, positions kept", () => {
 });
 
 // ---------------------------------------------------------------- one PLC down (src/lib/connection.ts)
-const c = await import(toUrl((await load("../src/lib/connection.ts"))));
+const c = await loadTs("lib/connection.ts");
 
 test("one PLC down: only its elements lose their value, the others keep updating", () => {
   const metrics = { "plc2.GlazeLevel": 41.5, "plc3.PackCount": 1200, "plc1.OEE": 82 };

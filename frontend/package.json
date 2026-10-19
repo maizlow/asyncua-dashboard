@@ -11,7 +11,7 @@
     "check:fit": "node scripts/check-fit.mjs",
     "test:e2e": "playwright test",
     "test:serve": "playwright test -c playwright.serve.config.ts",
-    "test": "node --test scripts/test-format.mjs scripts/test-status.mjs scripts/test-week.mjs scripts/test-layout.mjs scripts/test-opc.mjs"
+    "test": "node --test scripts/test-format.mjs scripts/test-status.mjs scripts/test-week.mjs scripts/test-layout.mjs scripts/test-opc.mjs scripts/test-charts.mjs"
   },
   "dependencies": {
     "@fontsource-variable/geist": "^5.2.9",

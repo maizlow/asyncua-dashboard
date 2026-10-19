@@ -1,0 +1,176 @@
+{
+  "_doc": "Chart/KPI elements: shared by backend/layout_doc.py (validation) and frontend/src/charts/metrics.ts (rendering, editor). Sizes in grid cells [w, h] on the 24 x 12 grid. Metrics: see docs/BERAKNINGAR.md (Diagram och historik). Edit both sides' tests when changing this file.",
+  "kinds": {
+    "kpi": {
+      "name": "KPI-ruta",
+      "min": [6, 4],
+      "default": [6, 4],
+      "fields": ["label", "source", "metric", "period", "tag", "unit", "decimals", "target", "target_metric", "thresholds", "better", "color", "sub_metric", "sub_text", "aside"]
+    },
+    "gauge": {
+      "name": "OEE-ring",
+      "min": [6, 6],
+      "default": [8, 8],
+      "fields": ["label", "source", "metric", "period", "tag", "decimals", "target", "target_metric", "thresholds", "better", "max"]
+    },
+    "breakdown": {
+      "name": "OEE + A/P/Q",
+      "min": [10, 8],
+      "default": [11, 8],
+      "fields": ["label", "period"]
+    },
+    "progress": {
+      "name": "Mot mål",
+      "min": [13, 6],
+      "default": [13, 8],
+      "fields": ["label", "source", "period", "tag", "target", "stats"]
+    },
+    "bars": {
+      "name": "Stapeldiagram",
+      "min": [12, 6],
+      "default": [24, 12],
+      "fields": ["label", "series", "count", "metric", "top_metric"],
+      "series": ["days", "shifts"]
+    },
+    "trend": {
+      "name": "Trendlinje",
+      "min": [8, 4],
+      "default": [12, 6],
+      "fields": ["label", "source", "series", "count", "metric", "tag", "unit", "decimals", "target", "target_metric", "better"],
+      "series": ["days", "shifts"]
+    },
+    "timeline": {
+      "name": "Kör/stopp-tidslinje",
+      "min": [12, 3],
+      "default": [24, 3],
+      "fields": ["label"]
+    },
+    "table": {
+      "name": "Tabell",
+      "min": [12, 6],
+      "default": [12, 8],
+      "fields": ["label", "series", "count", "columns"],
+      "series": ["days", "shifts"]
+    }
+  },
+  "periods": {
+    "shift": "Pågående skift",
+    "today": "Idag",
+    "yesterday": "Igår",
+    "7d": "7 dagar",
+    "14d": "14 dagar",
+    "30d": "30 dagar"
+  },
+  "series": {
+    "days": "Per dag",
+    "shifts": "Per skift"
+  },
+  "metrics": {
+    "oee": {
+      "name": "OEE",
+      "format": "pct",
+      "unit": "%",
+      "status": "oee"
+    },
+    "availability": {
+      "name": "Tillgänglighet",
+      "format": "pct",
+      "unit": "%",
+      "status": "factor"
+    },
+    "performance": {
+      "name": "Prestanda",
+      "format": "pct",
+      "unit": "%",
+      "status": "factor"
+    },
+    "quality": {
+      "name": "Kvalitet",
+      "format": "pct",
+      "unit": "%",
+      "status": "factor"
+    },
+    "good": {
+      "name": "Godkända",
+      "format": "int",
+      "unit": "st",
+      "status": "target"
+    },
+    "reject": {
+      "name": "Kassation",
+      "format": "int",
+      "unit": "st"
+    },
+    "total": {
+      "name": "Totalt",
+      "format": "int",
+      "unit": "st"
+    },
+    "scrap_pct": {
+      "name": "Kassation %",
+      "format": "dec1",
+      "unit": "%",
+      "status": "scrap"
+    },
+    "target": {
+      "name": "Mål hittills",
+      "format": "int",
+      "unit": "st"
+    },
+    "shift_target": {
+      "name": "Skiftmål",
+      "format": "int",
+      "unit": "st",
+      "periods": ["shift"]
+    },
+    "prognosis": {
+      "name": "Prognos",
+      "format": "int",
+      "unit": "st",
+      "periods": ["shift"]
+    },
+    "speed": {
+      "name": "Takt",
+      "format": "dec1",
+      "periods": ["shift"]
+    },
+    "nominal": {
+      "name": "Nominell takt",
+      "format": "int"
+    },
+    "stop_count": {
+      "name": "Stopp",
+      "format": "int",
+      "unit": "st"
+    },
+    "stop_time": {
+      "name": "Stopptid",
+      "format": "minutes"
+    },
+    "run_time": {
+      "name": "Körtid",
+      "format": "minutes"
+    },
+    "remaining": {
+      "name": "Skift kvar",
+      "format": "hm",
+      "unit": "h",
+      "periods": ["shift"]
+    },
+    "oee_target": {
+      "name": "OEE-mål",
+      "format": "dec1",
+      "unit": "%"
+    },
+    "shift_window": {
+      "name": "Skifttid",
+      "format": "clock",
+      "periods": ["shift"]
+    }
+  },
+  "columns": ["label", "good", "oee", "availability", "performance", "quality", "scrap_pct", "reject", "stop_count", "stop_time", "target"],
+  "max_count": {
+    "days": 30,
+    "shifts": 14
+  }
+}

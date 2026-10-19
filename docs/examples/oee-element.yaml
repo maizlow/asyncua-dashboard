@@ -1,0 +1,56 @@
+# yaml-language-server: $schema=../layout.schema.json
+#
+# OEE-skärmen byggd av element: samma utseende som den inbyggda OEE-skärmen (skärm 2), men varje del är ett eget
+# element i rutnätet som kan flyttas, ändras och kombineras: OEE + A/P/Q (breakdown), Produktion mot skiftmål
+# (progress) och fyra KPI-rutor (kpi).
+#
+# Importera i editorn (Versioner → Importera YAML) eller visa i demon: ?layout=oee-element
+# Diagram och KPI-element: docs/CONFIG.md (Diagram och KPI). Beräknade värden och historik gäller displayens
+# standardanslutning (default_connection) tills historik per anslutning finns (etapp 4).
+schema_version: 2
+
+connections:
+  plc1:
+    url: opc.tcp://192.168.0.1:4840
+    alarms: ns=3;i=1815
+    tags:
+        TargetCount: ns=3;s="DB Production TV"."dashboardData"."target"
+        ProductionCount: ns=3;s="DB Production TV"."dashboardData"."actual"
+        ProductionDelta: ns=3;s="DB Production TV"."dashboardData"."delta"
+        ProductionState: ns=3;s="DB Production TV"."dashboardData"."prodState"   # 2 = kör
+        OEE: ns=3;s="DB Production TV"."dashboardData"."oee"
+        TPM: ns=3;s="DB Production TV"."dashboardData"."tpm"
+        CurrentRuntime: { node: ns=3;s="DB Production TV"."dashboardData"."runtime", type: time }
+        AccumulatedStoptime: { node: ns=3;s="DB Production TV"."dashboardData"."accStoptime", type: time }
+        ShiftStart: { node: ns=3;s="DB Production TV"."dashboardData"."shiftStart", type: time }
+        ShiftEnd: { node: ns=3;s="DB Production TV"."dashboardData"."shiftEnd", type: time }
+        GoodCount: ""      # TODO(PLC): t.ex. ns=3;s="DB Production TV"."dashboardData"."goodCount"
+        RejectCount: ""    # TODO(PLC): t.ex. ns=3;s="DB Production TV"."dashboardData"."rejectCount"
+        # Mål från PLC:n (OEE-skärmen). Tomt = Mål hittills/Skiftmål visar "–" och inget PÅ/UNDER MÅL.
+        ShiftTarget: ""    # TODO(PLC): skiftmål i st för hela skiftet, t.ex. ns=3;s="DB Production TV"."dashboardData"."shiftTarget"
+        OeeTarget: ""      # TODO(PLC): OEE-mål i % (tomt = 85), t.ex. ns=3;s="DB Production TV"."dashboardData"."oeeTarget"
+        # Skiftlogg (tabellen shifts): PLC:n visar bara pågående skift; backend sparar en rad per skift.
+        PlannedTime: ""    # TODO(PLC): planerad tid i minuter exkl. raster för hela skiftet (tomt = ShiftEnd − ShiftStart), t.ex. ns=3;s="DB Production TV"."dashboardData"."plannedTime"
+        ShiftTeam: ""      # TODO(PLC): skiftlag, text eller nummer (tomt = "–"), t.ex. ns=3;s="DB Production TV"."dashboardData"."shiftTeam"
+
+displays:
+  tv1:
+    default_connection: plc1
+    screen:
+      connection: plc1
+      active: ns=3;s="DB Production TV"."screenHandler"."activeScreenNr"
+      requested: ns=3;s="DB Production TV"."screenHandler"."requestScreenNr"
+    screens:
+      1:
+        title: OEE (element)
+        items:
+          - { id: oee-breakdown, kind: breakdown, x: 0, y: 0, w: 11, h: 8, label: OEE }
+          - { id: oee-progress, kind: progress, x: 11, y: 0, w: 13, h: 8, label: Produktion }
+          - { id: oee-speed, kind: kpi, x: 0, y: 8, w: 6, h: 4, label: Takt · TPM, metric: speed, sub_metric: nominal, sub_text: av }
+          - { id: oee-scrap, kind: kpi, x: 6, y: 8, w: 6, h: 4, label: Kassation, metric: reject, sub_metric: scrap_pct }
+          - { id: oee-stops, kind: kpi, x: 12, y: 8, w: 6, h: 4, label: Stopp, metric: stop_count, aside: stopped, sub_metric: stop_time, sub_text: "{} totalt" }
+          - { id: oee-remaining, kind: kpi, x: 18, y: 8, w: 6, h: 4, label: Skift kvar, metric: remaining, sub_metric: shift_window }
+      2:
+        title: OEE (inbyggd)
+        items:
+          - { id: oee-builtin, kind: oee, connection: plc1, x: 0, y: 0, w: 24, h: 12 }

@@ -114,6 +114,68 @@ export interface DailyHistory {
   updated: string;
 }
 
+type Factors = { availability: number | null; performance: number | null; quality: number | null; oee: number | null };
+
+/** Totals over several days (GET /api/aggregates `sums`): A, P, Q, OEE recomputed from the summed totals */
+export interface PeriodSum {
+  has_data: boolean;
+  /** Days with data */
+  days: number;
+  good: number | null;
+  reject: number | null;
+  total: number | null;
+  planned_s: number | null;
+  run_s: number | null;
+  stop_s: number | null;
+  stop_count: number | null;
+  target: number | null;
+  oee_target: number | null;
+  teams: string[];
+  scrap_pct: number | null;
+  oee: Factors;
+}
+
+/** One shift of the shift log with its own A, P, Q, OEE (whole shift; the open one "so far") */
+export interface ShiftAggregate {
+  id: number;
+  start: string;
+  end: string | null;
+  closed: string | null;
+  status: "open" | "closed";
+  team: string | null;
+  has_data: boolean;
+  good: number | null;
+  reject: number | null;
+  total: number | null;
+  planned_s: number | null;
+  run_s: number | null;
+  stop_s: number | null;
+  stop_count: number | null;
+  target: number | null;
+  oee_target: number | null;
+  scrap_pct: number | null;
+  oee: Factors;
+}
+
+/** History for the chart elements (backend/opc/aggregates.py, GET /api/aggregates, WS `aggregates`) */
+export interface Aggregates {
+  /** Connection the history is for (the display's default connection until etapp 4) */
+  connection: string | null;
+  updated: string;
+  nominal_tpm: number;
+  oee_target?: { value: number; source: string };
+  today: (DailyRow & { scrap_pct: number | null }) | null;
+  yesterday: (DailyRow & { scrap_pct: number | null }) | null;
+  /** The last 30 days, oldest first, today last */
+  days: (DailyRow & { scrap_pct: number | null })[];
+  sums: Record<"7" | "14" | "30", PeriodSum>;
+  /** The last shifts, oldest first, the open one last */
+  shifts: ShiftAggregate[];
+  current_shift: ShiftAggregate | null;
+  shift_window: { start: string; end: string } | null;
+  segments: { start: string; end: string; running: boolean }[];
+}
+
 /** One completed run without a stop (backend/opc/highscore.py). */
 export interface RunRecord {
   start: string;
@@ -156,7 +218,8 @@ export type ServerMessage =
   | { type: "layout_changed"; version: number }
   | { type: "oee_details"; data: OeeDetails }
   | { type: "daily_history"; data: DailyHistory }
-  | { type: "highscores"; data: Highscores };
+  | { type: "highscores"; data: Highscores }
+  | { type: "aggregates"; data: Aggregates };
 
 /**
  * Everything the UI needs from "the outside world". The real implementation talks
@@ -176,6 +239,8 @@ export interface DataSource {
   getOeeDetails(): Promise<OeeDetails | undefined>;
   /** Today + the previous 6 days (GET /api/history/days?n=7). */
   getDailyHistory(): Promise<DailyHistory | undefined>;
+  /** History for the chart elements (GET /api/aggregates). */
+  getAggregates(): Promise<Aggregates | undefined>;
   /** Run-time highscores (GET /api/highscores). */
   getHighscores(): Promise<Highscores | undefined>;
   /** Screens, header and tag types of this display (?display=, default the first). Rejects with LayoutError if the layout is invalid. */

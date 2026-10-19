@@ -226,7 +226,8 @@ Varje skärm är ett fast **rutnät på 24 × 12 rutor** under header-ytan. Rutn
 så TV:n ser likadan ut. Ett element har:
 
 - `id`;
-- `kind`: `number`, `percent`, `counter`, `time`, `status` eller en inbyggd skärm;
+- `kind`: ett värdeelement (`number`, `percent`, `counter`, `time`, `status`), ett diagram- eller KPI-element
+  ([se nedan](#diagram-och-kpi)) eller en inbyggd skärm;
 - läge och storlek i rutor: `x`, `y`, `w`, `h`;
 - samma egenskaper som ett objekt: `label`, `tag`, `unit` och så vidare.
 
@@ -272,7 +273,8 @@ python -m backend.layout_doc --view                # det GET /api/layout skickar
 Regler utöver dem för objekten:
 
 - **Minsta storlek:** ett värdeelement är minst 12 × 4 rutor (en halv bredd, en tredjedel av höjden). Det är den minsta
-  storlek där 290 px-siffrorna har plats, även `00:00:00` och sexsiffriga tal.
+  storlek där 290 px-siffrorna har plats, även `00:00:00` och sexsiffriga tal. Diagram och KPI har en egen minsta storlek
+  per typ ([tabellen nedan](#diagram-och-kpi)).
 - **Inbyggda skärmar:** de täcker hela rutnätet och står ensamma tills mindre varianter kommer i etapp 6. Larm är alltid
   helskärm.
 - **Placering:** element får inte överlappa eller gå utanför rutnätet, och `id` måste vara unikt.
@@ -290,6 +292,81 @@ Regler utöver dem för objekten:
   PLC:erna (`plc1.OEE`).
 - **En PLC tappar kontakten** (`connection_status`): bara de element som är kopplade till den visar `–` och ⚠. Övriga
   fortsätter att uppdateras. I demon visar `?layout=multi&display=tv1&screen=2&down=plc2` hur det ser ut.
+
+## Diagram och KPI
+
+Utöver värdeelementen finns diagram- och KPI-element som kan läggas fritt i rutnätet. **OEE-skärmen och 7 dagar är byggda av
+samma element**, så de kan byggas om, ändras och kombineras på en egen skärm:
+[`docs/examples/oee-element.yaml`](examples/oee-element.yaml) och [`docs/examples/7dagar-element.yaml`](examples/7dagar-element.yaml)
+(skärm 1 = element, skärm 2 = den inbyggda för jämförelse). Alla typer finns i [`docs/examples/diagram.yaml`](examples/diagram.yaml).
+I demon: `?layout=oee-element`, `?layout=7dagar-element`, `?layout=diagram` (även i demo-editorn).
+
+| `kind` | Visar | Minst (b × h) | Ny (b × h) | Egna fält |
+|---|---|---|---|---|
+| `kpi` | KPI-ruta: ett värde (220 px, 290 px från 8 × 6), enhet, mål och färg, valfri rad under | 6 × 4 | 6 × 4 | `source`, `metric`, `period`, `tag`, `unit`, `decimals`, `target`, `target_metric`, `thresholds`, `better`, `color`, `sub_metric`, `sub_text`, `aside` |
+| `gauge` | OEE-ring: värdet i en 270°-ring med vit markering för målet | 6 × 6 | 8 × 8 | `source`, `metric`, `period`, `tag`, `decimals`, `target`, `target_metric`, `thresholds`, `better`, `max` |
+| `breakdown` | OEE med PÅ/UNDER MÅL och staplar för Tillgänglighet, Prestanda, Kvalitet | 10 × 8 | 11 × 8 | `period` |
+| `progress` | Godkända mot mål: stapel, vit markering för mål hittills, Mål hittills / Skiftmål / Prognos | 13 × 6 | 13 × 8 | `source`, `period`, `tag`, `target`, `stats` |
+| `bars` | Staplar per dag eller skift med målet som vit linje, värdet (OEE) ovanför och antalet under | 12 × 6 | 24 × 12 | `series`, `count`, `metric`, `top_metric` |
+| `trend` | Trendlinje (gnistlinje under 6 rader) per dag/skift eller en taggs senaste värden, mål som streckad linje | 8 × 4 | 12 × 6 | `source`, `series`, `count`, `metric`, `tag`, `unit`, `decimals`, `target`, `target_metric`, `better` |
+| `timeline` | Kör/stopp i pågående skift: grönt = kör, rött = stopp, vit linje = nu | 12 × 3 | 24 × 3 | – |
+| `table` | Tabell per skift eller dag (senaste raden markerad) | 12 × 6 | 12 × 8 | `series`, `count`, `columns` |
+
+Alla har `label` (rubrik, max 40 tecken; standard: OEE, Produktion …). Diagrammen behöver plats: om det inte räcker (t.ex.
+fler staplar än bredden rymmer, långa rubriker i en smal ruta) visar editorns läsbarhetskontroll fel eller varning och
+publiceringen spärras vid fel. Siffror krymper aldrig under 112 px (37 px versalhöjd vid 1080p).
+
+**Datakälla** (`source`):
+
+- **`calc`** (standard): ett beräknat värde, `metric`, för en period, `period`. Värdena räknas i backend med samma formler som
+  OEE-skärmen, skiftloggen och 7 dagar ([BERAKNINGAR.md](BERAKNINGAR.md#diagram-och-historik-get-apiaggregates)); TV:n räknar
+  inga egna formler.
+- **`tag`**: en live-tagg, `tag` (`OEE` eller `plc2.GlazeLevel`). Visas med `decimals` decimaler (standard 1) och `unit`.
+
+| `period` | Betyder | Källa |
+|---|---|---|
+| `shift` (standard) | pågående skift, hittills | WebSocket `oee_details` (var 5:e s) |
+| `today`, `yesterday` | idag (midnatt till nu) / igår, i `TIMEZONE` | WebSocket `aggregates` (var 60:e s) |
+| `7d`, `14d`, `30d` | summan av de senaste 7/14/30 dygnen, idag inräknat | `aggregates` |
+
+| `metric` | Visas | Perioder |
+|---|---|---|
+| `oee`, `availability`, `performance`, `quality` | % med 1 decimal (`82,0`) | alla |
+| `good`, `reject`, `total`, `target` (mål hittills) | st, heltal med mellanrum (`999 999`) | alla |
+| `scrap_pct` | kassation %, 1 decimal | alla |
+| `stop_count`, `stop_time`, `run_time` | st / `1 h 05 min` | alla |
+| `oee_target`, `nominal` | OEE-mål % / nominell takt | alla |
+| `shift_target`, `prognosis`, `speed`, `remaining`, `shift_window` | skiftmål, prognos, takt (1 decimal), skift kvar (`h:mm`), skifttid (`06:00–14:00`) | bara `shift` |
+
+**Mål och färg:** `target` (tal eller tagg) eller `target_metric` (t.ex. `oee_target`, `target`) i samma enhet som värdet
+(OEE-mål 85 = 85 %). Färg och ▲/▼ följer `thresholds` om satta, annars värdets egen regel: OEE mot OEE-målet (gul 10
+procentenheter under), A/P/Q 90/80, kassation 2/3 (lägre är bättre), godkända mot målet. Färgen är aldrig det enda tecknet:
+▼/▲ och PÅ MÅL/UNDER MÅL.
+
+**KPI-rutan:** `aside: target` visar PÅ MÅL/UNDER MÅL i rubrikraden (från 10 rutors bredd, smalare rutor visar ▼ och färg),
+`aside: stopped` visar STÅR i rött när linjen står. `sub_metric` ger en rad under värdet; `sub_text` är text före värdet
+(`av`) eller med `{}` där värdet ska stå (`{} totalt`).
+
+**Serier** (`bars`, `trend`, `table`): `series: days` (standard) = en stapel/punkt/rad per dygn, `count` högst 30;
+`series: shifts` = per skift ur skiftloggen, `count` högst 14. `bars`: `metric` = stapelns höjd (standard `good`, med dagens
+eller skiftets mål som vit linje), `top_metric` = värdet ovanför (standard `oee`, `none` = inget). `table`: `columns` 1–5 av
+`label`, `good`, `oee`, `availability`, `performance`, `quality`, `scrap_pct`, `reject`, `stop_count`, `stop_time`, `target`.
+
+**Flera PLC:er:** beräknade värden och historik (`source: calc`, `bars`, `table`, `timeline`, `trend` per dag/skift) gäller
+**displayens standardanslutning** (`default_connection`). Historik per anslutning kommer med etapp 4; `source: tag` kan redan
+läsa vilken PLC som helst.
+
+**Utseende:** diagrammen är egen SVG (bara former) med all text i HTML och appens färger (`--accent-green/amber/red`,
+zinc-ytor). Inget diagrambibliotek: full kontroll över utseendet, stora etiketter (≥ 104 px på 4K-ytan, ≥ 37 px vid 1080p) och
+samma läsbarhets- och fit-kontroller som resten av TV:n.
+
+```yaml
+- { id: oee7, kind: kpi, x: 0, y: 0, w: 6, h: 4, label: OEE 7 d, metric: oee, period: 7d }
+- { id: idag, kind: kpi, x: 6, y: 0, w: 6, h: 4, label: Idag, metric: good, period: today, target_metric: target, sub_metric: scrap_pct }
+- { id: ring, kind: gauge, x: 12, y: 0, w: 6, h: 6, label: OEE, metric: oee }
+- { id: dagar, kind: bars, x: 0, y: 6, w: 24, h: 6, label: 7 dagar · OEE % · st, series: days, count: 7 }
+- { id: plc, kind: kpi, x: 18, y: 0, w: 6, h: 4, label: Glasyr, source: tag, tag: plc2.GlazeLevel, unit: "%", thresholds: [20, 40] }
+```
 
 ## Filens delar
 
