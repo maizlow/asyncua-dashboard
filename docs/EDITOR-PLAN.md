@@ -1,7 +1,7 @@
 # Plan: verktyg för att designa dashboards (editor)
 
-> **Status: inriktningen är beslutad** (Johans svar 19 okt 2026, se [Beslut](#beslut)). Etapp 0 (spik) och 1 (dokument och
-> renderare) genomförs först. Resten väntar på avstämning.
+> **Status: inriktningen är beslutad** (Johans svar 19 okt 2026, se [Beslut](#beslut)). Etapp 0 (spik) är klar. Etapp 1
+> (dokument och renderare) genomförs nu. Resten väntar på avstämning.
 
 Målet är ett verktyg där man bygger TV-dashboards som vår från grunden: väljer elementtyper, kopplar OPC UA-taggar, drar och
 släpper, ändrar ordning och storlek, sätter tema och logotyper och publicerar till TV:n. Resultatet ska se **helt eget** ut
@@ -355,8 +355,11 @@ utseende blir standardtemat "ABECE mörk".
 **Skäl:** React-native och TypeScript, stabilt (2,6 miljoner nedladdningar per vecka), handtag och kollision finns färdiga,
 och layouten serialiseras direkt till `x, y, w, h`.
 
-**Risk:** canvasen visas skalad med CSS-transform. Det måste verifieras i en spik att pekarkoordinaterna blir rätt, via
-skalinställningen eller `positionStrategy`. Gridstack är reserv.
+**Spiken (etapp 0) löste risken med den skalade canvasen:** bibliotekets `createScaledStrategy` utgår från att rutnätet
+börjar i fönstrets hörn. Under vår header-yta hamnar y därför cirka 2 rader fel (9 av 30 kontroller godkända). En egen
+`positionStrategy` på 10 rader drar av rutnätets position innan den delar med skalan. Den klarade 30 av 30 kontroller
+(dra, storlek, kollision och gränser) i sex fönsterstorlekar från 1280×720 till 3840×2160, även 21:9 och 4:3. Gridstack
+behövs inte. Detaljer och mått finns i [spikes/editor-rgl](../spikes/editor-rgl/README.md).
 
 ## Redigering, spara och publicera
 
@@ -489,8 +492,11 @@ Räkna därför med en avstämning efter varje etapp. Kalendertiden styrs av nä
 
 ## Risker
 
-- **Skalad canvas och dra/släpp:** pekarkoordinaterna i en CSS-skalad yta kan bli fel. Det testas först i spiken, med
-  gridstack som reserv.
+- ~~**Skalad canvas och dra/släpp:**~~ löst i spiken med en egen positionsstrategi (se ovan). Kvar att testa i etapp 2:
+  dra in från paletten, touch och tangentbord.
+- **Typsnitt:** `font-sans` (Geist, versalhöjd 0,719 em) ingår i appen och ser likadan ut överallt. `font-mono` (klockan och
+  stora tal) använder systemets typsnitt och kan därför se olika ut på olika datorer. Etapp 5 paketerar även ett
+  mono-typsnitt, så att läsbarhetsspärrarna räknar rätt överallt.
 - **Fri layout ger oläsliga skärmar:** spärrarna måste vara beräknade och blockerande, inte bara råd. Värsta fallets värden
   måste täcka verkligheten (6-siffriga antal, 3-siffriga timmar).
 - **Omladdning av prenumerationer:** att byta noder under drift kan ge luckor i historiken eller dubbla prenumerationer.

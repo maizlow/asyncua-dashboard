@@ -93,6 +93,10 @@ Lägg till nya punkter som checklistor under rätt rubrik och flytta dem till **
 - [x] Körningar sparas i `run_records` (gallras inte), avslutas vid senast bekräftad tid vid omstart/OPC-avbrott; `HIGHSCORE_MIN_STOP_S` för korta stopp; `GET /api/highscores`
 - [x] Demo och `check:fit` (även 3-siffriga timmar och lag "A→B")
 
+### Editor etapp 0: spik ([PR #18](https://github.com/maizlow/asyncua-dashboard/pull/18))
+- [x] react-grid-layout v2 i den skalade canvasen: egen positionsstrategi klarar dra, storlek, kollision och gränser i alla testade fönsterstorlekar ([spikes/editor-rgl](spikes/editor-rgl/README.md))
+- [x] Typsnittsmått uppmätta, Puck förkastat för rutnätet
+
 ## Nästa
 
 ### Docker för drift på Fitlet3 (Linux, x86-64)
@@ -103,7 +107,7 @@ Lägg till nya punkter som checklistor under rätt rubrik och flytta dem till **
 - [ ] Ev. kioskläge i webbläsaren vid uppstart
 
 ## Planerat
-- [ ] Verktyg för att designa dashboards (editor med dra och släpp, OPC UA-bläddring, tema och logotyper per kund): förslag i [docs/EDITOR-PLAN.md](docs/EDITOR-PLAN.md), väntar på granskning
+- [ ] Verktyg för att designa dashboards (editor med dra och släpp, OPC UA-bläddring, tema och logotyper per kund): plan i [docs/EDITOR-PLAN.md](docs/EDITOR-PLAN.md) (beslutad; etapp 0 klar)
 - [ ] Koppla nya OEE-taggar till riktiga nod-id i PLC:n (`GoodCount`, `RejectCount`, `ShiftTarget`, `OeeTarget`, `PlannedTime`, `ShiftTeam` i `dashboard.yaml`)
 - [ ] Raster på kända klockslag i tillgänglighetsberäkningen (idag `PlannedTime` pro rata, eller hela förflutna skifttiden)
 - [ ] Flytta hårdkodade värden till konfig:
