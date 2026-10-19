@@ -38,7 +38,7 @@ function FieldEditor({ field, w, doc, displayId, set }: { field: Field; w: Widge
         <input data-testid={t} className={input} maxLength={field.max} placeholder={field.placeholder} value={(v as string | undefined) ?? ""} onChange={(e) => set(field.key, e.target.value === "" && !field.required ? undefined : e.target.value)} />
       );
     case "tag":
-      return <TagPicker testId={t} doc={doc} displayId={displayId} value={v as string | undefined} onChange={(r) => set(field.key, r)} />;
+      return <TagPicker testId={t} doc={doc} displayId={displayId} kind={w.kind as ValueKind} value={v as string | undefined} onChange={(r) => set(field.key, r)} />;
     case "int":
       return (
         <input data-testid={t} type="number" min={field.min} max={field.max} className={input} placeholder={field.placeholder} value={v === undefined ? "" : String(v)} onChange={(e) => set(field.key, num(e.target.value))} />
@@ -96,7 +96,7 @@ function FieldEditor({ field, w, doc, displayId, set }: { field: Field; w: Widge
             <option value="tag">Tagg</option>
             <option value="number">Fast tal</option>
           </select>
-          {mode === "tag" && <TagPicker doc={doc} displayId={displayId} value={v as string} onChange={(r) => set(field.key, r)} />}
+          {mode === "tag" && <TagPicker testId={`${t}-tag`} doc={doc} displayId={displayId} kind={w.kind as ValueKind} value={v as string} onChange={(r) => set(field.key, r)} />}
           {mode === "number" && <input type="number" className={input} value={String(v)} onChange={(e) => set(field.key, num(e.target.value) ?? 0)} />}
         </div>
       );

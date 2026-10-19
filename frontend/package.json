@@ -10,7 +10,7 @@
     "preview": "vite preview",
     "check:fit": "node scripts/check-fit.mjs",
     "test:e2e": "playwright test",
-    "test": "node --test scripts/test-format.mjs scripts/test-status.mjs scripts/test-week.mjs scripts/test-layout.mjs"
+    "test": "node --test scripts/test-format.mjs scripts/test-status.mjs scripts/test-week.mjs scripts/test-layout.mjs scripts/test-opc.mjs"
   },
   "dependencies": {
     "@fontsource-variable/geist": "^5.2.9",

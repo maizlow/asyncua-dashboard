@@ -141,6 +141,13 @@ Lägg till nya punkter som checklistor under rätt rubrik och flytta dem till **
 - [x] Datatyp, åtkomst, array och om noden har barn; tydliga fel på svenska när PLC:n inte nås
 - [x] Test mot en asyncua-testserver byggd som en S7-1500 (bläddra, läsa, sök, tak, ej nåbar PLC, bara läsning)
 
+### Editor etapp 3b: träd i taggväljaren ([PR #28](https://github.com/maizlow/asyncua-dashboard/pull/28))
+- [x] "Bläddra i PLC:n" i taggväljaren: träd som läses nivå för nivå, filter av det inlästa och sök i hela PLC:n
+- [x] Vald variabel: datatyp, åtkomst och värdet just nu; varning när datatypen inte passar elementet (text som procent, bool som räknare)
+- [x] Tagg från nod med namnförslag från browse name, unikt per PLC; befintlig tagg återanvänds; manuellt nod-id kvar
+- [x] Demon på Pages: påhittad S7-1500 per PLC i webbläsaren, inga nätverksanrop
+- [x] Enhetstest (typkontroll, namnförslag, demons adressrymd) och Playwright (bläddra, sök, välj, varna, tangenter)
+
 ## Nästa
 
 ### Docker för drift på Fitlet3 (Linux, x86-64)

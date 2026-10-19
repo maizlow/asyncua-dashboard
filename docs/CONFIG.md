@@ -144,6 +144,32 @@ python -m backend.users remove johan
 Editorn kan bläddra i PLC:ns adressrymd, söka och läsa ett värde. **Den läser bara:** inget anrop kan skriva till PLC:n,
 anropa metoder eller skapa prenumerationer.
 
+**Så används det:**
+
+1. Välj ett element och klicka **Bläddra i PLC:n …** under taggen. Trädet visar den PLC taggen hör till, och en annan PLC
+   kan väljas uppe till vänster.
+2. **Fäll ut** med pilen, t.ex. `PLC_1` → `DataBlocksGlobal` → `DB …`. En nivå läses först när den fälls ut. En stor DB
+   visar de första 200; sök för att hitta resten.
+3. **Filtrera eller sök:** skriv i fältet för att filtrera det som är inläst. **Enter** söker i hela PLC:n på namn eller
+   nod-id, och träffarna visas med sökväg.
+4. **Välj en variabel (◆):** till höger syns nod-id, datatyp, åtkomst och **värdet just nu**, som läses varannan sekund.
+   Om datatypen inte passar elementet syns en varning:
+
+   | Element | Passar | Varning (⚠) | Fel (✖) |
+   |---|---|---|---|
+   | Räknare | heltal | decimaltal (avrundas) | bool, text, array |
+   | Procent | tal (0–100) | | bool, text, array |
+   | Tal | tal | bool (0/1) | text, array |
+   | Tid | heltal i ms (S7 TIME/TOD) | DateTime | decimaltal, bool, text |
+   | Status | heltal, bool | decimaltal, text | array |
+
+5. **Använd:** namnet föreslås från nodens namn (`prodState` → `ProdState`) och kan ändras. **Skapa taggen och använd
+   den** lägger till taggen i PLC:n och kopplar den till elementet. Finns noden redan som tagg används den. Ångra tar
+   tillbaka båda.
+
+Backend läser nya taggar efter omstart, tills etapp 4. Manuell inmatning av nod-id finns kvar i listan (**+ Ny tagg från
+nod-id**). I demo-editorn på Pages bläddrar man i en påhittad S7-1500 i webbläsaren, utan nätverk.
+
 - **Session:** backend öppnar en egen kortlivad OPC UA-session mot PLC:n vid första anropet. Den använder samma
   certifikat, användare och lösenord som dashboarden (`CLIENT_CERT`, `CLIENT_KEY`, `OPC_USERNAME`, `OPC_PASSWORD`).
   Sessionen stängs efter 60 s utan anrop, och dashboardens egen anslutning påverkas inte. PLC:n behöver tillåta en

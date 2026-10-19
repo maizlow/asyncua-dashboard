@@ -8,8 +8,10 @@
 >   - duken med dra och släpp, palett, skärmhantering, ångra, kopiera och klistra in (PR #24)
 >   - egenskapspanel, taggväljare per PLC och läsbarhetskontroll (PR #25)
 >   - utkast, kontroll, publicering, versioner med återställning och YAML-export, demo-editorn med `localStorage` (PR #26)
-> - **Etapp 3 (OPC-bläddring) pågår:** API för att bläddra, söka och läsa i PLC:n, bara läsning (PR #27); sedan
->   trädet i taggväljaren och demons adressrymd.
+> - **Etapp 3 (OPC-bläddring) är klar:**
+>   - API för att bläddra, söka och läsa i PLC:n, bara läsning (PR #27)
+>   - trädet i taggväljaren med livevärde, typkontroll och tagg från nod, och en påhittad S7-1500 i demon (PR #28)
+> - **Nästa:** etapp 4 (flera PLC:er och displayer i drift), se [Etapper](#etapper).
 > - **Driften** stöder fortfarande en PLC och en display tills etapp 4. Se
 >   [CONFIG.md](CONFIG.md#layoutdokumentet-schema_version-2).
 
@@ -408,6 +410,40 @@ utseende blir standardtemat "ABECE mörk".
   `.env` gäller för den anslutning som driften kör, som i dashboarden.
 - **Fel på svenska:** PLC:n nås inte (anslutningen nekades, inget svar, nätverksfel, sessionen nekad), noden finns inte,
   noden får inte läsas, noden är ingen variabel, ogiltigt nod-id, för många anrop.
+
+**Byggt i etapp 3b (PR #28): trädet i taggväljaren.**
+
+- **Bläddra i PLC:n …** under varje taggväljare öppnar ett träd för den PLC som taggen hör till (en annan kan väljas).
+  - Nivåerna läses först när de fälls ut.
+  - Variabler visar datatyp, och noder som redan är taggar visar taggens namn.
+  - En stor DB visar de första 200 och säger till.
+- **Filter och sök:** filterfältet filtrerar det som redan är inläst direkt. Enter söker i hela PLC:n via backend, med
+  sökväg till varje träff och besked om sökningen stoppades av ett tak.
+- **Vald variabel:** nod-id, nodklass, datatyp, åtkomst och värdet just nu (läses varannan sekund bara medan noden är
+  vald).
+- **Typkontroll mot elementet:**
+  - Fel (✖): en text som Procent eller Räknare, en bool som Räknare eller Procent, en array.
+  - Varning (⚠): decimaltal som Räknare, bool som Tal, okänd typ (struktur eller S7-format).
+  - Ett förslag på elementtyp visas. Varningen finns kvar i egenskapspanelen efter valet.
+- **Tagg från nod:**
+  - Namnet föreslås från browse name, t.ex. `prodState` → `ProdState` och `oee` → `OEE`. Det görs unikt i PLC:n
+    (`OEE2`) och kan ändras.
+  - Typen sätts till S7 TIME/TOD för elementet Tid.
+  - Finns noden redan som tagg används den i stället (ingen dubblett).
+  - Taggen läggs till och kopplas i ett steg som Ångra tar tillbaka.
+  - Manuellt nod-id finns kvar.
+- **Demon:** en påhittad S7-1500 per PLC i webbläsaren, med samma svar och tak som backend och simulerade värden:
+  - `DeviceSet`, `ServerInterfaces` och `Server`;
+  - `PLC_<id>` → `DataBlocksGlobal` med `DB Demo` (dokumentets egna taggar), `DB Produktion`, `DB Glasyr` och `DB Recept`
+    (300 variabler);
+  - `DataBlocksInstance`, `Inputs`, `Outputs` och `Memory`.
+
+  Inga anrop lämnar webbläsaren (kontrolleras i Playwright).
+- **Tangenter:** i en öppen dialog stänger Esc dialogen, och inga kortkommandon når duken (Delete tog tidigare bort det
+  valda elementet bakom dialogen).
+- **Inte byggt än:** typkontrollen syns i taggväljaren men inte i fel-listan, och sparas inte i dokumentet (datatypen är
+  känd bara efter bläddring i samma session). Ett sökindex som byggs i bakgrunden behövs inte så länge sökningen på
+  begäran räcker.
 
 ## Dra och släpp: val av bibliotek
 
