@@ -103,6 +103,7 @@ Lägg till nya punkter som checklistor under rätt rubrik och flytta dem till **
 - [ ] Ev. kioskläge i webbläsaren vid uppstart
 
 ## Planerat
+- [ ] Verktyg för att designa dashboards (editor med dra och släpp, OPC UA-bläddring, tema och logotyper per kund): förslag i [docs/EDITOR-PLAN.md](docs/EDITOR-PLAN.md), väntar på granskning
 - [ ] Koppla nya OEE-taggar till riktiga nod-id i PLC:n (`GoodCount`, `RejectCount`, `ShiftTarget`, `OeeTarget`, `PlannedTime`, `ShiftTeam` i `dashboard.yaml`)
 - [ ] Raster på kända klockslag i tillgänglighetsberäkningen (idag `PlannedTime` pro rata, eller hela förflutna skifttiden)
 - [ ] Flytta hårdkodade värden till konfig:
