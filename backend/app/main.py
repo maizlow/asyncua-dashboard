@@ -7,7 +7,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from backend.app import api_server
-from backend.app.routers import alarms, editor, layout, metrics, websocket
+from backend.app.routers import alarms, editor, layout, metrics, opcua, websocket
 from backend.app.routers.websocket import broadcast_full_snapshot, broadcaster
 from backend.dashboard_config import ConfigError
 from backend.opc import opc_client
@@ -72,6 +72,7 @@ def create_app() -> FastAPI:
     app.include_router(alarms.router)
     app.include_router(layout.router)
     app.include_router(editor.router)
+    app.include_router(opcua.router)
     app.include_router(websocket.router)
 
     @app.get("/")

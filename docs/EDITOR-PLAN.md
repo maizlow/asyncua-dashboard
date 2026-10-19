@@ -8,7 +8,8 @@
 >   - duken med dra och släpp, palett, skärmhantering, ångra, kopiera och klistra in (PR #24)
 >   - egenskapspanel, taggväljare per PLC och läsbarhetskontroll (PR #25)
 >   - utkast, kontroll, publicering, versioner med återställning och YAML-export, demo-editorn med `localStorage` (PR #26)
-> - **Nästa:** etapp 3 (tema och tillgångar), se [Etapper](#etapper).
+> - **Etapp 3 (OPC-bläddring) pågår:** API för att bläddra, söka och läsa i PLC:n, bara läsning (PR #27); sedan
+>   trädet i taggväljaren och demons adressrymd.
 > - **Driften** stöder fortfarande en PLC och en display tills etapp 4. Se
 >   [CONFIG.md](CONFIG.md#layoutdokumentet-schema_version-2).
 
@@ -383,6 +384,31 @@ utseende blir standardtemat "ABECE mörk".
   - Backendens beräkningar (OEE, skift, highscore) använder fasta alias, och editorn varnar om de saknas.
   - Manuell inmatning av nod-id finns kvar för när bläddring inte fungerar.
 
+**Byggt i etapp 3a (PR #27): bläddrings-API, bara läsning.**
+
+- **Endast läsning:** modulen `backend/opc/browse.py` skickar bara Browse, BrowseNext (för att släppa
+  fortsättningspunkter) och Read. Den skriver aldrig, anropar inga metoder och skapar inga prenumerationer. Ett test
+  kontrollerar både källkoden och att asyncuas skriv- och prenumerationsanrop aldrig körs, och att ett skrivbart värde i
+  testservern är oförändrat efteråt.
+- **Egen kortlivad session per PLC:** dashboardens klient lever i OPC-tråden (en PLC till etapp 4) och används inte.
+  Bläddringen öppnar en egen session mot PLC:n vid första anropet, med samma certifikat och användare som dashboarden.
+  Sessionen stängs efter 60 s utan anrop. TV:ns prenumerationer störs alltså aldrig, och ingenting är anslutet när ingen
+  redigerar. PLC:n behöver tillåta en session till (en S7-1500 tillåter flera; högsta antalet beror på CPU:n och ställs in i TIA Portal).
+- **Ändring mot planen:** livevärdet läses med Read (editorn frågar varannan sekund medan noden är vald) i stället för en
+  tillfällig prenumeration. Det är enklare, och ingenting kan bli kvar i PLC:n.
+- **Skydd för PLC:n:**
+  - Anropen på en session går ett i taget.
+  - Tidsgränser: 6 s för anslutning, 16 s per anrop.
+  - Högst 40 anrop per användare och 10 s.
+  - Högst 500 barn per nivå (standard 200), med `truncated`.
+  - Sökningen går bredden först med tak för djup (8), besökta noder (3000), träffar (100) och tid (10 s), och hoppar
+    över serverns egen diagnostik (`Server`, i=2253).
+  - Anropen buntas om 100 nod-id, långt under S7-1500:s gränser.
+- **Vilken PLC:** anslutningen ska finnas i den publicerade layouten (`connections → <id> → url`). `OPC_ENDPOINT_URL` i
+  `.env` gäller för den anslutning som driften kör, som i dashboarden.
+- **Fel på svenska:** PLC:n nås inte (anslutningen nekades, inget svar, nätverksfel, sessionen nekad), noden finns inte,
+  noden får inte läsas, noden är ingen variabel, ogiltigt nod-id, för många anrop.
+
 ## Dra och släpp: val av bibliotek
 
 | Bibliotek | Licens, senaste version | React 19 | Passar oss? |
@@ -503,8 +529,10 @@ Editor-delen, med inloggning, under `/api/editor`:
 | POST | `/versions/{id}/restore` | behövs inte: editorn läser versionen som utkast och publicerar den (etapp 2e) |
 | GET/POST | `/versions/{id}/export.yaml`, `/import` | YAML-export (klart, etapp 2e); import och zip med tillgångar senare |
 | POST | `/preview-token` | förhandsvisningslänk för TV |
-| GET | `/opc/browse?node=`, `/opc/search?q=`, `/opc/read?node=` | bläddra, sök, läs attribut |
-| WS | `/opc/watch` | tillfälliga livevärden för valda noder (max 20) |
+| GET | `/opcua/{anslutning}/browse?node=&limit=` | en nivå i adressrymden (klart, etapp 3a) |
+| GET | `/opcua/{anslutning}/read?node=` | värde, datatyp och åtkomst för förhandsvisning (klart, etapp 3a) |
+| GET | `/opcua/{anslutning}/search?q=&root=&depth=` | sök på namn och nod-id, med tak (klart, etapp 3a) |
+| WS | `/opc/watch` | behövs inte: editorn läser med `read` medan noden är vald (etapp 3a) |
 | POST/GET/DELETE | `/assets` | ladda upp, lista och ta bort tillgångar |
 
 ## Säkerhet
