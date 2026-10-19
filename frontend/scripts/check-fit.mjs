@@ -158,13 +158,25 @@ try {
         for (const el of fitEls)
           if (el.scrollWidth > el.clientWidth + 1)
             problems.push(`chart value too wide: ${label(el)} ${el.scrollWidth} > ${el.clientWidth}`);
+        // ... and, like the editor's audit (src/editor/audit.ts), a cap height of at least 37 px at 1080p
+        // measured from the real font: the monospace digits are smaller per px than the sans labels
         let chartMin = null;
+        const capCtx = document.createElement("canvas").getContext("2d");
+        const capRatio = new Map();
         for (const el of canvas.querySelectorAll("[data-chart], [data-chart] *")) {
           if (el instanceof SVGElement) continue;
           if (![...el.childNodes].some((n) => n.nodeType === Node.TEXT_NODE && n.textContent.trim())) continue;
-          const px = parseFloat(getComputedStyle(el).fontSize);
+          const cs = getComputedStyle(el);
+          const px = parseFloat(cs.fontSize);
           chartMin = chartMin === null ? px : Math.min(chartMin, px);
           if (px < 104) problems.push(`chart text below 104 px: ${label(el)} ${px}px`);
+          const key = `${cs.fontWeight} ${cs.fontFamily}`;
+          if (!capRatio.has(key)) {
+            capCtx.font = `${cs.fontWeight} 100px ${cs.fontFamily}`;
+            capRatio.set(key, capCtx.measureText("H").actualBoundingBoxAscent / 100 || 0.72);
+          }
+          const cap1080 = Math.round(px * capRatio.get(key) * 0.5);
+          if (cap1080 < 37) problems.push(`chart text cap height ${cap1080} px at 1080p (< 37): ${label(el)} ${px}px`);
         }
         return { problems, clamped, count: els.length, hero, week, hs, chartMin };
       });

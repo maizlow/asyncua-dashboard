@@ -2,7 +2,7 @@
 // composed of the same elements). Laid out for the 3840x2160 canvas and read from 8-10 m: titles and
 // labels >= 104 px (>= 37 px cap at 1080p), all text in HTML (never inside SVG), so the legibility
 // check and scripts/check-fit.mjs measure chart labels like any other text.
-import type { ReactNode } from "react";
+import { useLayoutEffect, useRef, type ReactNode } from "react";
 import { useFit } from "@/hooks/useFit";
 
 /** smallest chart text on the 3840x2160 canvas (37 px cap height at 1080p); check-fit.mjs enforces it */
@@ -12,6 +12,24 @@ import { factorStatus } from "@/lib/status";
 
 import { GREEN, AMBER, cue, statusColor } from "./colors";
 
+/** A chart title: 110 px, shrinks to the 104 px chart-text floor (next to a wide value or legend)
+ *  before it would be shortened with …; measured after every render, since the neighbour changes. */
+export function Title({ text }: { text: string }) {
+  const ref = useRef<HTMLDivElement>(null);
+  useLayoutEffect(() => {
+    const el = ref.current;
+    if (!el) return;
+    el.style.fontSize = "110px";
+    if (el.scrollWidth > el.clientWidth + 1)
+      el.style.fontSize = `${Math.max(CHART_TEXT_MIN_PX, Math.floor((110 * el.clientWidth) / el.scrollWidth))}px`;
+  });
+  return (
+    <div ref={ref} className="text-[110px] text-zinc-300 uppercase tracking-wide font-medium tv-truncate">
+      {text}
+    </div>
+  );
+}
+
 export function Card({ title, aside, children, className = "" }: { title: string; aside?: ReactNode; children: ReactNode; className?: string }) {
   return (
     <div
@@ -20,7 +38,7 @@ export function Card({ title, aside, children, className = "" }: { title: string
       className={`h-full bg-zinc-900 border border-zinc-800 rounded-[48px] px-14 py-8 flex flex-col min-h-0 min-w-0 overflow-hidden ${className}`}
     >
       <div className="flex items-baseline justify-between gap-8 leading-none whitespace-nowrap min-w-0">
-        <div className="text-[110px] text-zinc-300 uppercase tracking-wide font-medium tv-truncate">{title}</div>
+        <Title text={title} />
         {aside && <div className="text-[110px] font-bold uppercase shrink-0">{aside}</div>}
       </div>
       <div className="flex-1 min-h-0 flex flex-col justify-center min-w-0">{children}</div>
@@ -86,7 +104,8 @@ export function SubLine({ children, fitKey }: { children: ReactNode; fitKey: str
   const ref = useFit<HTMLDivElement>(110, [fitKey], CHART_TEXT_MIN_PX);
   return (
     <div className="mt-8 min-w-0">
-      <div ref={ref} className="text-[110px] text-zinc-300 tv-truncate">{children}</div>
+      {/* data-secondary: the editor's audit only warns when this line is shortened with … */}
+      <div ref={ref} data-secondary className="text-[110px] text-zinc-300 tv-truncate">{children}</div>
     </div>
   );
 }

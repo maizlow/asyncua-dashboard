@@ -54,7 +54,7 @@ displays:
         title: Per skift
         items:
           - { id: d-table, kind: table, x: 0, y: 0, w: 12, h: 12, label: Senaste skiften, series: shifts, count: 8, columns: [label, good, oee] }
-          - { id: d-shiftbars, kind: bars, x: 12, y: 0, w: 12, h: 8, label: Per skift · OEE % · st, series: shifts, count: 3 }
+          - { id: d-shiftbars, kind: bars, x: 12, y: 0, w: 12, h: 8, label: Per skift · OEE · st, series: shifts, count: 3 }
           - { id: d-tag, kind: kpi, x: 12, y: 8, w: 6, h: 4, label: OEE (PLC), source: tag, tag: OEE, unit: "%", thresholds: [75, 85] }
           - { id: d-oee30, kind: kpi, x: 18, y: 8, w: 6, h: 4, label: OEE 30 d, metric: oee, period: 30d }
       3:

@@ -26,7 +26,7 @@ import {
   type ChartData,
   type ChartItem,
 } from "./metrics";
-import { BigValue, Card, FactorRow, NoData, SubLine, TargetStatus } from "./ui";
+import { BigValue, Card, FactorRow, NoData, SubLine, TargetStatus, Title } from "./ui";
 import { AMBER, GREEN, GRID_LINE, RED, TRACK, cue, statusColor, type Status } from "./colors";
 import { useSize } from "./useSize";
 
@@ -83,7 +83,7 @@ function KpiSub({ item, data }: { item: ChartItem; data: ChartData }) {
   let fitKey: string;
   if (m === "shift_window") {
     fitKey = shiftWindowText(data.details);
-    valueNode = <span className="font-mono">{fitKey}</span>;
+    valueNode = <span className="font-mono text-[1.08em]">{fitKey}</span>;
   } else {
     const v = item.source === "tag" && !item.period ? calcMetric(data, m) : calcMetric(data, m, item.period);
     const s = spec?.status && spec.status !== "target" ? metricStatus(m, v) : null;
@@ -252,7 +252,7 @@ export function GaugeElement({ item }: { item: ChartItem }) {
         </div>
         {target !== null && (
           <div className="absolute left-0 right-0 bottom-0 text-center text-[104px] leading-none text-zinc-300 whitespace-nowrap">
-            Mål <span className="font-mono text-zinc-100">{fmtFixed(target, v.metric ? (METRICS[v.metric].format === "int" ? 0 : 1) : item.decimals ?? 1)}</span>
+            Mål <span className="font-mono text-[1.08em] text-zinc-100">{fmtFixed(target, v.metric ? (METRICS[v.metric].format === "int" ? 0 : 1) : item.decimals ?? 1)}</span>
           </div>
         )}
       </div>
@@ -330,7 +330,7 @@ export function BarsElement({ item }: { item: ChartItem }) {
   return (
     <div data-fit data-chart className="h-full min-h-0 min-w-0 flex flex-col overflow-hidden">
       <div className="flex items-baseline justify-between gap-12 leading-none whitespace-nowrap min-w-0">
-        <div className="text-[110px] text-zinc-300 uppercase tracking-wide font-medium tv-truncate">{title(item)}</div>
+        <Title text={title(item)} />
         {anyTarget && (
           <div className="shrink-0 flex items-center gap-6 text-[104px] text-zinc-300">
             <span className="inline-block w-28 h-3 bg-white rounded" aria-hidden />
@@ -415,7 +415,7 @@ export function TrendElement({ item }: { item: ChartItem }) {
     >
       <div className={`flex-1 min-h-0 min-w-0 flex ${compact ? "mt-6" : "mt-8"} gap-6`}>
         {!compact && vals.length > 0 && (
-          <div className="flex flex-col justify-between text-[104px] leading-none text-zinc-300 font-mono tabular-nums whitespace-nowrap shrink-0 text-right">
+          <div className="flex flex-col justify-between text-[112px] leading-none text-zinc-300 font-mono tabular-nums whitespace-nowrap shrink-0 text-right">
             <span>{fmtAxis(y1 - pad)}</span>
             <span>{fmtAxis(y0 + pad)}</span>
           </div>
