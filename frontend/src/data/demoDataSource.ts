@@ -26,6 +26,8 @@ import { aggregateShifts, type ShiftRow } from "@/lib/shifts";
 import dashboardYaml from "../../../dashboard.yaml";
 // ?layout=stress: worst-case layout (long labels/units, 6-digit/negative values) for the fit check
 import stressYaml from "../../../docs/examples/stress.yaml";
+// ?layout=multi: two PLCs, two displays (?display=tv2 shows the packing line's own header text)
+import multiYaml from "../../../docs/examples/flera-displayer.yaml";
 
 const TICK_MS = 1000;
 const SNAPSHOT_EVERY_MS = 10_000;
@@ -390,7 +392,8 @@ export function createDemoDataSource(): DataSource {
   let sim: LineSim;
 
   const params = new URLSearchParams(window.location.search);
-  const layout: Layout = normaliseLayout(params.get("layout") === "stress" ? stressYaml : dashboardYaml);
+  const views = { stress: stressYaml, multi: multiYaml }[params.get("layout") ?? ""] ?? dashboardYaml;
+  const layout: Layout = normaliseLayout(views[params.get("display") ?? ""] ?? Object.values(views)[0]);
   /** Own grid screens -> OEE -> Shift pattern -> Alarms */
   const SCREEN_ORDER = demoScreenOrder(layout);
 

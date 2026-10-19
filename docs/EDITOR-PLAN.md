@@ -1,7 +1,10 @@
 # Plan: verktyg för att designa dashboards (editor)
 
-> **Status: inriktningen är beslutad** (Johans svar 19 okt 2026, se [Beslut](#beslut)). Etapp 0 (spik) är klar. Etapp 1
-> (dokument och renderare) genomförs nu. Resten väntar på avstämning.
+> **Status: inriktningen är beslutad** (Johans svar 19 okt 2026, se [Beslut](#beslut)). Etapp 0 (spik, PR #18) och
+> etapp 1 (dokument och renderare, PR #19) är klara. Resten väntar på avstämning. Etapp 1 i korthet: layoutdokumentet finns
+> i databasen (`layout_versions`), och `dashboard.yaml` importeras bara när filen har ändrats. Renderaren ritar på ett
+> rutnät med 24 × 12 rutor, och header-ytan kommer från dokumentet. Driften stöder fortfarande en PLC och en display
+> (etapp 4). Se [CONFIG.md](CONFIG.md#var-layouten-sparas-databasen).
 
 Målet är ett verktyg där man bygger TV-dashboards som vår från grunden: väljer elementtyper, kopplar OPC UA-taggar, drar och
 släpper, ändrar ordning och storlek, sätter tema och logotyper och publicerar till TV:n. Resultatet ska se **helt eget** ut

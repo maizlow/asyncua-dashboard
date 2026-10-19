@@ -1,4 +1,4 @@
-"""OPC UA node configuration, read from dashboard.yaml (see backend/dashboard_config.py, docs/CONFIG.md).
+"""OPC UA node configuration from the published layout (backend/layout_store.py, docs/CONFIG.md).
 
 Kept as a thin compatibility layer so the OPC modules can keep using
 ``config.DEFAULT_NODES``, ``config.SCREEN_NODES`` and ``config.DASHBOARD_DATA_NODES``.
@@ -8,16 +8,17 @@ because the YAML is being edited; ``main`` validates it explicitly at startup.
 
 from typing import Any
 
-from backend.dashboard_config import CONDITION_TYPE_NODE, get_dashboard
+from backend.dashboard_config import CONDITION_TYPE_NODE
+from backend.layout_store import get_runtime
 
 
 def __getattr__(name: str) -> Any:
-    dash = get_dashboard()
+    rt = get_runtime()
     if name == "DEFAULT_NODES":
-        return {"ConditionType": CONDITION_TYPE_NODE, "ProgramAlarms": dash.opc.alarms.strip()}
+        return {"ConditionType": CONDITION_TYPE_NODE, "ProgramAlarms": rt.connection.alarms.strip()}
     if name == "SCREEN_NODES":
-        return {"ActiveScreenNr": dash.opc.screen.active, "RequestedScreenNr": dash.opc.screen.requested}
+        return {"ActiveScreenNr": rt.display.screen.active, "RequestedScreenNr": rt.display.screen.requested}
     if name == "DASHBOARD_DATA_NODES":
         # Empty node id = TODO(PLC) placeholder -> skipped by the subscription
-        return dash.data_nodes()
+        return rt.data_nodes()
     raise AttributeError(name)

@@ -1,0 +1,61 @@
+# yaml-language-server: $schema=../layout.schema.json
+#
+# Exempel på layoutdokumentet (schema_version 2) med två PLC:er och två displayer, som beslutet
+# "en Fitlet3 per linje med flera displayer" kräver. Modellen är klar, men driften stöder en
+# anslutning och en display tills etapp 4 (python -m backend.layout_doc visar det som "Obs").
+schema_version: 2
+
+connections:
+  plc1:
+    name: PLC linje 3
+    url: opc.tcp://192.168.0.1:4840
+    alarms: ns=3;i=1815
+    tags:
+      ProductionCount: ns=3;s="DB Production TV"."dashboardData"."actual"
+      TargetCount: ns=3;s="DB Production TV"."dashboardData"."target"
+      ProductionState: ns=3;s="DB Production TV"."dashboardData"."prodState"
+      OEE: ns=3;s="DB Production TV"."dashboardData"."oee"
+  plc2:
+    name: PLC packning
+    url: opc.tcp://192.168.0.2:4840
+    tags:
+      PackCount: ns=3;s="DB Pack"."count"
+      PackState: ns=3;s="DB Pack"."state"
+
+displays:
+  tv1:
+    name: Linje 3 norr
+    connection: plc1
+    screen:
+      active: ns=3;s="DB Production TV"."screenHandler"."activeScreenNr"
+      requested: ns=3;s="DB Production TV"."screenHandler"."requestScreenNr"
+    screens:
+      1:
+        title: Larm
+        items:
+          - { id: tv1-larm, kind: alarms, x: 0, y: 0, w: 24, h: 12 }
+      2:
+        title: Produktion
+        items:
+          - { id: tv1-prod, kind: counter, x: 0, y: 0, w: 12, h: 12, label: Produktion, tag: ProductionCount, unit: st, target: TargetCount }
+          - { id: tv1-oee, kind: percent, x: 12, y: 0, w: 12, h: 6, label: OEE, tag: OEE, thresholds: [75, 85] }
+          - { id: tv1-state, kind: status, x: 12, y: 6, w: 12, h: 6, label: Linjeläge, tag: ProductionState, states: { 1: { text: STOPP, color: red }, 2: { text: KÖR, color: green } } }
+      3:
+        title: Highscore
+        items:
+          - { id: tv1-hs, kind: highscore, x: 0, y: 0, w: 24, h: 12 }
+  tv2:
+    name: Packning
+    connection: plc2
+    screen:
+      active: ns=3;s="DB Pack"."activeScreenNr"
+      requested: ns=3;s="DB Pack"."requestScreenNr"
+    header:
+      left: { kind: text, text: Linje 3 – packning }
+      center: { kind: clock }
+      right: { kind: logo, asset: vendor }
+    screens:
+      1:
+        title: Packning
+        items:
+          - { id: tv2-count, kind: counter, x: 0, y: 0, w: 24, h: 12, label: Packade, tag: PackCount, unit: st }

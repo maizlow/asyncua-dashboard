@@ -11,8 +11,8 @@ interface ImportMeta {
   readonly env: ImportMetaEnv;
 }
 
-/** dashboard.yaml imported via the dashboard-yaml plugin in vite.config.ts (screens + tag types). */
+/** A layout file imported via the dashboard-yaml plugin in vite.config.ts: { displayId: view }. */
 declare module "*.yaml" {
-  const value: unknown;
+  const value: Record<string, unknown>;
   export default value;
 }

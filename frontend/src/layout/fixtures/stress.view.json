@@ -1,0 +1,329 @@
+{
+  "schema_version": 2,
+  "version": null,
+  "display": {
+    "id": "tv1",
+    "name": null,
+    "theme": "abece-dark",
+    "header": {
+      "left": {
+        "kind": "logo",
+        "asset": "customer"
+      },
+      "center": {
+        "kind": "clock"
+      },
+      "right": {
+        "kind": "logo",
+        "asset": "vendor"
+      }
+    }
+  },
+  "displays": [
+    {
+      "id": "tv1",
+      "name": null
+    }
+  ],
+  "grid": {
+    "cols": 24,
+    "rows": 12
+  },
+  "screens": {
+    "1": {
+      "title": null,
+      "items": [
+        {
+          "id": "s1-1",
+          "kind": "alarms",
+          "x": 0,
+          "y": 0,
+          "w": 24,
+          "h": 12
+        }
+      ]
+    },
+    "2": {
+      "title": "Sex objekt, långa texter",
+      "items": [
+        {
+          "id": "s2-1",
+          "kind": "counter",
+          "x": 0,
+          "y": 0,
+          "w": 12,
+          "h": 4,
+          "label": "Överhettningsskyddet",
+          "tag": "ProductionCount",
+          "unit": "tjocka",
+          "target": "TargetCount"
+        },
+        {
+          "id": "s2-2",
+          "kind": "number",
+          "x": 12,
+          "y": 0,
+          "w": 12,
+          "h": 4,
+          "label": "MEDELTRYCK HYDRAULIK",
+          "tag": "Negative",
+          "unit": "mmmmmm",
+          "decimals": 1,
+          "trend": true
+        },
+        {
+          "id": "s2-3",
+          "kind": "percent",
+          "x": 0,
+          "y": 4,
+          "w": 12,
+          "h": 4,
+          "label": "OEE för hela skiftet",
+          "tag": "OEE",
+          "decimals": 1,
+          "trend": true,
+          "thresholds": [
+            75.0,
+            85.0
+          ],
+          "unit": "%"
+        },
+        {
+          "id": "s2-4",
+          "kind": "percent",
+          "x": 12,
+          "y": 4,
+          "w": 12,
+          "h": 4,
+          "label": "Kassation i procent",
+          "tag": "Scrap",
+          "decimals": 1,
+          "thresholds": [
+            2.0,
+            3.0
+          ],
+          "better": "low",
+          "unit": "%"
+        },
+        {
+          "id": "s2-5",
+          "kind": "status",
+          "x": 0,
+          "y": 8,
+          "w": 12,
+          "h": 4,
+          "label": "Linjeläge just nu",
+          "tag": "Mode",
+          "states": {
+            "1": {
+              "text": "STOPP",
+              "color": "red"
+            },
+            "2": {
+              "text": "KÖR",
+              "color": "green"
+            },
+            "3": {
+              "text": "UNDERHÅLLS",
+              "color": "amber"
+            }
+          }
+        },
+        {
+          "id": "s2-6",
+          "kind": "time",
+          "x": 12,
+          "y": 8,
+          "w": 12,
+          "h": 4,
+          "label": "Aktuell körtid total",
+          "tag": "CurrentRuntime"
+        }
+      ]
+    },
+    "3": {
+      "title": "Ett objekt",
+      "items": [
+        {
+          "id": "s3-1",
+          "kind": "counter",
+          "x": 0,
+          "y": 0,
+          "w": 24,
+          "h": 12,
+          "label": "Godkända idag",
+          "tag": "ProductionCount",
+          "unit": "st",
+          "target": 999999.0
+        }
+      ]
+    },
+    "4": {
+      "title": "Tre objekt",
+      "items": [
+        {
+          "id": "s4-1",
+          "kind": "number",
+          "x": 0,
+          "y": 0,
+          "w": 12,
+          "h": 6,
+          "label": "Ugnstemperatur zon 4",
+          "tag": "Temp",
+          "unit": "°C",
+          "decimals": 1,
+          "thresholds": [
+            200.0,
+            250.0
+          ],
+          "better": "low"
+        },
+        {
+          "id": "s4-2",
+          "kind": "number",
+          "x": 12,
+          "y": 0,
+          "w": 12,
+          "h": 6,
+          "label": "Ej kopplad tagg",
+          "tag": "NotYet",
+          "unit": "st"
+        },
+        {
+          "id": "s4-3",
+          "kind": "number",
+          "x": 0,
+          "y": 6,
+          "w": 12,
+          "h": 6,
+          "label": "Takt",
+          "tag": "TPM",
+          "unit": "TPM",
+          "trend": true
+        }
+      ]
+    },
+    "5": {
+      "title": null,
+      "items": [
+        {
+          "id": "s5-1",
+          "kind": "shift",
+          "x": 0,
+          "y": 0,
+          "w": 24,
+          "h": 12
+        }
+      ]
+    },
+    "6": {
+      "title": null,
+      "items": [
+        {
+          "id": "s6-1",
+          "kind": "oee",
+          "x": 0,
+          "y": 0,
+          "w": 24,
+          "h": 12
+        }
+      ]
+    },
+    "7": {
+      "title": null,
+      "items": [
+        {
+          "id": "s7-1",
+          "kind": "week",
+          "x": 0,
+          "y": 0,
+          "w": 24,
+          "h": 12
+        }
+      ]
+    },
+    "8": {
+      "title": null,
+      "items": [
+        {
+          "id": "s8-1",
+          "kind": "highscore",
+          "x": 0,
+          "y": 0,
+          "w": 24,
+          "h": 12
+        }
+      ]
+    }
+  },
+  "tags": {
+    "ProductionCount": {
+      "type": "auto",
+      "demo": 999999.0,
+      "placeholder": false
+    },
+    "TargetCount": {
+      "type": "auto",
+      "demo": 999999.0,
+      "placeholder": false
+    },
+    "ProductionState": {
+      "type": "auto",
+      "placeholder": false
+    },
+    "OEE": {
+      "type": "auto",
+      "demo": [
+        60.0,
+        99.9
+      ],
+      "placeholder": false
+    },
+    "TPM": {
+      "type": "auto",
+      "placeholder": false
+    },
+    "ShiftStart": {
+      "type": "time",
+      "placeholder": false
+    },
+    "ShiftEnd": {
+      "type": "time",
+      "placeholder": false
+    },
+    "CurrentRuntime": {
+      "type": "time",
+      "placeholder": false
+    },
+    "Negative": {
+      "type": "auto",
+      "demo": -99999.9,
+      "placeholder": false
+    },
+    "Scrap": {
+      "type": "auto",
+      "demo": [
+        0.0,
+        6.0
+      ],
+      "placeholder": false
+    },
+    "Temp": {
+      "type": "auto",
+      "demo": [
+        180.0,
+        999.9
+      ],
+      "placeholder": false
+    },
+    "Mode": {
+      "type": "auto",
+      "demo": 3.0,
+      "placeholder": false
+    },
+    "NotYet": {
+      "type": "auto",
+      "placeholder": true
+    }
+  }
+}

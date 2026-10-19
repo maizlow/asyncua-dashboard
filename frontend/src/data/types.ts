@@ -146,6 +146,8 @@ export type ServerMessage =
   | { type: "alarm_removed"; alarm_id: number | string; alarm?: Alarm }
   | { type: "shift_pattern_data"; data: ShiftPatternRow[] }
   | { type: "screen_change"; screen: number }
+  /** A new layout version was published (editor, etapp 2): reload GET /api/layout */
+  | { type: "layout_changed"; version: number }
   | { type: "oee_details"; data: OeeDetails }
   | { type: "daily_history"; data: DailyHistory }
   | { type: "highscores"; data: Highscores };
@@ -170,13 +172,13 @@ export interface DataSource {
   getDailyHistory(): Promise<DailyHistory | undefined>;
   /** Run-time highscores (GET /api/highscores). */
   getHighscores(): Promise<Highscores | undefined>;
-  /** Screens + items from dashboard.yaml. Rejects with LayoutError if the file is invalid. */
+  /** Screens, header and tag types of this display (?display=, default the first). Rejects with LayoutError if the layout is invalid. */
   getLayout(): Promise<Layout>;
   /** Ask for an immediate full_snapshot push (read-only, no PLC write). */
   requestSnapshot(): void;
 }
 
-/** dashboard.yaml failed validation; `details` are the "fil:rad nyckel → ...: fel" lines. */
+/** The layout (dashboard.yaml or the published version) failed validation; `details` are the "fil:rad nyckel → ...: fel" lines. */
 export class LayoutError extends Error {
   details: string[];
   constructor(details: string[]) {

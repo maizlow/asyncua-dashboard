@@ -5,6 +5,7 @@ import path from 'path'
 import fs from 'fs'
 import type { Plugin } from 'vite'
 import { parse as parseYaml } from 'yaml'
+import { displayViews } from './src/layout/doc'
 
 const isDemo = process.env.VITE_DEMO === 'true'
 
@@ -28,23 +29,17 @@ function excludePublicFiles(files: string[]): Plugin {
 }
 
 /**
- * `import layout from "../../dashboard.yaml"` -> plain JSON at build time (used by the demo build,
- * which has no backend). OPC settings and node ids are dropped: the browser only needs screens + tag types.
+ * `import views from "../../dashboard.yaml"` -> { displayId: view } at build time (used by the demo
+ * build, which has no backend). Same view JSON as GET /api/layout: node ids, URLs and OPC settings
+ * are dropped, the browser only gets screens, header and tag types. Accepts dashboard.yaml (v1) and
+ * layout documents (schema_version 2), see src/layout/doc.ts.
  */
 function dashboardYaml(): Plugin {
   return {
     name: 'dashboard-yaml',
     transform(code, id) {
       if (!id.endsWith('.yaml') && !id.endsWith('.yml')) return null
-      const raw = parseYaml(code) ?? {}
-      const tags = Object.fromEntries(
-        Object.entries(raw.tags ?? {}).map(([name, spec]) => {
-          if (spec === null || typeof spec !== 'object') return [name, { placeholder: !String(spec ?? '').trim() }]
-          const { node, ...rest } = spec as Record<string, unknown>
-          return [name, { ...rest, placeholder: !String(node ?? '').trim() }]
-        }),
-      )
-      return { code: `export default ${JSON.stringify({ screens: raw.screens ?? {}, tags })};`, map: null }
+      return { code: `export default ${JSON.stringify(displayViews(parseYaml(code) ?? {}))};`, map: null }
     },
   }
 }

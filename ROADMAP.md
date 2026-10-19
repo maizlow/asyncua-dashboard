@@ -97,6 +97,12 @@ Lägg till nya punkter som checklistor under rätt rubrik och flytta dem till **
 - [x] react-grid-layout v2 i den skalade canvasen: egen positionsstrategi klarar dra, storlek, kollision och gränser i alla testade fönsterstorlekar ([spikes/editor-rgl](spikes/editor-rgl/README.md))
 - [x] Typsnittsmått uppmätta, Puck förkastat för rutnätet
 
+### Editor etapp 1: layoutdokument och renderare ([PR #19](https://github.com/maizlow/asyncua-dashboard/pull/19))
+- [x] Layoutdokument (`schema_version: 2`): anslutningar (PLC:er), displayer med egen header-yta och skärmar med element på ett fast rutnät 24 × 12; exempel med två PLC:er och två displayer
+- [x] Databasen är källan: versioner i `layout_versions`, `dashboard.yaml` importeras första gången och sedan bara när filen ändrats (`LAYOUT_YAML_IMPORT`); `python -m backend.layout_store list|show|restore`
+- [x] `GET /api/layout?display=`, `GET /api/displays`, `layout_changed` laddar om TV:n; migrering v1 → v2 i backend och frontend mot gemensamma fixturer
+- [x] TV:n ser likadan ut (samma mått på alla element före och efter); header från dokumentet (logotyp, klocka, text, skärmtitel)
+
 ## Nästa
 
 ### Docker för drift på Fitlet3 (Linux, x86-64)
@@ -107,7 +113,7 @@ Lägg till nya punkter som checklistor under rätt rubrik och flytta dem till **
 - [ ] Ev. kioskläge i webbläsaren vid uppstart
 
 ## Planerat
-- [ ] Verktyg för att designa dashboards (editor med dra och släpp, OPC UA-bläddring, tema och logotyper per kund): plan i [docs/EDITOR-PLAN.md](docs/EDITOR-PLAN.md) (beslutad; etapp 0 klar)
+- [ ] Verktyg för att designa dashboards (editor med dra och släpp, OPC UA-bläddring, tema och logotyper per kund): plan i [docs/EDITOR-PLAN.md](docs/EDITOR-PLAN.md) (beslutad; etapp 0–1 klara)
 - [ ] Koppla nya OEE-taggar till riktiga nod-id i PLC:n (`GoodCount`, `RejectCount`, `ShiftTarget`, `OeeTarget`, `PlannedTime`, `ShiftTeam` i `dashboard.yaml`)
 - [ ] Raster på kända klockslag i tillgänglighetsberäkningen (idag `PlannedTime` pro rata, eller hela förflutna skifttiden)
 - [ ] Flytta hårdkodade värden till konfig:

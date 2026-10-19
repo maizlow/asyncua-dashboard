@@ -9,7 +9,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from backend.app import api_server
 from backend.app.routers import alarms, layout, metrics, websocket
 from backend.app.routers.websocket import broadcast_full_snapshot, broadcaster
-from backend.dashboard_config import ConfigError, get_dashboard
+from backend.dashboard_config import ConfigError
 from backend.opc import opc_client
 from backend.opc.data_logger import data_logger
 from backend.opc.oee import compute_oee_details
@@ -217,14 +217,20 @@ if __name__ == "__main__":
         level=settings.log_level, format="%(asctime)s %(levelname)s [%(threadName)s] %(name)s: %(message)s"
     )
     if threading.current_thread().name == "MainThread":
-        # Fail fast with readable errors (file:line key: message) if dashboard.yaml is invalid
+        # Published layout from SQLite; dashboard.yaml is imported the first time and when it has changed.
+        # Fail fast with readable errors (file:line key: message) if what would be used is invalid.
+        from backend.layout_store import LayoutStore, bootstrap
+
         try:
-            dashboard = get_dashboard()
+            runtime = asyncio.run(bootstrap(LayoutStore(), yaml_import=settings.layout_yaml_import))
         except ConfigError as e:
             logger.critical("%s", e)
             raise SystemExit(1) from None
-        logger.info("Dashboard config: %d screens, %d tags", len(dashboard.screens), len(dashboard.tags))
-        if settings.retention_days < 7 and any(s.type == "week" for s in dashboard.screens.values()):
+        logger.info(
+            "Layout version %s: display %s, %d screens, %d tags",
+            runtime.version, runtime.display_id, len(runtime.screens), len(runtime.tags),
+        )
+        if settings.retention_days < 7 and runtime.has_kind("week"):
             logger.warning(
                 "RETENTION_DAYS=%d < 7: the 7-day screen shows '–' for days older than the retained history",
                 settings.retention_days,

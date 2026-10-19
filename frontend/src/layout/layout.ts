@@ -1,15 +1,25 @@
 /**
- * Dashboard layout from dashboard.yaml (see docs/CONFIG.md).
- * Live: GET /api/layout (validated + normalised by the backend). Demo: the same YAML bundled at
- * build time. normaliseLayout() applies the same defaults so both look identical to the screens.
+ * Layout of one display (layout document schema_version 2, see docs/CONFIG.md).
+ * Live: GET /api/layout?display=… (validated by the backend, from the published version in SQLite).
+ * Demo: dashboard.yaml / a v2 file converted at build time (src/layout/doc.ts). Both give the same
+ * view JSON; normaliseLayout() turns it into what the screens use.
  */
+import { BUILTIN_KINDS, GRID_COLS, GRID_ROWS, documentView, toDocument, type HeaderSlotView } from "./doc";
 
 export type ColorName = "white" | "green" | "amber" | "red" | "grey";
 export type ItemType = "number" | "percent" | "counter" | "time" | "status";
-export type ScreenType = "grid" | "alarms" | "shift" | "oee" | "week" | "highscore";
+export type BuiltinKind = (typeof BUILTIN_KINDS)[number];
+export type ScreenType = "grid" | BuiltinKind;
+export type { HeaderSlotView };
 
 export interface ItemConfig {
+  id: string;
   type: ItemType;
+  /** Position + size in grid cells (24 x 12) */
+  x: number;
+  y: number;
+  w: number;
+  h: number;
   label: string;
   tag: string;
   unit?: string;
@@ -26,6 +36,7 @@ export interface ItemConfig {
 
 export interface ScreenConfig {
   nr: number;
+  /** A screen holding one full-size built-in (alarms, OEE, …) shows it; anything else is a grid */
   type: ScreenType;
   title?: string;
   items: ItemConfig[];
@@ -39,7 +50,18 @@ export interface TagConfig {
   placeholder: boolean;
 }
 
+export interface Header {
+  left: HeaderSlotView;
+  center: HeaderSlotView;
+  right: HeaderSlotView;
+}
+
 export interface Layout {
+  /** Published version in the backend (null in the demo) */
+  version: number | null;
+  display: { id: string; name: string | null; header: Header };
+  displays: { id: string; name: string | null }[];
+  grid: { cols: number; rows: number };
   screens: ScreenConfig[];
   tags: Record<string, TagConfig>;
 }
@@ -55,24 +77,30 @@ export const COLOR_VAR: Record<ColorName, string> = {
 type Raw = Record<string, unknown>;
 const isObj = (v: unknown): v is Raw => typeof v === "object" && v !== null && !Array.isArray(v);
 
+const isBuiltin = (k: unknown): k is BuiltinKind => (BUILTIN_KINDS as readonly unknown[]).includes(k);
+
 export function normaliseLayout(raw: unknown): Layout {
-  const root = isObj(raw) ? raw : {};
-  const rawScreens = isObj(root.screens) ? root.screens : {};
+  // The backend always sends a view; a bare file (old backend, tests) is converted the same way
+  const view: Raw = isObj(raw) && isObj(raw.display) ? raw : (documentView(toDocument(raw)) as unknown as Raw);
+  const display = isObj(view.display) ? view.display : {};
+  const header = (isObj(display.header) ? display.header : {}) as Partial<Header>;
+  const rawScreens = isObj(view.screens) ? view.screens : {};
   const screens: ScreenConfig[] = Object.entries(rawScreens)
     .map(([nr, s]) => {
       const scr = isObj(s) ? s : {};
-      const items = Array.isArray(scr.items) ? scr.items.filter(isObj).map(normaliseItem) : [];
+      const widgets = Array.isArray(scr.items) ? scr.items.filter(isObj) : [];
+      const builtin = widgets.length === 1 && isBuiltin(widgets[0].kind) ? widgets[0].kind : null;
       return {
         nr: Number(nr),
-        type: ((scr.type as ScreenType) ?? "grid") as ScreenType,
-        title: (scr.title as string | undefined) ?? undefined,
-        items,
+        type: builtin ?? ("grid" as ScreenType),
+        title: (scr.title as string | null | undefined) ?? undefined,
+        items: builtin ? [] : widgets.filter((w) => !isBuiltin(w.kind)).map(normaliseItem),
       };
     })
     .filter((s) => Number.isInteger(s.nr))
     .sort((a, b) => a.nr - b.nr);
 
-  const rawTags = isObj(root.tags) ? root.tags : {};
+  const rawTags = isObj(view.tags) ? view.tags : {};
   const tags: Record<string, TagConfig> = {};
   for (const [name, spec] of Object.entries(rawTags)) {
     const t = isObj(spec) ? spec : {};
@@ -82,11 +110,27 @@ export function normaliseLayout(raw: unknown): Layout {
       placeholder: t.placeholder === true,
     };
   }
-  return { screens, tags };
+  const grid = isObj(view.grid) ? view.grid : {};
+  return {
+    version: typeof view.version === "number" ? view.version : null,
+    display: {
+      id: String(display.id ?? "tv1"),
+      name: (display.name as string | null | undefined) ?? null,
+      header: {
+        left: header.left ?? { kind: "logo", asset: "customer" },
+        center: header.center ?? { kind: "clock" },
+        right: header.right ?? { kind: "logo", asset: "vendor" },
+      },
+    },
+    displays: Array.isArray(view.displays) ? (view.displays as Layout["displays"]) : [],
+    grid: { cols: Number(grid.cols ?? GRID_COLS), rows: Number(grid.rows ?? GRID_ROWS) },
+    screens,
+    tags,
+  };
 }
 
 function normaliseItem(i: Raw): ItemConfig {
-  const type = ((i.type as ItemType) ?? "number") as ItemType;
+  const type = ((i.kind as ItemType) ?? "number") as ItemType;
   const states = isObj(i.states)
     ? Object.fromEntries(
         Object.entries(i.states).map(([k, v]) => {
@@ -96,7 +140,12 @@ function normaliseItem(i: Raw): ItemConfig {
       )
     : undefined;
   return {
+    id: String(i.id ?? ""),
     type,
+    x: Number(i.x ?? 0),
+    y: Number(i.y ?? 0),
+    w: Number(i.w ?? GRID_COLS),
+    h: Number(i.h ?? GRID_ROWS),
     label: String(i.label ?? ""),
     tag: String(i.tag ?? ""),
     unit: (i.unit as string | undefined) ?? (type === "percent" ? "%" : undefined),
