@@ -26,13 +26,19 @@ Check the file with `python -m backend.dashboard_config` (errors point at line a
 autocompletion: [`docs/dashboard.schema.json`](docs/dashboard.schema.json).
 
 **The database is the source of truth for the layout.** The backend imports `dashboard.yaml` into SQLite as version 1
-on first start. After that, it imports the file again as a new version only when the file has changed
-(`LAYOUT_YAML_IMPORT=auto`; set `off` to stop reading it). It then serves the published version at
-`GET /api/layout?display=…`. The demo build bundles the same file.
+on first start. Before the editor is used, a changed file is imported again at start-up as a new version. After the
+first publish from the editor, the editor wins (`LAYOUT_YAML_IMPORT=auto`; `always` keeps importing, `off` never reads
+the file again). The backend serves the published version at `GET /api/layout?display=…`. The demo build bundles the
+same file.
 
-Internally the layout is a *layout document* (`schema_version: 2`): connections (PLCs) and displays (TVs), each display
-with its own header area and screens on a fixed 24 × 12 grid. Commands:
-- `python -m backend.layout_doc --migrate` shows the document converted from `dashboard.yaml`.
+Internally the layout is a *layout document* (`schema_version: 2`):
+- `connections` is a shared pool of PLCs.
+- `displays` are TVs. Each display can read several PLCs (tags are `plc2.Level`, or short names with a
+  `default_connection`), and PLCs are shared between displays with one OPC UA client per PLC.
+- Each display has its own header logos and screens on a fixed 24 × 12 grid.
+
+Commands:
+- `python -m backend.layout_doc --migrate` shows the converted document.
 - `python -m backend.layout_store list|show N|restore N` manages the versions.
 
 See [docs/CONFIG.md](docs/CONFIG.md#var-layouten-sparas-databasen) and the planned editor in

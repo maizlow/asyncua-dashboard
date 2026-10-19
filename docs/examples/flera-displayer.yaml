@@ -1,13 +1,14 @@
 # yaml-language-server: $schema=../layout.schema.json
 #
-# Exempel på layoutdokumentet (schema_version 2) med två PLC:er och två displayer, som beslutet
-# "en Fitlet3 per linje med flera displayer" kräver. Modellen är klar, men driften stöder en
-# anslutning och en display tills etapp 4 (python -m backend.layout_doc visar det som "Obs").
+# Layoutdokument (schema_version 2) med tre PLC:er och två displayer som delar dem: tv1 läser plc1, plc2 och plc3,
+# tv2 läser plc2 och plc3. Varje PLC får en enda OPC UA-anslutning i backend, hur många displayer som än använder den.
+# Modellen är klar, men driften stöder en anslutning och en display tills etapp 4 (python -m backend.layout_doc visar
+# det som "Obs").
 schema_version: 2
 
-connections:
+connections:                     # gemensam pool, en post per PLC
   plc1:
-    name: PLC linje 3
+    name: Linje 3 press
     url: opc.tcp://192.168.0.1:4840
     alarms: ns=3;i=1815
     tags:
@@ -16,46 +17,66 @@ connections:
       ProductionState: ns=3;s="DB Production TV"."dashboardData"."prodState"
       OEE: ns=3;s="DB Production TV"."dashboardData"."oee"
   plc2:
-    name: PLC packning
+    name: Glasyr
     url: opc.tcp://192.168.0.2:4840
     tags:
+      GlazeLevel: ns=3;s="DB Glaze"."level"
+      GlazeState: ns=3;s="DB Glaze"."state"
+  plc3:
+    name: Packning
+    url: opc.tcp://192.168.0.3:4840
+    alarms: ns=3;i=1815
+    tags:
       PackCount: ns=3;s="DB Pack"."count"
-      PackState: ns=3;s="DB Pack"."state"
+      ProductionState: ns=3;s="DB Pack"."state"
 
 displays:
   tv1:
     name: Linje 3 norr
-    connection: plc1
-    screen:
+    default_connection: plc1     # korta taggnamn (OEE) betyder plc1.OEE
+    screen:                      # skärmväxlingen styrs av en PLC
+      connection: plc1
       active: ns=3;s="DB Production TV"."screenHandler"."activeScreenNr"
       requested: ns=3;s="DB Production TV"."screenHandler"."requestScreenNr"
     screens:
       1:
         title: Larm
         items:
-          - { id: tv1-larm, kind: alarms, x: 0, y: 0, w: 24, h: 12 }
+          - { id: tv1-larm, kind: alarms, connection: plc1, x: 0, y: 0, w: 24, h: 12 }
       2:
         title: Produktion
         items:
-          - { id: tv1-prod, kind: counter, x: 0, y: 0, w: 12, h: 12, label: Produktion, tag: ProductionCount, unit: st, target: TargetCount }
+          - { id: tv1-prod, kind: counter, x: 0, y: 0, w: 12, h: 6, label: Produktion, tag: ProductionCount, unit: st, target: TargetCount }
           - { id: tv1-oee, kind: percent, x: 12, y: 0, w: 12, h: 6, label: OEE, tag: OEE, thresholds: [75, 85] }
-          - { id: tv1-state, kind: status, x: 12, y: 6, w: 12, h: 6, label: Linjeläge, tag: ProductionState, states: { 1: { text: STOPP, color: red }, 2: { text: KÖR, color: green } } }
+          - { id: tv1-glasyr, kind: percent, x: 0, y: 6, w: 12, h: 6, label: Glasyrnivå, tag: plc2.GlazeLevel, thresholds: [20, 40] }
+          - { id: tv1-pack, kind: counter, x: 12, y: 6, w: 12, h: 6, label: Packade, tag: plc3.PackCount, unit: st }
       3:
         title: Highscore
         items:
-          - { id: tv1-hs, kind: highscore, x: 0, y: 0, w: 24, h: 12 }
+          - { id: tv1-hs, kind: highscore, connection: plc1, x: 0, y: 0, w: 24, h: 12 }
   tv2:
     name: Packning
-    connection: plc2
+    default_connection: plc3
     screen:
+      connection: plc3
       active: ns=3;s="DB Pack"."activeScreenNr"
       requested: ns=3;s="DB Pack"."requestScreenNr"
-    header:
-      left: { kind: text, text: Linje 3 – packning }
-      center: { kind: clock }
-      right: { kind: logo, asset: vendor }
+    header: { left: none, right: vendor }   # logotyp eller none på var sida, klockan alltid i mitten
     screens:
       1:
         title: Packning
         items:
-          - { id: tv2-count, kind: counter, x: 0, y: 0, w: 24, h: 12, label: Packade, tag: PackCount, unit: st }
+          - { id: tv2-count, kind: counter, x: 0, y: 0, w: 12, h: 12, label: Packade, tag: PackCount, unit: st }
+          - id: tv2-glasyr
+            kind: status
+            x: 12
+            y: 0
+            w: 12
+            h: 12
+            label: Glasyr
+            tag: plc2.GlazeState
+            states: { 1: { text: STOPP, color: red }, 2: { text: KÖR, color: green } }
+      2:
+        title: Highscore packning
+        items:
+          - { id: tv2-hs, kind: highscore, connection: plc3, x: 0, y: 0, w: 24, h: 12 }

@@ -178,7 +178,7 @@ export function ScreenManager() {
       case "week":
         return <WeekScreen />;
       case "highscore":
-        return <HighscoreScreen />;
+        return <HighscoreScreen connection={screen.connection} />;
       case "grid":
         return <GridScreen key={screen.nr} screen={screen} />;
       default:

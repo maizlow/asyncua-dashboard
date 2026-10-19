@@ -136,12 +136,18 @@ export interface Highscores {
 }
 
 export type ServerMessage =
-  | { type: "data_update"; key: string; value: MetricValue }
+  /** key = tag name within `connection` (backend), or a qualified key without `connection` (demo) */
+  | { type: "data_update"; connection?: string; key: string; value: MetricValue }
   | {
       type: "full_snapshot";
+      connection?: string;
+      /** OPC UA connection status per connection */
+      connected?: Record<string, boolean>;
       data: Record<string, MetricValue>;
       histories: Record<string, MetricValue[]>;
     }
+  /** A PLC's OPC UA connection went up or down */
+  | { type: "connection_status"; connection: string; connected: boolean }
   | { type: "alarm_added"; alarm_id: number | string; alarm: Alarm }
   | { type: "alarm_removed"; alarm_id: number | string; alarm?: Alarm }
   | { type: "shift_pattern_data"; data: ShiftPatternRow[] }

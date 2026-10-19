@@ -4,13 +4,13 @@
  * Demo: dashboard.yaml / a v2 file converted at build time (src/layout/doc.ts). Both give the same
  * view JSON; normaliseLayout() turns it into what the screens use.
  */
-import { BUILTIN_KINDS, GRID_COLS, GRID_ROWS, documentView, toDocument, type HeaderSlotView } from "./doc";
+import { BUILTIN_KINDS, GRID_COLS, GRID_ROWS, documentView, toDocument, type LogoAsset } from "./doc";
 
 export type ColorName = "white" | "green" | "amber" | "red" | "grey";
 export type ItemType = "number" | "percent" | "counter" | "time" | "status";
 export type BuiltinKind = (typeof BUILTIN_KINDS)[number];
 export type ScreenType = "grid" | BuiltinKind;
-export type { HeaderSlotView };
+export type { LogoAsset };
 
 export interface ItemConfig {
   id: string;
@@ -38,6 +38,8 @@ export interface ScreenConfig {
   nr: number;
   /** A screen holding one full-size built-in (alarms, OEE, …) shows it; anything else is a grid */
   type: ScreenType;
+  /** Built-in screens: the PLC (line) they show */
+  connection?: string;
   title?: string;
   items: ItemConfig[];
 }
@@ -50,10 +52,10 @@ export interface TagConfig {
   placeholder: boolean;
 }
 
+/** Logos left and right (or none); the clock is always in the middle */
 export interface Header {
-  left: HeaderSlotView;
-  center: HeaderSlotView;
-  right: HeaderSlotView;
+  left: LogoAsset;
+  right: LogoAsset;
 }
 
 export interface Layout {
@@ -61,6 +63,8 @@ export interface Layout {
   version: number | null;
   display: { id: string; name: string | null; header: Header };
   displays: { id: string; name: string | null }[];
+  /** PLCs this display reads from: id -> display name */
+  connections: Record<string, { name: string | null }>;
   grid: { cols: number; rows: number };
   screens: ScreenConfig[];
   tags: Record<string, TagConfig>;
@@ -93,6 +97,7 @@ export function normaliseLayout(raw: unknown): Layout {
       return {
         nr: Number(nr),
         type: builtin ?? ("grid" as ScreenType),
+        connection: builtin ? ((widgets[0].connection as string | undefined) ?? undefined) : undefined,
         title: (scr.title as string | null | undefined) ?? undefined,
         items: builtin ? [] : widgets.filter((w) => !isBuiltin(w.kind)).map(normaliseItem),
       };
@@ -116,13 +121,10 @@ export function normaliseLayout(raw: unknown): Layout {
     display: {
       id: String(display.id ?? "tv1"),
       name: (display.name as string | null | undefined) ?? null,
-      header: {
-        left: header.left ?? { kind: "logo", asset: "customer" },
-        center: header.center ?? { kind: "clock" },
-        right: header.right ?? { kind: "logo", asset: "vendor" },
-      },
+      header: { left: header.left ?? "customer", right: header.right ?? "vendor" },
     },
     displays: Array.isArray(view.displays) ? (view.displays as Layout["displays"]) : [],
+    connections: isObj(view.connections) ? (view.connections as Layout["connections"]) : {},
     grid: { cols: Number(grid.cols ?? GRID_COLS), rows: Number(grid.rows ?? GRID_ROWS) },
     screens,
     tags,

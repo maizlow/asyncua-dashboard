@@ -103,6 +103,12 @@ Lägg till nya punkter som checklistor under rätt rubrik och flytta dem till **
 - [x] `GET /api/layout?display=`, `GET /api/displays`, `layout_changed` laddar om TV:n; migrering v1 → v2 i backend och frontend mot gemensamma fixturer
 - [x] TV:n ser likadan ut (samma mått på alla element före och efter); header från dokumentet (logotyp, klocka, text, skärmtitel)
 
+### Editor etapp 2a: flera PLC:er per display i modellen ([PR #20](https://github.com/maizlow/asyncua-dashboard/pull/20))
+- [x] `connections` är en gemensam pool, displayer läser flera PLC:er och delar dem (taggar `plc2.OEE` eller korta med `default_connection`), skärmväxlingen och inbyggda skärmar anger sin anslutning; validering med rad och nyckel; äldre versioner läses
+- [x] Prenumerationsplan med en klient per PLC och en prenumeration per nod (`subscription_plan`), värden per display (`display_keys`); WebSocket-meddelanden bär `connection`, TV:n håller isär PLC:erna och visar `–` och ⚠ när en PLC tappar kontakten (`connection_status`)
+- [x] Headern har bara logotyp, klocka och logotyp (`left`/`right`: `customer`, `vendor` eller `none`)
+- [x] `LAYOUT_YAML_IMPORT=auto` importerar en ändrad `dashboard.yaml` bara tills editorn publicerat; `always` och `off`
+
 ## Nästa
 
 ### Docker för drift på Fitlet3 (Linux, x86-64)

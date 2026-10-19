@@ -1,6 +1,10 @@
 import { useServerMessages } from "./useWebSocket";
 import { useAlarmStore } from "@/stores/useAlarmStore";
 import { useMetricsStore } from "@/stores/useMetricsStore";
+import { qualifiedKey } from "@/lib/connection";
+
+const qualifyAll = <T,>(connection: string | undefined, rec: Record<string, T> | undefined) =>
+  Object.fromEntries(Object.entries(rec ?? {}).map(([k, v]) => [qualifiedKey(connection, k), v]));
 
 /**
  * Routes pushed messages into the global stores. Mounted once (in App) so data keeps
@@ -9,11 +13,16 @@ import { useMetricsStore } from "@/stores/useMetricsStore";
 export function useDataFeed() {
   useServerMessages((msg) => {
     switch (msg.type) {
+      // The backend sends tag names within a connection; the demo sends qualified keys already
       case "data_update":
-        useMetricsStore.getState().applyUpdate(msg.key, msg.value);
+        useMetricsStore.getState().applyUpdate(qualifiedKey(msg.connection, msg.key), msg.value);
         break;
       case "full_snapshot":
-        useMetricsStore.getState().applySnapshot(msg.data, msg.histories);
+        useMetricsStore.getState().applySnapshot(qualifyAll(msg.connection, msg.data), qualifyAll(msg.connection, msg.histories), msg.connection);
+        for (const [c, up] of Object.entries(msg.connected ?? {})) useMetricsStore.getState().setConnected(c, up);
+        break;
+      case "connection_status":
+        useMetricsStore.getState().setConnected(msg.connection, msg.connected);
         break;
       case "shift_pattern_data":
         if (Array.isArray(msg.data)) useMetricsStore.getState().setShiftPattern(msg.data);
