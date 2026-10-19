@@ -101,3 +101,18 @@ def test_cli_add_prompts_for_the_password(db, monkeypatch, capsys):
     assert OTHER in capsys.readouterr().out
     answers = iter([PW, PW2])
     assert users._cli(["passwd", OTHER]) == 1
+
+
+def test_cookie_is_secure_only_over_https(store):
+    """Plain HTTP today (no Secure flag, docs/DRIFT.md); behind a TLS proxy the cookie becomes Secure by itself."""
+    from uvicorn.middleware.proxy_headers import ProxyHeadersMiddleware
+
+    login = {"json": {"name": USER, "password": PW}}
+    plain = TestClient(create_app()).post("/api/editor/login", headers=H, **login)
+    assert "secure" not in plain.headers["set-cookie"].lower()
+    direct = TestClient(create_app(), base_url="https://testserver").post("/api/editor/login", headers=H, **login)
+    assert "; secure" in direct.headers["set-cookie"].lower()
+    # What uvicorn does with proxy_headers=True (api_server.py) for a trusted proxy setting X-Forwarded-Proto
+    proxied = TestClient(ProxyHeadersMiddleware(create_app(), trusted_hosts="*"))
+    r = proxied.post("/api/editor/login", headers={**H, "X-Forwarded-Proto": "https", "X-Forwarded-For": "10.0.0.7"}, **login)
+    assert "; secure" in r.headers["set-cookie"].lower()

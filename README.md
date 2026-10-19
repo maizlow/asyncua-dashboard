@@ -54,6 +54,13 @@ The editor never writes to the PLC; its previews use simulated values. The demo 
 https://maizlow.github.io/asyncua-dashboard/editor/ has no login and no backend and uses fake node ids. See
 [docs/CONFIG.md](docs/CONFIG.md#editorn-konton-och-inloggning).
 
+## Running in production
+
+Build the frontend (`cd frontend && npm run build`), then `python -m backend.app.main`. The backend serves the TV view at
+`/`, the editor at `/editor/`, the API and `/ws` on one port (`HTTP_PORT`, default 8000). It is plain HTTP for now, so
+the editor login travels unencrypted on the plant network. 📖 **[docs/DRIFT.md](docs/DRIFT.md)** (svenska) covers the
+settings, caching, the Docker plan and how to add HTTPS with a TLS proxy.
+
 ## Demo mode / preview
 
 The frontend can run without backend or PLC using built-in simulated data:

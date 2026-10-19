@@ -55,6 +55,14 @@ class Settings(BaseSettings):
     # (from then on the layout is changed in the editor), "always" also after that, "off" never again.
     layout_yaml_import: Literal["auto", "always", "off"] = Field(default="auto", alias="LAYOUT_YAML_IMPORT")
 
+    # ===================== Web server (TV view, editor, API and WebSocket on one port) =====================
+    http_host: str = Field(default="0.0.0.0", alias="HTTP_HOST")
+    http_port: int = Field(default=8000, alias="HTTP_PORT")
+    # Built frontend (npm run build). Empty = frontend/dist in the project root; relative = from the project root
+    frontend_dist: str = Field(default="", alias="FRONTEND_DIST")
+    # Proxies trusted for X-Forwarded-Proto/For (a TLS proxy in front, docs/DRIFT.md). Comma-separated or *
+    forwarded_allow_ips: str = Field(default="127.0.0.1", alias="FORWARDED_ALLOW_IPS")
+
     model_config = {
         "env_file": BASE_DIR / ".env",     # ← Force it to look in project root
         "env_file_encoding": "utf-8",
@@ -67,6 +75,11 @@ class Settings(BaseSettings):
             self.client_cert_path = base_path / Path(self.client_cert).name
         if self.client_key:
             self.client_key_path = base_path / Path(self.client_key).name
+
+    @property
+    def frontend_dist_path(self) -> Path:
+        path = Path(self.frontend_dist) if self.frontend_dist else Path("frontend/dist")
+        return path if path.is_absolute() else BASE_DIR / path
 
 
 settings = Settings()
