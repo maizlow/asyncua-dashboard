@@ -148,10 +148,21 @@ Lägg till nya punkter som checklistor under rätt rubrik och flytta dem till **
 - [x] Demon på Pages: påhittad S7-1500 per PLC i webbläsaren, inga nätverksanrop
 - [x] Enhetstest (typkontroll, namnförslag, demons adressrymd) och Playwright (bläddra, sök, välj, varna, tangenter)
 
+### OPC: anonym anslutning utan användare ([PR #31](https://github.com/maizlow/asyncua-dashboard/pull/31))
+- [x] Utan `OPC_USERNAME` ansluter dashboarden anonymt med bara certifikatet, som bläddringen; tidigare återanslutning i all oändlighet med "Password must be a string"
+- [x] Test mot en asyncua-server med Basic256Sha256 Sign & Encrypt
+
+### Drift: backend serverar TV och editor på en port ([PR #32](https://github.com/maizlow/asyncua-dashboard/pull/32))
+- [x] FastAPI serverar det byggda gränssnittet: TV-vyn på `/`, editorn på `/editor/` (med fallback för klientsidans sökvägar), samma port som `/api` och `/ws`
+- [x] `Cache-Control`: hashade `assets/` ett år (`immutable`), sidor och logotyper `no-cache`; saknade filer och okända `/api/…` ger 404, aldrig HTML
+- [x] `HTTP_HOST`, `HTTP_PORT`, `FRONTEND_DIST`, `FORWARDED_ALLOW_IPS`, `GET /api/health`
+- [x] Ingen HTTPS än: begränsningen och hur en TLS-proxy läggs till i [docs/DRIFT.md](docs/DRIFT.md)
+- [x] Pytest för serveringen och Playwright-röktest mot den riktiga backend (CI-jobbet *Production serving*)
+
 ## Nästa
 
 ### Docker för drift på Fitlet3 (Linux, x86-64)
-- [ ] Multi-stage Docker-build där FastAPI serverar den byggda frontenden
+- [ ] Multi-stage Docker-build (FastAPI serverar redan den byggda frontenden, se [docs/DRIFT.md](docs/DRIFT.md#docker))
 - [ ] `docker-compose.yml` där `.env`, certifikat och databas monteras in
 - [ ] Image publiceras till GHCR vid merge till `main`
 - [ ] Uppdatering via `docker compose pull && docker compose up -d`
@@ -171,6 +182,7 @@ Lägg till nya punkter som checklistor under rätt rubrik och flytta dem till **
 Skärmnummer (`ActiveScreenNr`) styrs av `screens:` i `dashboard.yaml`; exempelfilen: 1 = Larm, 2 = Dashboard, 3 = Skiftmönster, 4 = OEE, 5 = 7 dagar, 6 = Highscore.
 
 ## Drift / att göra utanför koden
+- [ ] HTTPS via en TLS-proxy framför backend och ett certifikat som TV:erna litar på ([docs/DRIFT.md](docs/DRIFT.md#lägga-till-https-senare))
 - [ ] Byt lösenord för OPC-användaren `iot_user`
 - [ ] Nytt klientcertifikat och sluta lita på det gamla i S7-1500
 - [ ] Ev. be GitHub Support rensa gamla cachade commits

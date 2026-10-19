@@ -166,9 +166,9 @@ flowchart LR
 - **Skärmväxlingen** fungerar som idag: PLC:n begär en skärm, backend kvitterar genom att skriva `ActiveScreenNr` till
   PLC:n, och TV:n skriver aldrig. Det är den enda skrivningen till PLC:n. Den görs av backendens drift, aldrig av editorn.
 
-- **En backend, två appar:** FastAPI serverar både TV-appen (`/`) och editorn (`/editor`) från samma byggda frontend
-  (Vite multi-page). Detta hänger ihop med "Docker för drift på Fitlet3" i ROADMAP, där FastAPI ändå ska servera
-  frontenden. TV:ns kioskwebbläsare öppnar aldrig `/editor`.
+- **En backend, två appar:** FastAPI serverar både TV-appen (`/`) och editorn (`/editor/`) från samma byggda frontend
+  (Vite multi-page), på samma port som API:t och `/ws` (byggt, se [DRIFT.md](DRIFT.md)). Detta hänger ihop med "Docker
+  för drift på Fitlet3" i ROADMAP. TV:ns kioskwebbläsare öppnar aldrig `/editor`.
 - **Delad renderare:** samma React-komponenter ritar skärmen på TV:n, i editorns canvas och i förhandsvisningen, så det man
   ser i editorn är exakt det TV:n visar. Koden delas upp i `renderer/` (TV och editor), `tv/` och `editor/`.
 - **Editorn ska fungera på en bärbar dator i fabriksnätet** (Chrome/Edge, mus och tangentbord). Surfplatta med touch är bra
@@ -582,7 +582,8 @@ Editor-delen, med inloggning, under `/api/editor`:
     samma adress. Byggt i etapp 2a, se [CONFIG.md](CONFIG.md#editorn-konton-och-inloggning).
   - **Demo-editorn** (Pages) har ingen inloggning och ingen backend. Den använder påhittade nod-id och `localStorage`.
   - Editorn kan bindas till ett eget gränssnitt eller en egen port, så den inte nås från TV-nätet.
-  - HTTPS med ett lokalt certifikat rekommenderas.
+  - HTTPS med ett lokalt certifikat rekommenderas. **Beslut (Johan):** först utan HTTPS. Begränsningen och hur en
+    TLS-proxy läggs till utan kodändring står i [DRIFT.md](DRIFT.md#känd-begränsning-ingen-https).
 - **Aldrig skrivning till PLC:n:**
   - Bläddrings-API:t går genom en omslagsklass som bara exponerar Browse, Read och tillfälliga prenumerationer.
   - Ett test kontrollerar att ingen kod under `/api/editor` anropar asyncuas `write_value`/`set_value`.

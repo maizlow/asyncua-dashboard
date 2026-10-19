@@ -52,8 +52,8 @@ Backend läser layouten vid start. En publicering från editorn laddar om TV:n d
 
 ## Editorn: konton och inloggning
 
-Editorn finns på **`/editor/`**, bredvid TV-vyn (`/`), t.ex. `http://fitlet3:5173/editor/`. Vite proxar `/api` till
-backend. Den gör bara ändringar i layouten: den skriver aldrig till PLC:n, och värdena i förhandsvisningen är simulerade.
+Editorn finns på **`/editor/`**, bredvid TV-vyn (`/`). I drift serverar backend båda på samma port, t.ex.
+`http://fitlet3:8000/editor/`, se [DRIFT.md](DRIFT.md). Under utveckling kör Vite på 5173 och proxar `/api` till backend. Den gör bara ändringar i layouten: den skriver aldrig till PLC:n, och värdena i förhandsvisningen är simulerade.
 
 **Konton (två, inga roller, ingen registreringssida):** de skapas på servern, från projektets rotmapp:
 
@@ -70,6 +70,8 @@ python -m backend.users remove johan
 - **Skydd:** varje ändrande anrop kräver huvudet `X-Editor: 1`, så en annan webbplats kan inte skicka formulär i ditt
   namn. Efter 5 felaktiga inloggningar från samma adress spärras inloggningen i 5 minuter.
 - **Nätverket:** editorn är tänkt för fabriksnätet. Exponera den inte mot internet.
+- **Ingen HTTPS än:** inloggningen och sessionskakan går okrypterade över nätet. Läs
+  [DRIFT.md](DRIFT.md#känd-begränsning-ingen-https) om vad det innebär och hur HTTPS läggs till senare.
 
 **Demo-editorn** på GitHub Pages
 ([maizlow.github.io/asyncua-dashboard/editor/](https://maizlow.github.io/asyncua-dashboard/editor/)):
