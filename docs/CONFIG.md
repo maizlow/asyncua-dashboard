@@ -308,6 +308,17 @@ screens:        # skärmar: nummer -> typ och objekt
 
 PLC:n styr alltid vilken skärm som visas. Dashboarden är bara för visning; den enda skrivningen är kvittensen av aktiv skärm.
 
+**Inloggning mot PLC:n.** Anslutningen är alltid krypterad (Basic256Sha256, Sign & Encrypt) med klientcertifikatet
+`CLIENT_CERT`/`CLIENT_KEY`. Användare och lösenord är valfria:
+
+- `OPC_USERNAME` tom eller saknas: anonym session, bara certifikatet identifierar dashboarden. PLC:n måste då
+  tillåta anonym åtkomst (i TIA Portal: *Guest authentication* på OPC UA-servern). Ett `OPC_PASSWORD` utan
+  användare ignoreras (med en varning i loggen).
+- `OPC_USERNAME` satt: inloggning med användare och lösenord. Saknas `OPC_PASSWORD` skickas ett tomt lösenord.
+
+Samma regel gäller dashboardens egen klient och bläddringen i editorn. (Före rättningen försökte dashboarden
+ansluta om och om igen med felet `Password must be a string` när variablerna saknades helt i `.env`.)
+
 ## Taggar (`tags`)
 
 En tagg är ett namn för en PLC-variabel. Namnet skriver du en gång här och använder sedan i objekten.
