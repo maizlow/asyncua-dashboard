@@ -135,6 +135,12 @@ Lägg till nya punkter som checklistor under rätt rubrik och flytta dem till **
 - [x] Demo-editorn på Pages med versioner i `localStorage`; TV-demon i samma webbläsare visar den publicerade demoversionen
 - [x] Playwright-test för publicera, återställa, utkast efter omladdning, spärr vid fel och export
 
+### Editor etapp 3a: bläddra i PLC:n, API ([PR #27](https://github.com/maizlow/asyncua-dashboard/pull/27))
+- [x] `GET /api/editor/opcua/{anslutning}/browse|read|search` bakom editorns inloggning, bara läsning (Browse/Read, aldrig skrivning eller prenumeration)
+- [x] Egen kortlivad session per PLC (stängs efter 60 s), ett anrop i taget, tidsgränser, tak för barn och sökning, gräns per användare
+- [x] Datatyp, åtkomst, array och om noden har barn; tydliga fel på svenska när PLC:n inte nås
+- [x] Test mot en asyncua-testserver byggd som en S7-1500 (bläddra, läsa, sök, tak, ej nåbar PLC, bara läsning)
+
 ## Nästa
 
 ### Docker för drift på Fitlet3 (Linux, x86-64)

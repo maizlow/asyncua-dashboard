@@ -139,6 +139,39 @@ python -m backend.users remove johan
 - **Demo-editorn** (<https://maizlow.github.io/asyncua-dashboard/editor/>) sparar versioner och utkast bara i
   webbläsaren. TV-demon i samma webbläsare visar den publicerade demoversionen. **Återställ demo** tömmer lagringen.
 
+### Bläddra i PLC:n (OPC UA)
+
+Editorn kan bläddra i PLC:ns adressrymd, söka och läsa ett värde. **Den läser bara:** inget anrop kan skriva till PLC:n,
+anropa metoder eller skapa prenumerationer.
+
+- **Session:** backend öppnar en egen kortlivad OPC UA-session mot PLC:n vid första anropet. Den använder samma
+  certifikat, användare och lösenord som dashboarden (`CLIENT_CERT`, `CLIENT_KEY`, `OPC_USERNAME`, `OPC_PASSWORD`).
+  Sessionen stängs efter 60 s utan anrop, och dashboardens egen anslutning påverkas inte. PLC:n behöver tillåta en
+  session till. En S7-1500 tillåter flera; högsta antalet beror på CPU:n och ställs in i TIA Portal (OPC UA-servern).
+- **Vilken PLC:** anslutningen ska finnas i den publicerade layouten med `url`. För den anslutning som driften kör gäller
+  `OPC_ENDPOINT_URL` i `.env` först.
+- **Gränser, för att inte belasta PLC:n:** ett anrop i taget per PLC, högst 200 noder per nivå (500 på begäran) och 40
+  anrop per 10 s och användare. Sökningen går högst 8 nivåer, 3000 noder, 100 träffar eller 10 s, och hoppar över
+  serverns egen diagnostik.
+- **API**, bara GET och bara för inloggade editorkonton:
+
+  | Sökväg | Svar |
+  |---|---|
+  | `/api/editor/opcua/plc1/browse?node=ns=3;s=PLC_1` | barnen en nivå ned: nod-id, namn, nodklass, datatyp, åtkomst, array, har barn |
+  | `/api/editor/opcua/plc1/read?node=…` | värde, datatyp, åtkomst och status för en variabel |
+  | `/api/editor/opcua/plc1/search?q=oee` | träffar med sökväg, och om sökningen stoppades av ett tak |
+
+- **Felmeddelanden:**
+
+  | Meddelande (början) | Betyder |
+  |---|---|
+  | Kan inte nå PLC:n 'plc1' (…): anslutningen nekades | PLC:n svarar inte på porten (fel port, OPC UA-servern avstängd) |
+  | Kan inte nå PLC:n 'plc1' (…): inget svar inom 6 s | fel adress, eller nätverket når inte PLC:n |
+  | … PLC:n nekade sessionen | certifikatet är inte betrott i PLC:n, eller fel användare/lösenord |
+  | Noden finns inte i PLC:n | nod-id:t finns inte (t.ex. omdöpt DB) |
+  | PLC:n tillåter inte att noden läses | åtkomsten i TIA Portal |
+  | För många anrop mot PLC:n | vänta några sekunder |
+
 ## Layoutdokumentet (schema_version 2)
 
 I databasen sparas layouten som ett **layoutdokument**:
