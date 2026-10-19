@@ -1,8 +1,9 @@
-"""Dashboard configuration (dashboard.yaml): OPC UA nodes, tags and screens.
+"""dashboard.yaml, version 1 of the configuration: OPC UA nodes, tags and screens.
 
-The YAML file is the single place where an automation engineer binds dashboard items to PLC
-tags. It is loaded and validated here (pydantic); errors point at the file line and key path.
-Secrets (password, certificate paths) stay in .env.
+Loaded and validated here (pydantic); errors point at the file line and key path. Secrets
+(password, certificate paths) stay in .env. The running backend uses the layout document
+(backend/layout_doc.py, stored with versions in SQLite); this file is imported into it via
+``layout_doc.migrate_v1`` (see backend/layout_store.py and docs/CONFIG.md).
 
     python -m backend.dashboard_config [dashboard.yaml]     # validate, exit 1 on errors
     python -m backend.dashboard_config --schema              # print the JSON schema
@@ -14,7 +15,6 @@ import difflib
 import json
 import os
 import sys
-from functools import lru_cache
 from pathlib import Path
 from typing import Annotated, Any, Literal
 
@@ -310,36 +310,26 @@ def _cross_check(d: Dashboard) -> list[tuple[tuple, str]]:
                 )
 
         for i, item in enumerate(screen.items):
-            loc = (*base, "items", i)
-            if item.tag not in tags:
-                problems.append(((*loc, "tag"), f"okänd tagg '{item.tag}'{_suggest(item.tag, tags)}"))
-            if isinstance(item.target, str) and item.target not in tags:
-                problems.append(((*loc, "target"), f"okänd tagg '{item.target}'{_suggest(item.target, tags)}"))
-            if item.thresholds and item.thresholds[0] > item.thresholds[1]:
-                problems.append(((*loc, "thresholds"), "skriv [varning, bra] med det lägre värdet först"))
-            if item.type == "status" and not item.states:
-                problems.append(((*loc, "states"), "status-objekt behöver states (PLC-värde → text och färg)"))
-            if item.type != "status" and item.states:
-                problems.append(((*loc, "states"), "states används bara med type: status"))
-            if item.type in ("time", "status") and (item.target is not None or item.trend or item.thresholds):
-                problems.append((loc, f"type: {item.type} stöder inte target/trend/thresholds"))
+            problems += item_problems(item, tags, (*base, "items", i))
     return problems
 
 
-@lru_cache(maxsize=1)
-def get_dashboard() -> Dashboard:
-    """The configured dashboard (loaded once). Raises ConfigError if invalid.
-
-    Path: DASHBOARD_CONFIG (environment or .env), else dashboard.yaml in the project root.
-    """
-    path = None
-    try:
-        from backend.settings import settings
-
-        path = settings.dashboard_config
-    except Exception:  # settings need .env values; the YAML itself doesn't
-        pass
-    return load_dashboard(path)
+def item_problems(item, tags: set[str], loc: tuple) -> list[tuple[tuple, str]]:
+    """Rules for one value element (version 1 items and version 2 widgets, see layout_doc)."""
+    problems: list[tuple[tuple, str]] = []
+    if item.tag not in tags:
+        problems.append(((*loc, "tag"), f"okänd tagg '{item.tag}'{_suggest(item.tag, tags)}"))
+    if isinstance(item.target, str) and item.target not in tags:
+        problems.append(((*loc, "target"), f"okänd tagg '{item.target}'{_suggest(item.target, tags)}"))
+    if item.thresholds and item.thresholds[0] > item.thresholds[1]:
+        problems.append(((*loc, "thresholds"), "skriv [varning, bra] med det lägre värdet först"))
+    if item.type == "status" and not item.states:
+        problems.append(((*loc, "states"), "status-objekt behöver states (PLC-värde → text och färg)"))
+    if item.type != "status" and item.states:
+        problems.append(((*loc, "states"), "states används bara med type: status"))
+    if item.type in ("time", "status") and (item.target is not None or item.trend or item.thresholds):
+        problems.append((loc, f"type: {item.type} stöder inte target/trend/thresholds"))
+    return problems
 
 
 def json_schema() -> dict[str, Any]:

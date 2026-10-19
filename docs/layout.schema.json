@@ -1,0 +1,547 @@
+{
+  "$defs": {
+    "Connection": {
+      "additionalProperties": false,
+      "description": "One PLC (OPC UA server). Password and certificates stay in .env.",
+      "properties": {
+        "name": {
+          "anyOf": [
+            {
+              "maxLength": 40,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Visningsnamn, t.ex. 'PLC linje 3'",
+          "title": "Name"
+        },
+        "url": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "opc.tcp://... (OPC_ENDPOINT_URL in .env takes precedence for the first connection)",
+          "title": "Url"
+        },
+        "alarms": {
+          "default": "",
+          "description": "Program_Alarm server object, e.g. ns=3;i=1815. Empty = no alarms",
+          "title": "Alarms",
+          "type": "string"
+        },
+        "tags": {
+          "additionalProperties": {
+            "anyOf": [
+              {
+                "$ref": "#/$defs/TagSpec"
+              },
+              {
+                "type": "string"
+              }
+            ]
+          },
+          "description": "alias: node id (or {node, type, demo})",
+          "title": "Tags",
+          "type": "object"
+        }
+      },
+      "title": "Connection",
+      "type": "object"
+    },
+    "Display": {
+      "additionalProperties": false,
+      "description": "One TV: its own screens, header and theme, reading from one connection.",
+      "properties": {
+        "name": {
+          "anyOf": [
+            {
+              "maxLength": 40,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Visningsnamn, t.ex. 'Linje 3 norr'",
+          "title": "Name"
+        },
+        "connection": {
+          "default": "plc1",
+          "pattern": "^[a-z][a-z0-9_-]{0,31}$",
+          "title": "Connection",
+          "type": "string"
+        },
+        "theme": {
+          "const": "abece-dark",
+          "default": "abece-dark",
+          "title": "Theme",
+          "type": "string"
+        },
+        "screen": {
+          "$ref": "#/$defs/ScreenNodes",
+          "description": "Screen switching nodes on the connection's PLC (ActiveScreenNr)"
+        },
+        "header": {
+          "$ref": "#/$defs/Header"
+        },
+        "screens": {
+          "additionalProperties": {
+            "$ref": "#/$defs/Screen"
+          },
+          "title": "Screens",
+          "type": "object"
+        }
+      },
+      "required": [
+        "screen",
+        "screens"
+      ],
+      "title": "Display",
+      "type": "object"
+    },
+    "Header": {
+      "additionalProperties": false,
+      "description": "Header area above the grid, kept while the screens change. Default = today's header.",
+      "properties": {
+        "left": {
+          "$ref": "#/$defs/HeaderSlot"
+        },
+        "center": {
+          "$ref": "#/$defs/HeaderSlot"
+        },
+        "right": {
+          "$ref": "#/$defs/HeaderSlot"
+        }
+      },
+      "title": "Header",
+      "type": "object"
+    },
+    "HeaderSlot": {
+      "additionalProperties": false,
+      "properties": {
+        "kind": {
+          "default": "none",
+          "enum": [
+            "logo",
+            "clock",
+            "text",
+            "title",
+            "none"
+          ],
+          "title": "Kind",
+          "type": "string"
+        },
+        "asset": {
+          "anyOf": [
+            {
+              "enum": [
+                "customer",
+                "vendor"
+              ],
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "logo: customer = kundlogotyp, vendor = ABECE",
+          "title": "Asset"
+        },
+        "text": {
+          "anyOf": [
+            {
+              "maxLength": 40,
+              "minLength": 1,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "text: fast text",
+          "title": "Text"
+        }
+      },
+      "title": "HeaderSlot",
+      "type": "object"
+    },
+    "Screen": {
+      "additionalProperties": false,
+      "properties": {
+        "title": {
+          "anyOf": [
+            {
+              "maxLength": 40,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Title"
+        },
+        "items": {
+          "items": {
+            "$ref": "#/$defs/Widget"
+          },
+          "title": "Items",
+          "type": "array"
+        }
+      },
+      "title": "Screen",
+      "type": "object"
+    },
+    "ScreenNodes": {
+      "additionalProperties": false,
+      "properties": {
+        "active": {
+          "description": "ActiveScreenNr (written back by the backend)",
+          "minLength": 1,
+          "title": "Active",
+          "type": "string"
+        },
+        "requested": {
+          "description": "RequestedScreenNr (set by the PLC)",
+          "minLength": 1,
+          "title": "Requested",
+          "type": "string"
+        }
+      },
+      "required": [
+        "active",
+        "requested"
+      ],
+      "title": "ScreenNodes",
+      "type": "object"
+    },
+    "State": {
+      "additionalProperties": false,
+      "properties": {
+        "text": {
+          "maxLength": 10,
+          "minLength": 1,
+          "title": "Text",
+          "type": "string"
+        },
+        "color": {
+          "default": "white",
+          "enum": [
+            "white",
+            "green",
+            "amber",
+            "red",
+            "grey"
+          ],
+          "title": "Color",
+          "type": "string"
+        }
+      },
+      "required": [
+        "text"
+      ],
+      "title": "State",
+      "type": "object"
+    },
+    "TagSpec": {
+      "additionalProperties": false,
+      "description": "A PLC tag. Short form in YAML: `Name: 'ns=3;s=\"DB\".\"tag\"'`.",
+      "properties": {
+        "node": {
+          "default": "",
+          "description": "OPC UA node id, e.g. ns=3;s=\"DB Production TV\".\"dashboardData\".\"oee\". Empty = not configured yet (skipped).",
+          "title": "Node",
+          "type": "string"
+        },
+        "type": {
+          "default": "auto",
+          "description": "time = S7 Time_Of_Day (ms) shown as hh:mm:ss",
+          "enum": [
+            "auto",
+            "time"
+          ],
+          "title": "Type",
+          "type": "string"
+        },
+        "demo": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "items": {
+                "type": "number"
+              },
+              "type": "array"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Demo mode only: fixed value or [min, max] for a simulated value",
+          "title": "Demo"
+        }
+      },
+      "title": "TagSpec",
+      "type": "object"
+    },
+    "Widget": {
+      "additionalProperties": false,
+      "description": "One element on a screen: position + size in grid cells, and the element's properties.",
+      "properties": {
+        "id": {
+          "maxLength": 40,
+          "minLength": 1,
+          "title": "Id",
+          "type": "string"
+        },
+        "kind": {
+          "enum": [
+            "number",
+            "percent",
+            "counter",
+            "time",
+            "status",
+            "alarms",
+            "shift",
+            "oee",
+            "week",
+            "highscore"
+          ],
+          "title": "Kind",
+          "type": "string"
+        },
+        "x": {
+          "exclusiveMaximum": 24,
+          "minimum": 0,
+          "title": "X",
+          "type": "integer"
+        },
+        "y": {
+          "exclusiveMaximum": 12,
+          "minimum": 0,
+          "title": "Y",
+          "type": "integer"
+        },
+        "w": {
+          "maximum": 24,
+          "minimum": 1,
+          "title": "W",
+          "type": "integer"
+        },
+        "h": {
+          "maximum": 12,
+          "minimum": 1,
+          "title": "H",
+          "type": "integer"
+        },
+        "label": {
+          "anyOf": [
+            {
+              "maxLength": 20,
+              "minLength": 1,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Label"
+        },
+        "tag": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Alias under the display's connection",
+          "title": "Tag"
+        },
+        "unit": {
+          "anyOf": [
+            {
+              "maxLength": 6,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Unit"
+        },
+        "decimals": {
+          "anyOf": [
+            {
+              "maximum": 3,
+              "minimum": 0,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Decimals"
+        },
+        "target": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Target"
+        },
+        "trend": {
+          "anyOf": [
+            {
+              "type": "boolean"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Trend"
+        },
+        "color": {
+          "anyOf": [
+            {
+              "enum": [
+                "white",
+                "green",
+                "amber",
+                "red",
+                "grey"
+              ],
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Color"
+        },
+        "thresholds": {
+          "anyOf": [
+            {
+              "items": {
+                "type": "number"
+              },
+              "maxItems": 2,
+              "minItems": 2,
+              "type": "array"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Thresholds"
+        },
+        "better": {
+          "anyOf": [
+            {
+              "enum": [
+                "high",
+                "low"
+              ],
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Better"
+        },
+        "states": {
+          "anyOf": [
+            {
+              "additionalProperties": {
+                "$ref": "#/$defs/State"
+              },
+              "type": "object"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "States"
+        }
+      },
+      "required": [
+        "id",
+        "kind",
+        "x",
+        "y",
+        "w",
+        "h"
+      ],
+      "title": "Widget",
+      "type": "object"
+    }
+  },
+  "additionalProperties": false,
+  "properties": {
+    "schema_version": {
+      "const": 2,
+      "default": 2,
+      "title": "Schema Version",
+      "type": "integer"
+    },
+    "connections": {
+      "minProperties": 1,
+      "patternProperties": {
+        "^[a-z][a-z0-9_-]{0,31}$": {
+          "$ref": "#/$defs/Connection"
+        }
+      },
+      "title": "Connections",
+      "type": "object"
+    },
+    "displays": {
+      "minProperties": 1,
+      "patternProperties": {
+        "^[a-z][a-z0-9_-]{0,31}$": {
+          "$ref": "#/$defs/Display"
+        }
+      },
+      "title": "Displays",
+      "type": "object"
+    }
+  },
+  "required": [
+    "connections",
+    "displays"
+  ],
+  "title": "asyncua-dashboard layoutdokument (schema_version 2)",
+  "type": "object",
+  "$schema": "https://json-schema.org/draft/2020-12/schema"
+}

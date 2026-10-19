@@ -8,6 +8,8 @@ Lösenord och certifikat står **aldrig** i YAML-filen utan i `.env` (se `.env.e
 
 Hur de beräknade värdena räknas fram (OEE, mål, prognos, kassation, stopp, trend, färger) står i [BERAKNINGAR.md](BERAKNINGAR.md).
 
+- [Var layouten sparas: databasen](#var-layouten-sparas-databasen)
+- [Layoutdokumentet (schema_version 2)](#layoutdokumentet-schema_version-2)
 - [Filens delar](#filens-delar)
 - [Taggar](#taggar-tags)
 - [Skärmar](#skärmar-screens)
@@ -15,6 +17,96 @@ Hur de beräknade värdena räknas fram (OEE, mål, prognos, kassation, stopp, t
 - [Lägga till ett nytt dashboard-objekt](#lägga-till-ett-nytt-dashboard-objekt)
 - [Felmeddelanden](#felmeddelanden)
 - [Gränser och varför](#gränser-och-varför)
+
+## Var layouten sparas: databasen
+
+Sedan editorns etapp 1 är **databasen** (`data.db`, tabellen `layout_versions`) den enda källan för vad TV:n visar.
+`dashboard.yaml` är kvar som startpunkt och som enkelt sätt att ändra tills editorn finns (etapp 2):
+
+1. **Första starten:** backend läser `dashboard.yaml`, kontrollerar den och sparar den som **version 1** (publicerad).
+2. **Senare starter:** filen importeras igen **bara om den har ändrats** sedan den senaste importen. Backend jämför filens
+   sha256 med den som sparades vid importen. Den blir då en ny version och publiceras. En oförändrad fil rör ingenting, så
+   en version som publicerats på annat sätt (editorn senare, `restore` nedan) ligger kvar.
+3. **Ogiltig ändrad fil:** backend startar inte och loggen visar felen. Rätta filen eller ta tillbaka den gamla.
+4. **Inget raderas:** varje import eller publicering är en ny version. Versionerna gallras inte med mätdatan
+   (`RETENTION_DAYS`).
+
+| `.env` | Betyder |
+|---|---|
+| `LAYOUT_YAML_IMPORT=auto` (standard) | Importera `dashboard.yaml` när den har ändrats, enligt ovan. |
+| `LAYOUT_YAML_IMPORT=off` | Läs aldrig filen igen efter första importen. Använd det när layouten bara ändras i editorn. |
+
+Versionerna hanteras från projektets rotmapp, på Fitlet3:
+
+```bash
+python -m backend.layout_store list        # versioner, * = publicerad (tid i datorns tidszon)
+python -m backend.layout_store show 3      # version 3 som YAML (schema_version 2)
+python -m backend.layout_store restore 3   # publicera version 3 igen som en ny version, starta sedan om backend
+```
+
+Backend läser layouten vid start. En ändring kräver därför omstart tills editorn publicerar direkt (etapp 2): då laddar
+TV:n om layouten av sig själv (`layout_changed`).
+
+## Layoutdokumentet (schema_version 2)
+
+I databasen sparas layouten som ett **layoutdokument**. Det har plats för flera PLC:er (`connections`) och flera TV:ar
+(`displays`) på samma Fitlet3, var och en med egna skärmar och en egen header-yta. `dashboard.yaml` i formatet nedan
+(version 1) översätts automatiskt:
+
+| `dashboard.yaml` (version 1) | Layoutdokument |
+|---|---|
+| `opc` + `tags` | anslutningen `plc1` (`url`, `alarms`, `tags`) |
+| `opc.screen` + `screens` | displayen `tv1` (`connection: plc1`, `screen`, `screens`) |
+| grid-skärm med 1 objekt | ett element på hela rutnätet: `x: 0, y: 0, w: 24, h: 12` |
+| grid-skärm med 2–6 objekt | 2 kolumner (`w: 12`) och 1–3 rader (`h: 12`, `6` eller `4`), i filens ordning |
+| `type: alarms` / `shift` / `oee` / `week` / `highscore` | ett inbyggt element på hela rutnätet |
+| (saknas) | header: kundens logotyp, klocka, ABECE-logotyp (som tidigare) |
+
+Varje skärm är ett fast **rutnät på 24 × 12 rutor** under header-ytan. Rutnätet ger exakt samma storlekar som tidigare,
+så TV:n ser likadan ut. Ett element har `id`, `kind` (`number`, `percent`, `counter`, `time`, `status` eller en inbyggd
+skärm), läge och storlek i rutor (`x`, `y`, `w`, `h`) och samma egenskaper som ett objekt (`label`, `tag`, `unit` …).
+
+```yaml
+schema_version: 2
+connections:
+  plc1: { url: opc.tcp://192.168.0.1:4840, alarms: ns=3;i=1815, tags: { OEE: ns=3;s="DB"."oee" } }
+displays:
+  tv1:
+    connection: plc1
+    screen: { active: …, requested: … }
+    header:                                     # valfri; standard = som idag
+      left: { kind: logo, asset: customer }     # logo (customer | vendor), clock, text, title (skärmens title), none
+      center: { kind: clock }
+      right: { kind: text, text: Linje 3 }      # högst 40 tecken
+    screens:
+      2:
+        title: Dashboard
+        items:
+          - { id: oee, kind: percent, x: 0, y: 0, w: 12, h: 12, label: OEE, tag: OEE, thresholds: [75, 85] }
+```
+
+Ett fullständigt exempel med två PLC:er och två displayer finns i
+[`docs/examples/flera-displayer.yaml`](examples/flera-displayer.yaml). JSON-schema för VS Code:
+[`docs/layout.schema.json`](layout.schema.json).
+
+```bash
+python -m backend.layout_doc                       # kontrollera dashboard.yaml (eller en v2-fil: ange sökvägen)
+python -m backend.layout_doc --migrate             # dashboard.yaml översatt till ett layoutdokument (YAML)
+python -m backend.layout_doc --view                # det GET /api/layout skickar till TV:n
+```
+
+Regler utöver dem för objekten:
+
+- Ett värdeelement är **minst 12 × 4 rutor** (en halv bredd, en tredjedel av höjden). Det är den minsta storlek där
+  290 px-siffrorna, även `00:00:00` och sexsiffriga tal, har plats. Editorn får räkna fram mindre storlekar (etapp 2).
+- **Inbyggda skärmar** täcker tills vidare hela rutnätet och står ensamma (mindre varianter kommer i etapp 6). Larm är
+  alltid helskärm.
+- Element får inte överlappa eller gå utanför rutnätet, och `id` måste vara unikt.
+- `displays → … → connection` måste finnas under `connections`, och taggarna läses från den anslutningen.
+- **Driften stöder än så länge en anslutning och en display.** Ett dokument med fler godkänns av `python -m backend.layout_doc`
+  (med "Obs"), men backend vägrar att publicera det tills etapp 4.
+
+TV:n väljer display med `?display=tv2` i adressen (standard: den första). `GET /api/displays` listar dem.
 
 ## Filens delar
 
@@ -98,7 +190,7 @@ screens:
 
 | `type` | Innehåll |
 |---|---|
-| `grid` (standard) | 1–6 egna objekt (`items`). 1 objekt = hel bredd, annars 2 kolumner och upp till 3 rader. |
+| `grid` (standard) | 1–6 egna objekt (`items`). 1 objekt = hel bredd, annars 2 kolumner och upp till 3 rader (i layoutdokumentet: rutor i rutnätet 24 × 12, se ovan). |
 | `alarms` | Aktiva larm från Program_Alarm (inga `items`). |
 | `shift` | Skiftmönstret (kräver taggarna `ShiftStart`, `ShiftEnd`, `ProductionState`). |
 | `oee` | OEE-skärmen (kräver dessutom `TPM` och en av taggarna `GoodCount`/`ProductionCount` under `tags`; saknar taggarna värde, liksom `RejectCount` och `ShiftTarget`, visar respektive värde `–`). |
@@ -189,9 +281,16 @@ VITE_DEMO=true npm run dev
 
 Kontrollera att rubriken får plats utan "…". Inför en pull request: `npm run check:fit` (se README) provar alla skärmar i fem upplösningar.
 
-**5. Driftsätt på Fitlet3.** Kopiera `dashboard.yaml` till projektmappen på Fitlet3 (eller `git pull` om du har checkat in den),
-kontrollera den där med `python -m backend.dashboard_config` och starta om backend-tjänsten. Frontenden behöver inte byggas om –
-den hämtar layouten (`GET /api/layout`) varje gång den ansluter. Är filen ogiltig startar inte backend och loggen visar felen.
+**5. Driftsätt på Fitlet3.**
+
+1. Kopiera `dashboard.yaml` till projektmappen på Fitlet3, eller kör `git pull` om du har checkat in den.
+2. Kontrollera filen där med `python -m backend.dashboard_config`.
+3. Starta om backend-tjänsten. Den ändrade filen importeras då som en ny version i databasen
+   (se [Var layouten sparas](#var-layouten-sparas-databasen)).
+
+Frontenden behöver inte byggas om. Den hämtar layouten (`GET /api/layout`) varje gång den ansluter. Är filen ogiltig
+startar inte backend, och loggen visar felen. Vill du tillbaka till föregående layout: `python -m backend.layout_store list`
+och sedan `restore N`.
 
 ## Felmeddelanden
 

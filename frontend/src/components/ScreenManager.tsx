@@ -26,8 +26,8 @@ function resolveScreen(layout: Layout, nr: number): ScreenConfig | undefined {
 }
 
 /**
- * Shows the screen selected by the PLC (ActiveScreenNr); what each number shows comes from
- * dashboard.yaml (default: 1 = Larm, 2 = Dashboard, 3 = Skiftmönster, 4 = OEE, 5 = 7 dagar, 6 = Highscore). Display-only: the
+ * Shows the screen selected by the PLC (ActiveScreenNr); what each number shows comes from the
+ * published layout, first imported from dashboard.yaml (default: 1 = Larm, 2 = Dashboard, 3 = Skiftmönster, 4 = OEE, 5 = 7 dagar, 6 = Highscore). Display-only: the
  * frontend never writes anything back; the backend acknowledges screen changes itself.
  */
 export function ScreenManager() {
@@ -39,7 +39,10 @@ export function ScreenManager() {
   // Incremented on every switch so an older, still-running switch can't override a newer one
   const switchSeq = useRef(0);
 
-  // (Re)load the layout on every (re)connect: a changed dashboard.yaml only needs a backend restart
+  // Bumped by "layout_changed" (a new version was published) to load the layout again
+  const [layoutReload, setLayoutReload] = useState(0);
+
+  // (Re)load the layout on every (re)connect and after every publish
   useEffect(() => {
     let cancelled = false;
     let timer: ReturnType<typeof setTimeout> | undefined;
@@ -59,7 +62,7 @@ export function ScreenManager() {
       cancelled = true;
       clearTimeout(timer);
     };
-  }, []);
+  }, [layoutReload]);
 
   // Switch screens with a fade, prefetching data while the screen is faded out
   const switchToScreen = useCallback(async (newScreen: number) => {
@@ -115,6 +118,7 @@ export function ScreenManager() {
 
     // 3. Show the new screen
     setVisibleScreen(newScreen);
+    useLayoutStore.getState().setScreenNr(newScreen);
 
     // 4. Small delay then fade the new content back in
     await new Promise((resolve) => setTimeout(resolve, 30));
@@ -137,6 +141,8 @@ export function ScreenManager() {
     if (msg.type === "screen_change" && typeof msg.screen === "number") {
       console.log("📺 Switching to screen:", msg.screen);
       void switchToScreen(msg.screen);
+    } else if (msg.type === "layout_changed") {
+      setLayoutReload((n) => n + 1);
     }
   });
 
@@ -144,7 +150,7 @@ export function ScreenManager() {
     if (layoutError && !layout) {
       return (
         <div data-fit className="h-full min-h-0 overflow-hidden px-16 py-12 flex flex-col gap-10">
-          <div className="text-[140px] font-bold text-[var(--accent-red)] tv-truncate">⚠ Fel i dashboard.yaml</div>
+          <div className="text-[140px] font-bold text-[var(--accent-red)] tv-truncate">⚠ Fel i layouten</div>
           {layoutError.slice(0, 5).map((line) => (
             <div key={line} className="text-[104px] font-mono text-zinc-200 tv-truncate">
               {line}

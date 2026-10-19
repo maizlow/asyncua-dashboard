@@ -1,0 +1,240 @@
+{
+  "schema_version": 2,
+  "version": null,
+  "display": {
+    "id": "tv1",
+    "name": null,
+    "theme": "abece-dark",
+    "header": {
+      "left": {
+        "kind": "logo",
+        "asset": "customer"
+      },
+      "center": {
+        "kind": "clock"
+      },
+      "right": {
+        "kind": "logo",
+        "asset": "vendor"
+      }
+    }
+  },
+  "displays": [
+    {
+      "id": "tv1",
+      "name": null
+    }
+  ],
+  "grid": {
+    "cols": 24,
+    "rows": 12
+  },
+  "screens": {
+    "1": {
+      "title": "Larm",
+      "items": [
+        {
+          "id": "s1-1",
+          "kind": "alarms",
+          "x": 0,
+          "y": 0,
+          "w": 24,
+          "h": 12
+        }
+      ]
+    },
+    "2": {
+      "title": "Dashboard",
+      "items": [
+        {
+          "id": "s2-1",
+          "kind": "counter",
+          "x": 0,
+          "y": 0,
+          "w": 12,
+          "h": 4,
+          "label": "Produktion",
+          "tag": "ProductionCount",
+          "unit": "st",
+          "target": "TargetCount"
+        },
+        {
+          "id": "s2-2",
+          "kind": "number",
+          "x": 12,
+          "y": 0,
+          "w": 12,
+          "h": 4,
+          "label": "Delta",
+          "tag": "ProductionDelta",
+          "unit": "st",
+          "trend": true
+        },
+        {
+          "id": "s2-3",
+          "kind": "percent",
+          "x": 0,
+          "y": 4,
+          "w": 12,
+          "h": 4,
+          "label": "OEE",
+          "tag": "OEE",
+          "trend": true,
+          "unit": "%"
+        },
+        {
+          "id": "s2-4",
+          "kind": "number",
+          "x": 12,
+          "y": 4,
+          "w": 12,
+          "h": 4,
+          "label": "Linjehastighet",
+          "tag": "TPM",
+          "unit": "TPM",
+          "decimals": 1,
+          "trend": true
+        },
+        {
+          "id": "s2-5",
+          "kind": "time",
+          "x": 0,
+          "y": 8,
+          "w": 12,
+          "h": 4,
+          "label": "Aktuell körtid",
+          "tag": "CurrentRuntime"
+        },
+        {
+          "id": "s2-6",
+          "kind": "time",
+          "x": 12,
+          "y": 8,
+          "w": 12,
+          "h": 4,
+          "label": "Total stopptid",
+          "tag": "AccumulatedStoptime",
+          "color": "red"
+        }
+      ]
+    },
+    "3": {
+      "title": "Skiftmönster",
+      "items": [
+        {
+          "id": "s3-1",
+          "kind": "shift",
+          "x": 0,
+          "y": 0,
+          "w": 24,
+          "h": 12
+        }
+      ]
+    },
+    "4": {
+      "title": "OEE",
+      "items": [
+        {
+          "id": "s4-1",
+          "kind": "oee",
+          "x": 0,
+          "y": 0,
+          "w": 24,
+          "h": 12
+        }
+      ]
+    },
+    "5": {
+      "title": "Senaste 7 dagarna",
+      "items": [
+        {
+          "id": "s5-1",
+          "kind": "week",
+          "x": 0,
+          "y": 0,
+          "w": 24,
+          "h": 12
+        }
+      ]
+    },
+    "6": {
+      "title": "Körtids-highscore",
+      "items": [
+        {
+          "id": "s6-1",
+          "kind": "highscore",
+          "x": 0,
+          "y": 0,
+          "w": 24,
+          "h": 12
+        }
+      ]
+    }
+  },
+  "tags": {
+    "TargetCount": {
+      "type": "auto",
+      "placeholder": false
+    },
+    "ProductionCount": {
+      "type": "auto",
+      "placeholder": false
+    },
+    "ProductionDelta": {
+      "type": "auto",
+      "placeholder": false
+    },
+    "ProductionState": {
+      "type": "auto",
+      "placeholder": false
+    },
+    "OEE": {
+      "type": "auto",
+      "placeholder": false
+    },
+    "TPM": {
+      "type": "auto",
+      "placeholder": false
+    },
+    "CurrentRuntime": {
+      "type": "time",
+      "placeholder": false
+    },
+    "AccumulatedStoptime": {
+      "type": "time",
+      "placeholder": false
+    },
+    "ShiftStart": {
+      "type": "time",
+      "placeholder": false
+    },
+    "ShiftEnd": {
+      "type": "time",
+      "placeholder": false
+    },
+    "GoodCount": {
+      "type": "auto",
+      "placeholder": true
+    },
+    "RejectCount": {
+      "type": "auto",
+      "placeholder": true
+    },
+    "ShiftTarget": {
+      "type": "auto",
+      "placeholder": true
+    },
+    "OeeTarget": {
+      "type": "auto",
+      "placeholder": true
+    },
+    "PlannedTime": {
+      "type": "auto",
+      "placeholder": true
+    },
+    "ShiftTeam": {
+      "type": "auto",
+      "placeholder": true
+    }
+  }
+}

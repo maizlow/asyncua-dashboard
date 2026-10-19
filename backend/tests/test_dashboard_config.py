@@ -194,9 +194,14 @@ def test_committed_json_schema_is_up_to_date():
 def test_layout_endpoint():
     from backend.app.main import create_app
 
-    res = TestClient(create_app()).get("/api/layout")
+    client = TestClient(create_app())
+    res = client.get("/api/layout")
     assert res.status_code == 200
-    assert res.json()["screens"]["4"]["type"] == "oee"
+    assert res.json()["screens"]["4"]["items"][0]["kind"] == "oee"
+    assert client.get("/api/layout?display=tv1").json() == res.json()
+    missing = client.get("/api/layout?display=nope")
+    assert missing.status_code == 404 and "okänd display 'nope'" in missing.json()["details"][0]
+    assert client.get("/api/displays").json() == [{"id": "tv1", "name": None}]
 
 
 def test_week_screen_needs_shift_and_count_tags(tmp_path):

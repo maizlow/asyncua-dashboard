@@ -53,6 +53,10 @@ const CASES = [
   ["highscore", "screen=6"],
   ["highscore-3digit", "screen=6&count=999999"],
   ["stress-highscore", "layout=stress&screen=8"],
+  // Layout document with two displays (docs/examples/flera-displayer.yaml): tv1 grid with 1 + 2 elements
+  // of different sizes, tv2 with a text header ("Linje 3 – packning") and one full-size element
+  ["multi-tv1", "layout=multi&display=tv1&screen=2"],
+  ["multi-tv2", "layout=multi&display=tv2&screen=1"],
 ];
 // Screen switch = 2 s fade out + 3 s fade in
 // ONLY=regex limits the run to matching case names, e.g. ONLY=highscore

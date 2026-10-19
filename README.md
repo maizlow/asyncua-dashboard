@@ -22,9 +22,21 @@ screens:
       - { label: OEE, tag: OEE, type: percent, trend: true, thresholds: [75, 85] }
 ```
 
-Check the file with `python -m backend.dashboard_config` (errors point at line and key). The backend validates it at start-up
-and serves it at `GET /api/layout`; the demo build bundles the same file. JSON schema for editor autocompletion:
-[`docs/dashboard.schema.json`](docs/dashboard.schema.json).
+Check the file with `python -m backend.dashboard_config` (errors point at line and key). JSON schema for editor
+autocompletion: [`docs/dashboard.schema.json`](docs/dashboard.schema.json).
+
+**The database is the source of truth for the layout.** The backend imports `dashboard.yaml` into SQLite as version 1
+on first start. After that, it imports the file again as a new version only when the file has changed
+(`LAYOUT_YAML_IMPORT=auto`; set `off` to stop reading it). It then serves the published version at
+`GET /api/layout?display=…`. The demo build bundles the same file.
+
+Internally the layout is a *layout document* (`schema_version: 2`): connections (PLCs) and displays (TVs), each display
+with its own header area and screens on a fixed 24 × 12 grid. Commands:
+- `python -m backend.layout_doc --migrate` shows the document converted from `dashboard.yaml`.
+- `python -m backend.layout_store list|show N|restore N` manages the versions.
+
+See [docs/CONFIG.md](docs/CONFIG.md#var-layouten-sparas-databasen) and the planned editor in
+[docs/EDITOR-PLAN.md](docs/EDITOR-PLAN.md).
 
 ## Demo mode / preview
 

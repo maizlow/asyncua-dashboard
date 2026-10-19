@@ -1,5 +1,5 @@
 from pathlib import Path
-from typing import Optional
+from typing import Literal, Optional
 
 from pydantic import Field
 from pydantic_settings import BaseSettings
@@ -50,6 +50,9 @@ class Settings(BaseSettings):
     shift_settle_s: float = Field(default=10.0, alias="SHIFT_SETTLE_S")
     # Highscore screen: stops shorter than this are bridged (the run continues); 0 = every stop ends a run
     highscore_min_stop_s: float = Field(default=0.0, alias="HIGHSCORE_MIN_STOP_S")
+    # Layout (docs/CONFIG.md): the published version in SQLite is used; dashboard.yaml is imported at
+    # startup the first time and, with "auto", again whenever the file has changed. "off" = never again.
+    layout_yaml_import: Literal["auto", "off"] = Field(default="auto", alias="LAYOUT_YAML_IMPORT")
 
     model_config = {
         "env_file": BASE_DIR / ".env",     # ← Force it to look in project root

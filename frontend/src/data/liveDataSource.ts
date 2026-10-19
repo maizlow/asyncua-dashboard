@@ -106,7 +106,9 @@ export function createLiveDataSource(): DataSource {
       return await getJson<Highscores>("/api/highscores?n=5");
     },
     async getLayout() {
-      const res = await fetch("/api/layout");
+      // ?display=tv2 picks one of several displays on this computer (default: the first)
+      const display = new URLSearchParams(window.location.search).get("display");
+      const res = await fetch(display ? `/api/layout?display=${encodeURIComponent(display)}` : "/api/layout");
       if (!res.ok) {
         const body = (await res.json().catch(() => null)) as { details?: string[] } | null;
         throw new LayoutError(body?.details ?? [`/api/layout -> HTTP ${res.status}`]);
