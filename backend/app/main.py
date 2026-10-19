@@ -7,6 +7,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from backend.app import api_server
+from backend.app.frontend import mount_frontend
 from backend.app.routers import alarms, editor, layout, metrics, opcua, websocket
 from backend.app.routers.websocket import broadcast_full_snapshot, broadcaster
 from backend.dashboard_config import ConfigError
@@ -47,7 +48,7 @@ async def lifespan(app: FastAPI):
     await broadcaster.stop()
 
 
-def create_app() -> FastAPI:
+def create_app(frontend: bool = True) -> FastAPI:
     app = FastAPI(
         title="Production Dashboard API",
         lifespan=lifespan,
@@ -75,9 +76,16 @@ def create_app() -> FastAPI:
     app.include_router(opcua.router)
     app.include_router(websocket.router)
 
-    @app.get("/")
-    async def root():
-        return {"message": "Production Dashboard API is running"}
+    @app.get("/api/health")
+    async def health():
+        return {"status": "ok", "frontend": serving, "opc_connected": data_store.connected}
+
+    # Last: the built TV view and editor at / and /editor/ on the same port (API and /ws take precedence)
+    serving = mount_frontend(app, settings.frontend_dist_path) if frontend else False
+    if not serving:
+        @app.get("/")
+        async def root():
+            return {"message": "Production Dashboard API is running (frontend build not served)"}
 
     return app
 
