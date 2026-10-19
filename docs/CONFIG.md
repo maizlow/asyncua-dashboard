@@ -122,6 +122,23 @@ python -m backend.users remove johan
 - **Kopior mellan displayer:** en kopia behåller sin PLC även om displayerna har olika standard-PLC. `OEE` från tv1 blir
   `plc1.OEE` på tv2.
 
+### Spara och publicera
+
+- **Utkastet sparas automatiskt** på servern en sekund efter varje ändring ("utkast sparat 14:02" i toppraden). Det
+  finns ett utkast, som båda kontona delar. TV:n visar aldrig utkastet.
+- **Publicera …** kontrollerar först hela dokumentet: reglerna, läsbarheten på alla rutnätsskärmar på alla displayer och
+  det dagens backend inte kan köra (flera PLC:er eller displayer, till etapp 4). Fel måste rättas, ett klick på felet
+  visar elementet. Varningar går att publicera. Skriv en kort kommentar om vad som ändrats.
+- **Efter publicering** laddar TV:n om layouten inom några sekunder. **Nya eller ändrade taggar** (nod-id) läses först
+  efter omstart av backend, och editorn säger till när det behövs.
+- **Om någon annan har publicerat** sedan du började visar dialogen det, och du kan välja "Publicera ändå".
+- **Versioner:** listan visar varje version med tid, vem och kommentar. **Öppna som utkast** läser in en äldre version,
+  och när du publicerar den blir den en ny version (inget skrivs över). **YAML** laddar ner versionen.
+- **Exportera YAML** laddar ner utkastet som `dashboard.yaml` (schema_version 2), som backup eller för att läsa in i en
+  annan installation med `LAYOUT_YAML_IMPORT=always`.
+- **Demo-editorn** (<https://maizlow.github.io/asyncua-dashboard/editor/>) sparar versioner och utkast bara i
+  webbläsaren. TV-demon i samma webbläsare visar den publicerade demoversionen. **Återställ demo** tömmer lagringen.
+
 ## Layoutdokumentet (schema_version 2)
 
 I databasen sparas layouten som ett **layoutdokument**:

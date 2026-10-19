@@ -9,7 +9,7 @@ test("etikett, ångra som ett steg och fel när den saknas", async ({ page }) =>
   const label = page.getByTestId("prop-label");
   await label.fill("Pannor idag");
   await expect(page.getByTestId("item-s2-1")).toContainText("Pannor idag");
-  await expect(page.getByTestId("changes")).toHaveText("Ändrat, inte publicerat");
+  await expect(page.getByTestId("changes")).toContainText("Ändrat, inte publicerat");
   await label.fill("");
   await expect(page.getByTestId("problem-count")).toHaveText("✖ 1 fel");
   await expect(page.getByTestId("props-panel")).toContainText("saknas (obligatorisk)");

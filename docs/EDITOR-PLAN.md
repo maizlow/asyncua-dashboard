@@ -2,12 +2,13 @@
 
 > **Status: inriktningen är beslutad** (Johans svar 19 okt 2026, se [Beslut](#beslut)).
 > - **Klart:** etapp 0 (spik, PR #18) och etapp 1 (dokument och renderare, PR #19).
-> - **Etapp 2 (MVP-editor) pågår:**
+> - **Etapp 2 (MVP-editor) är klar:**
 >   - modellen för flera PLC:er per display och den förenklade headern (PR #20)
 >   - inloggning och editorns skal på `/editor/` med display, skärmlista och förhandsvisning (PR #23)
 >   - duken med dra och släpp, palett, skärmhantering, ångra, kopiera och klistra in (PR #24)
 >   - egenskapspanel, taggväljare per PLC och läsbarhetskontroll (PR #25)
->   - sedan publiceringen
+>   - utkast, kontroll, publicering, versioner med återställning och YAML-export, demo-editorn med `localStorage` (PR #26)
+> - **Nästa:** etapp 3 (tema och tillgångar), se [Etapper](#etapper).
 > - **Driften** stöder fortfarande en PLC och en display tills etapp 4. Se
 >   [CONFIG.md](CONFIG.md#layoutdokumentet-schema_version-2).
 
@@ -457,6 +458,27 @@ flowchart LR
   - **Pages-demon får editorn (beslut 6):** den sparar i `localStorage`, behöver ingen backend och visar bara demotema och
     platshållare. "Återställ demo" tömmer lagringen.
 
+**Byggt i etapp 2e (PR #26):**
+
+- **Utkastet sparas automatiskt** en sekund efter senaste ändringen: på servern (tabellen `layout_draft`), i demon i
+  `localStorage`. Det finns ett utkast, som de två kontona delar. Det minns vilken version det bygger på; om någon har
+  publicerat sedan dess varnar editorn när utkastet öppnas.
+- **Publicera:** dialogen kontrollerar hela dokumentet först:
+  - reglerna i webbläsaren och på servern (`POST /validate`, samma kontroll som vid publicering);
+  - läsbarheten på **alla** rutnätsskärmar på alla displayer, en i taget utanför bild med värsta fallets värden;
+  - det dagens drift inte klarar (flera PLC:er eller displayer, till etapp 4).
+
+  Fel spärrar, varningar visas men går att publicera. En kommentar följer med versionen.
+- **Krock:** har någon publicerat efter att utkastet började svarar servern 409. Dialogen visar det och erbjuder
+  "Publicera ändå".
+- **Versioner:** lista med tid, vem (eller `dashboard.yaml`) och kommentar. "Öppna som utkast" läser in en äldre
+  version som utkast (Ångra tar tillbaka det förra), och publiceras sedan som en ny version. Ingen version skrivs över.
+- **YAML-export:** av utkastet (i webbläsaren) och av varje version (`GET /versions/{id}/export.yaml`).
+- **Demo-editorn på Pages:** versioner och utkast i `localStorage`. TV-demon i samma webbläsare visar den publicerade
+  demoversionen och laddar om när den ändras. "Återställ demo" tömmer lagringen.
+- **Inte byggt än:** förhandsvisningslänk till en riktig TV, jämförelse mellan versioner, import av YAML i editorn
+  (görs i dag med `LAYOUT_YAML_IMPORT=always`), flera markerade element.
+
 ## Backend-API
 
 TV-delen, utan inloggning och bara läsning:
@@ -474,12 +496,12 @@ Editor-delen, med inloggning, under `/api/editor`:
 |---|---|---|
 | POST/POST/GET | `/login`, `/logout`, `/session` | session (klart, etapp 2a) |
 | GET | `/document` | publicerat dokument med nod-id, för editorn (klart, etapp 2a) |
-| GET/PUT | `/draft` | läs och spara utkast |
-| POST | `/validate` | schema, alias, läsbarhet (server-sida), kontrast |
-| POST | `/publish` | ny version med kommentar |
-| GET | `/versions`, `/versions/{id}` | historik |
-| POST | `/versions/{id}/restore` | återställ som nytt utkast |
-| GET/POST | `/export.yaml`, `/import` | YAML (och zip med tillgångar) |
+| GET/PUT/DELETE | `/draft` | läs, spara och släng utkastet (klart, etapp 2e) |
+| POST | `/validate` | schema, taggar och vad driften klarar (klart, etapp 2e); läsbarheten mäts i webbläsaren |
+| POST | `/publish` | ny version med kommentar, 409 om någon publicerat sedan utkastet började (klart, etapp 2e) |
+| GET | `/versions`, `/versions/{id}` | historik och en version, äldre migreras vid läsning (klart, etapp 2e) |
+| POST | `/versions/{id}/restore` | behövs inte: editorn läser versionen som utkast och publicerar den (etapp 2e) |
+| GET/POST | `/versions/{id}/export.yaml`, `/import` | YAML-export (klart, etapp 2e); import och zip med tillgångar senare |
 | POST | `/preview-token` | förhandsvisningslänk för TV |
 | GET | `/opc/browse?node=`, `/opc/search?q=`, `/opc/read?node=` | bläddra, sök, läs attribut |
 | WS | `/opc/watch` | tillfälliga livevärden för valda noder (max 20) |

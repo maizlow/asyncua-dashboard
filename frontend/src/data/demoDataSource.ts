@@ -21,6 +21,8 @@ import type {
   ShiftPatternRow,
 } from "./types";
 import { demoScreenOrder, normaliseLayout, type Layout } from "@/layout/layout";
+import { displayViews } from "@/layout/doc";
+import { demoKey, publishedDemoDoc } from "./demoStore";
 import { aggregateShifts, type ShiftRow } from "@/lib/shifts";
 // Built from the same dashboard.yaml as the real installation (vite.config.ts: dashboard-yaml plugin)
 import dashboardYaml from "../../../dashboard.yaml";
@@ -392,7 +394,12 @@ export function createDemoDataSource(): DataSource {
   let sim: LineSim;
 
   const params = new URLSearchParams(window.location.search);
-  const views = { stress: stressYaml, multi: multiYaml }[params.get("layout") ?? ""] ?? dashboardYaml;
+  // A version published in the demo editor (same browser) replaces the bundled example
+  const stored = publishedDemoDoc(params.get("layout"));
+  const views = (stored ? displayViews(stored) : null) ?? { stress: stressYaml, multi: multiYaml }[params.get("layout") ?? ""] ?? dashboardYaml;
+  window.addEventListener("storage", (e) => {
+    if (e.key === demoKey(params.get("layout"))) window.location.reload();
+  });
   const layout: Layout = normaliseLayout(views[params.get("display") ?? ""] ?? Object.values(views)[0]);
   /** Own grid screens -> OEE -> Shift pattern -> Alarms */
   const SCREEN_ORDER = demoScreenOrder(layout);

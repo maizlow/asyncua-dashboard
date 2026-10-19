@@ -27,6 +27,10 @@ interface EditorStore {
   /** The published document (to show unpublished changes) */
   published: Doc | null;
   version: number | null;
+  /** The published version the draft started from (publishing from an older one is refused) */
+  base: number | null;
+  /** When the draft was last saved (UTC ISO), null: nothing saved since the last publish */
+  draftSaved: string | null;
   past: Doc[];
   future: Doc[];
   displayId: string | null;
@@ -40,6 +44,11 @@ interface EditorStore {
   /** Last message for the status line (e.g. why a drop was refused) */
   notice: { text: string; kind: "info" | "error" } | null;
   setLoaded: (doc: Doc, version: number | null) => void;
+  /** Continue on a saved draft (on top of setLoaded) */
+  resumeDraft: (doc: Doc, base: number | null, saved: string) => void;
+  /** After publishing: the current document is now the published one */
+  setPublished: (version: number) => void;
+  setDraftSaved: (saved: string | null) => void;
   /** Apply a change to a copy of the draft; throw Error(msg) inside fn to refuse it (shown as notice) */
   edit: (
     fn: (doc: Doc) => void,
@@ -70,6 +79,8 @@ export const useEditorStore = create<EditorStore>((set, get) => ({
   doc: null,
   published: null,
   version: null,
+  base: null,
+  draftSaved: null,
   past: [],
   future: [],
   displayId: null,
@@ -88,11 +99,26 @@ export const useEditorStore = create<EditorStore>((set, get) => ({
       doc,
       published: structuredClone(doc),
       version,
+      base: version,
+      draftSaved: null,
       past: [],
       future: [],
       ...fixSelection(doc, displayId, null, null),
     });
   },
+
+  resumeDraft: (doc, base, saved) => {
+    const { displayId } = get();
+    const ids = Object.keys(displaysOf(doc));
+    set({ doc, base, draftSaved: saved, past: [], future: [], ...fixSelection(doc, displayId && ids.includes(displayId) ? displayId : (ids[0] ?? null), null, null) });
+  },
+
+  setPublished: (version) => {
+    const { doc } = get();
+    set({ published: structuredClone(doc), version, base: version, draftSaved: null });
+  },
+
+  setDraftSaved: (draftSaved) => set({ draftSaved }),
 
   edit: (fn, after, merge) => {
     const { doc, past, displayId, screenNr, selected, lastMerge } = get();

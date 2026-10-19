@@ -13,7 +13,7 @@ export function ProblemsBar({ issues }: { issues: Issue[] }) {
         <span data-testid="problem-count" className={errors ? "text-red-300" : "text-zinc-400"}>
           {errors ? `✖ ${errors} fel` : "✔ Inga fel"}
         </span>
-        <span className={warns ? "text-amber-300" : "text-zinc-500"}>{warns ? `⚠ ${warns} varningar` : "inga varningar"}</span>
+        <span className={warns ? "text-amber-300" : "text-zinc-500"}>{warns ? `⚠ ${warns} ${warns === 1 ? "varning" : "varningar"}` : "inga varningar"}</span>
         <span className="ml-auto text-xs text-zinc-500">{open ? "Dölj ▾" : issues.length ? "Visa ▸" : ""}</span>
       </button>
       {open && issues.length > 0 && (
