@@ -65,6 +65,10 @@ class LayoutStore:
                 """
             )
             conn.execute("CREATE TABLE IF NOT EXISTS meta (key TEXT PRIMARY KEY, value TEXT)")
+            # The editor's draft: one, shared by the (two) editor accounts; cleared by publishing
+            conn.execute(
+                "CREATE TABLE IF NOT EXISTS layout_draft (id INTEGER PRIMARY KEY CHECK (id = 1), doc TEXT NOT NULL, base_version INTEGER, author TEXT, saved_ts TEXT NOT NULL)"
+            )
 
         await self.db.run_async(_init)
 
@@ -131,6 +135,32 @@ class LayoutStore:
             ]
 
         return await self.db.run_async(_q)
+
+
+    # ---------------------------------------------------------------- editor draft
+
+    async def draft(self) -> dict[str, Any] | None:
+        row = await self.db.run_async(lambda c: c.execute("SELECT doc, base_version, author, saved_ts FROM layout_draft WHERE id = 1").fetchone())
+        if row is None:
+            return None
+        return {"document": json.loads(row[0]), "base_version": row[1], "author": row[2], "saved": row[3]}
+
+    async def save_draft(self, raw: dict[str, Any], base_version: int | None, author: str) -> str:
+        saved = datetime.now(timezone.utc).isoformat(timespec="seconds")
+        body = json.dumps(raw, ensure_ascii=False)
+
+        def _save(c):
+            c.execute(
+                "INSERT OR REPLACE INTO layout_draft (id, doc, base_version, author, saved_ts) VALUES (1, ?, ?, ?, ?)",
+                (body, base_version, author, saved),
+            )
+            c.commit()
+
+        await self.db.run_async(_save)
+        return saved
+
+    async def clear_draft(self) -> None:
+        await self.db.run_async(lambda c: (c.execute("DELETE FROM layout_draft"), c.commit()))
 
 
 class Runtime:

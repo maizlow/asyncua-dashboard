@@ -15,14 +15,16 @@ from collections import defaultdict, deque
 from fastapi import APIRouter, Depends, HTTPException, Request, Response
 from pydantic import BaseModel, Field
 
-from backend.layout_doc import document_json
-from backend.layout_store import get_runtime
+from backend.dashboard_config import ConfigError
+from backend.layout_doc import check_document, document_json, document_yaml, runtime_problems, validate_document
+from backend.layout_store import LayoutStore, get_runtime, publish
 from backend.users import SESSION_HOURS, get_user_store
 
 COOKIE = "aud_editor"
 MAX_FAILURES, FAILURE_WINDOW_S = 5, 300
 
 router = APIRouter(prefix="/api/editor", tags=["Editor"])
+MAX_DOC_BYTES = 1_000_000
 _failures: dict[str, deque[float]] = defaultdict(deque)
 
 
@@ -85,3 +87,103 @@ async def document(user: str = Depends(require_user)):
     """The published layout document in full (with node ids: the editor's tag picker shows them)."""
     rt = get_runtime()
     return {"version": rt.version, "document": document_json(rt.doc)}
+
+
+# ---------------------------------------------------------------- drafts, validation, publishing
+
+_store: LayoutStore | None = None
+
+
+def get_layout_store() -> LayoutStore:
+    global _store
+    if _store is None:
+        _store = LayoutStore()
+    return _store
+
+
+class DocBody(BaseModel):
+    document: dict
+    base_version: int | None = None
+
+
+class PublishBody(DocBody):
+    comment: str | None = Field(None, max_length=200)
+
+
+def _check(raw: dict) -> dict:
+    doc, problems = check_document(raw)
+    runtime = runtime_problems(doc) if doc is not None else []
+    return {"ok": doc is not None and not problems and not runtime, "problems": problems, "runtime": runtime}
+
+
+@router.get("/draft")
+async def get_draft(user: str = Depends(require_user)):
+    """The saved draft (null if none). `stale`: a newer version was published after it was started."""
+    d = await get_layout_store().draft()
+    if d is not None:
+        d["stale"] = d["base_version"] != get_runtime().version
+    return {"draft": d}
+
+
+@router.put("/draft", dependencies=[Depends(require_csrf_header)])
+async def put_draft(body: DocBody, request: Request, user: str = Depends(require_user)):
+    if int(request.headers.get("content-length") or 0) > MAX_DOC_BYTES:
+        raise HTTPException(status_code=413, detail="dokumentet är för stort")
+    saved = await get_layout_store().save_draft(body.document, body.base_version, user)
+    return {"saved": saved}
+
+
+@router.delete("/draft", dependencies=[Depends(require_csrf_header)])
+async def delete_draft(user: str = Depends(require_user)):
+    await get_layout_store().clear_draft()
+    return {"ok": True}
+
+
+@router.post("/validate", dependencies=[Depends(require_csrf_header)])
+async def validate(body: DocBody, user: str = Depends(require_user)):
+    return _check(body.document)
+
+
+@router.post("/publish", dependencies=[Depends(require_csrf_header)])
+async def publish_draft(body: PublishBody, user: str = Depends(require_user)):
+    """Publish the document as a new version. Refused (409) when someone else published since the
+    editor loaded `base_version`, and (422) when it doesn't validate or the runtime can't run it."""
+    rt = get_runtime()
+    if body.base_version != rt.version:
+        raise HTTPException(status_code=409, detail=f"version {rt.version} har publicerats sedan du började – ladda om och gör ändringen igen")
+    result = _check(body.document)
+    if not result["ok"]:
+        raise HTTPException(status_code=422, detail={"message": "dokumentet går inte att publicera", **result})
+    doc = validate_document(body.document, "utkastet")
+    old_nodes = rt.data_nodes()
+    store = get_layout_store()
+    new = await publish(store, doc, author=user, comment=(body.comment or "").strip() or None)
+    await store.clear_draft()
+    return {"version": new.version, "restart_needed": new.data_nodes() != old_nodes}
+
+
+@router.get("/versions")
+async def versions(user: str = Depends(require_user)):
+    return {"versions": await get_layout_store().versions(limit=100), "published": get_runtime().version}
+
+
+async def _version_doc(vid: int):
+    raw = await get_layout_store().version(vid)
+    if raw is None:
+        raise HTTPException(status_code=404, detail=f"version {vid} finns inte")
+    try:
+        return validate_document(raw, f"version {vid}")  # older versions are migrated when read
+    except ConfigError as e:
+        raise HTTPException(status_code=422, detail={"message": f"version {vid} är ogiltig", "errors": e.errors}) from None
+
+
+@router.get("/versions/{vid}")
+async def version(vid: int, user: str = Depends(require_user)):
+    """One version as a document (to load into the editor as a draft: restoring = publishing it again)."""
+    return {"version": vid, "document": document_json(await _version_doc(vid))}
+
+
+@router.get("/versions/{vid}/export.yaml")
+async def export_version(vid: int, user: str = Depends(require_user)):
+    body = document_yaml(await _version_doc(vid))
+    return Response(body, media_type="application/yaml", headers={"Content-Disposition": f'attachment; filename="layout-v{vid}.yaml"'})

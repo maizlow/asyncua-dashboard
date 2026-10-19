@@ -444,6 +444,29 @@ def validate_document(raw: Any, source: str = "dokumentet", lines: dict[tuple, i
     return doc
 
 
+def check_document(raw: Any) -> tuple[LayoutDocument | None, list[dict[str, Any]]]:
+    """Like validate_document, for the editor: the document (or None) and every problem as
+    {"path": [...], "message": ...} instead of an exception."""
+    from backend.dashboard_config import _UNION_BRANCHES
+
+    try:
+        doc = LayoutDocument.model_validate(raw)
+    except ValidationError as e:
+        out, seen = [], set()
+        for err in e.errors():
+            loc = err["loc"]
+            if len(loc) >= 5 and loc[0] == "connections" and loc[2] == "tags" and loc[4] == "str":
+                continue
+            path = [p for p in loc if p != "[key]" and str(p) not in _UNION_BRANCHES]
+            item = {"path": path, "message": _message2(err)}
+            key = (tuple(map(str, path)), item["message"])
+            if key not in seen:
+                seen.add(key)
+                out.append(item)
+        return None, out
+    return doc, [{"path": list(loc), "message": msg} for loc, msg in document_problems(doc)]
+
+
 def resolve_path(path: str | Path | None = None) -> Path:
     path = Path(path or os.environ.get("DASHBOARD_CONFIG") or DEFAULT_PATH)
     if not path.is_absolute() and not path.exists():

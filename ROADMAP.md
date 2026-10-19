@@ -128,6 +128,13 @@ Lägg till nya punkter som checklistor under rätt rubrik och flytta dem till **
 - [x] Validering i webbläsaren som speglar backend (okänd PLC/tagg med förslag, storlek, överlapp, tillstånd, inbyggda skärmars taggar); lista med fel och varningar
 - [x] Läsbarhet live: skärmen mäts utanför bild med värsta fallets värden och uppmätt versalhöjd; under 37 px eller värde som inte får plats = fel, hjälte under 90 px = varning
 
+### Editor etapp 2e: publicera och versioner ([PR #26](https://github.com/maizlow/asyncua-dashboard/pull/26))
+- [x] Utkastet sparas automatiskt (servern, eller `localStorage` i demon) och minns vilken version det bygger på
+- [x] Publicera: kontroll av hela dokumentet (regler, läsbarhet på alla skärmar med värsta fallets värden, vad driften klarar); fel spärrar, kommentar per version, 409 vid krock
+- [x] Versioner: lista, öppna en äldre som utkast och publicera den som ny version, YAML-export av utkast och versioner
+- [x] Demo-editorn på Pages med versioner i `localStorage`; TV-demon i samma webbläsare visar den publicerade demoversionen
+- [x] Playwright-test för publicera, återställa, utkast efter omladdning, spärr vid fel och export
+
 ## Nästa
 
 ### Docker för drift på Fitlet3 (Linux, x86-64)
