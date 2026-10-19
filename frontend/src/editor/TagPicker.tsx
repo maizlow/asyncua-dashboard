@@ -1,5 +1,8 @@
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { splitRef } from "@/layout/doc";
+import { OpcBrowser, type Pick, type PlcInfo } from "./opc/OpcBrowser";
+import { seenTypes, setDemoConnections } from "./opc/source";
+import { typeFit, type ValueKind } from "./opc/types";
 import type { Doc } from "./backend";
 import { connectionIds, defaultConnection } from "./ops";
 import { useEditorStore } from "./store";
@@ -13,16 +16,20 @@ function nodeOf(spec: unknown): string {
   return "";
 }
 
+// Demo build: the fake address space lists the PLCs and tags of the document being edited
+setDemoConnections(() => (useEditorStore.getState().doc?.connections ?? {}) as Record<string, { name?: string; tags?: Record<string, unknown> }>);
+
 /**
- * Tag picker: the tags of every PLC in the pool, grouped by PLC, or a new tag from a typed node id
- * (until browsing the OPC UA server arrives in etapp 3). The display's default PLC is written as a
- * short name (OEE), other PLCs qualified (plc2.Level).
+ * Tag picker: the tags of every PLC in the pool, grouped by PLC; a node picked by browsing the PLC
+ * (etapp 3, read-only); or a new tag from a typed node id. The display's default PLC is written as
+ * a short name (OEE), other PLCs qualified (plc2.Level).
  */
-export function TagPicker({ doc, displayId, value, onChange, testId }: { doc: Doc; displayId: string; value: string | undefined; onChange: (ref: string) => void; testId?: string }) {
+export function TagPicker({ doc, displayId, value, onChange, testId, kind }: { doc: Doc; displayId: string; value: string | undefined; onChange: (ref: string) => void; testId?: string; kind?: ValueKind }) {
   const edit = useEditorStore((s) => s.edit);
   const [adding, setAdding] = useState(false);
+  const [browsing, setBrowsing] = useState(false);
   const def = defaultConnection(doc, displayId);
-  const conns = (doc.connections ?? {}) as Record<string, { name?: string; tags?: Record<string, unknown> }>;
+  const conns = useMemo(() => (doc.connections ?? {}) as Record<string, { name?: string; tags?: Record<string, unknown> }>, [doc.connections]);
   const ids = connectionIds(doc);
   const [cid, name] = value ? splitRef(value, def) : [null, ""];
   const qualified = cid ? `${cid}.${name}` : (value ?? "");
@@ -32,6 +39,27 @@ export function TagPicker({ doc, displayId, value, onChange, testId }: { doc: Do
     const [c, n] = splitRef(q, null);
     onChange(c === def ? n : q);
   };
+
+  const plcs: PlcInfo[] = useMemo(
+    () =>
+      ids.map((c) => {
+        const tags = conns[c]?.tags ?? {};
+        return { id: c, name: conns[c]?.name, tagNames: Object.keys(tags), tagsByNode: new Map(Object.entries(tags).map(([t, spec]) => [nodeOf(spec).trim(), t])) };
+      }),
+    [ids, conns],
+  );
+  const usePicked = (p: Pick) => {
+    if (!p.existing)
+      edit((d) => {
+        const c = (d.connections as Record<string, { tags?: Record<string, unknown> }>)[p.cid];
+        c.tags ??= {};
+        c.tags[p.alias] = p.type === "time" ? { node: p.node.node_id, type: "time" } : p.node.node_id;
+      });
+    pick(`${p.cid}.${p.alias}`);
+    setBrowsing(false);
+  };
+  const seen = known && cid ? seenTypes.get(`${cid}|${node.trim()}`) : undefined;
+  const fit = seen && kind ? typeFit(kind, seen.data_type, seen.array) : null;
 
   const [nc, setNc] = useState(cid ?? def ?? ids[0] ?? "");
   const [nn, setNn] = useState("");
@@ -66,6 +94,19 @@ export function TagPicker({ doc, displayId, value, onChange, testId }: { doc: Do
         ))}
         <option value="__new">+ Ny tagg från nod-id …</option>
       </select>
+      <button
+        data-testid={testId ? `${testId}-browse` : undefined}
+        onClick={() => setBrowsing(true)}
+        className="w-full rounded-md border border-zinc-700 px-2 py-1 text-left text-sm text-sky-300 hover:bg-zinc-800"
+      >
+        Bläddra i PLC:n …
+      </button>
+      {browsing && <OpcBrowser plcs={plcs} initialCid={cid ?? def ?? ids[0]} kind={kind} onPick={usePicked} onClose={() => setBrowsing(false)} />}
+      {fit && fit.level !== "ok" && (
+        <div data-testid={testId ? `${testId}-fit` : undefined} className={`text-[11px] ${fit.level === "error" ? "text-red-300" : "text-amber-300"}`}>
+          {fit.level === "error" ? "✖" : "⚠"} {seen?.data_type}: {fit.text}
+        </div>
+      )}
       {node ? (
         <div className="truncate font-mono text-[11px] text-zinc-500" title={node}>
           {node}

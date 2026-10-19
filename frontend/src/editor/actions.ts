@@ -46,6 +46,9 @@ function typing(e: KeyboardEvent): boolean {
 
 export function onEditorKey(e: KeyboardEvent) {
   if (typing(e)) return;
+  // A dialog (publish, versions, PLC browser) handles its own keys: Esc closes it, nothing else
+  // may reach the canvas (Delete would remove the selected element behind it)
+  if (document.querySelector('[role="dialog"]')) return;
   const s = useEditorStore.getState();
   const mod = e.ctrlKey || e.metaKey;
   const k = e.key.toLowerCase();
