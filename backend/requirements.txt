@@ -9,3 +9,6 @@ asyncua==1.1.5
 python-dotenv==1.0.1
 pydantic-settings==2.8.1
 PyYAML==6.0.3
+
+# Editor login (two local accounts, argon2 password hashes)
+argon2-cffi==25.1.0

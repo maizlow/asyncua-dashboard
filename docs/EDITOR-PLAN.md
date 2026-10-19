@@ -2,8 +2,10 @@
 
 > **Status: inriktningen är beslutad** (Johans svar 19 okt 2026, se [Beslut](#beslut)).
 > - **Klart:** etapp 0 (spik, PR #18) och etapp 1 (dokument och renderare, PR #19).
-> - **Etapp 2 (MVP-editor) pågår:** först modellen för flera PLC:er per display och den förenklade headern (PR #20), sedan
->   editorn.
+> - **Etapp 2 (MVP-editor) pågår:**
+>   - modellen för flera PLC:er per display och den förenklade headern (PR #20)
+>   - inloggning och editorns skal på `/editor/` med display, skärmlista och förhandsvisning (PR #23)
+>   - sedan duken, egenskapspanelen och publiceringen
 > - **Driften** stöder fortfarande en PLC och en display tills etapp 4. Se
 >   [CONFIG.md](CONFIG.md#layoutdokumentet-schema_version-2).
 
@@ -446,7 +448,8 @@ Editor-delen, med inloggning, under `/api/editor`:
 
 | Metod | Sökväg | Syfte |
 |---|---|---|
-| POST/POST/GET | `/login`, `/logout`, `/session` | session |
+| POST/POST/GET | `/login`, `/logout`, `/session` | session (klart, etapp 2a) |
+| GET | `/document` | publicerat dokument med nod-id, för editorn (klart, etapp 2a) |
 | GET/PUT | `/draft` | läs och spara utkast |
 | POST | `/validate` | schema, alias, läsbarhet (server-sida), kontrast |
 | POST | `/publish` | ny version med kommentar |
@@ -464,7 +467,10 @@ Editor-delen, med inloggning, under `/api/editor`:
 - **Editorn kräver inloggning:**
   - **Två användare (beslut 2), Johan och en kollega, inga roller:** användarna läggs in med
     `python -m backend.users add <namn>`, och lösenordet lagras som argon2-hash i SQLite. Publiceringar loggas med namn.
-  - Sessionskaka med `HttpOnly` och `SameSite=Strict`, Origin-kontroll mot CSRF och hastighetsgräns på inloggningen.
+  - **Sessionskaka och skydd:** sessionskakan har `HttpOnly`, `SameSite=Strict` och `Path=/api/editor` och gäller i
+    12 h. Ändrande anrop kräver huvudet `X-Editor: 1` (mot CSRF). Inloggningen spärras i 5 minuter efter 5 fel från
+    samma adress. Byggt i etapp 2a, se [CONFIG.md](CONFIG.md#editorn-konton-och-inloggning).
+  - **Demo-editorn** (Pages) har ingen inloggning och ingen backend. Den använder påhittade nod-id och `localStorage`.
   - Editorn kan bindas till ett eget gränssnitt eller en egen port, så den inte nås från TV-nätet.
   - HTTPS med ett lokalt certifikat rekommenderas.
 - **Aldrig skrivning till PLC:n:**

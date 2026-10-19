@@ -5,7 +5,7 @@ import path from 'path'
 import fs from 'fs'
 import type { Plugin } from 'vite'
 import { parse as parseYaml } from 'yaml'
-import { displayViews } from './src/layout/doc'
+import { displayViews, toDocument } from './src/layout/doc'
 
 const isDemo = process.env.VITE_DEMO === 'true'
 
@@ -38,6 +38,33 @@ function dashboardYaml(): Plugin {
   return {
     name: 'dashboard-yaml',
     transform(code, id) {
+      // `…/file.yaml?doc`: the whole document for the demo editor (connection URLs replaced, the demo
+      // never reaches a PLC). Only imported by the demo build (src/editor/backend.ts).
+      if (/\.ya?ml\?doc$/.test(id)) {
+        if (!isDemo) return { code: 'export default {};', map: null }
+        type Conn = { url?: string; alarms?: unknown; tags?: Record<string, unknown> }
+        type Disp = { screen?: { active?: string; requested?: string } }
+        const doc = toDocument(parseYaml(code) ?? {}) as { connections?: Record<string, Conn>; displays?: Record<string, Disp> }
+        for (const [did, d] of Object.entries(doc.displays ?? {})) {
+          if (d?.screen?.active) d.screen.active = `ns=1;s=Demo.${did}.ActiveScreenNr`
+          if (d?.screen?.requested) d.screen.requested = `ns=1;s=Demo.${did}.RequestedScreenNr`
+        }
+        for (const [cid, c] of Object.entries(doc.connections ?? {})) {
+          if (!c || typeof c !== 'object') continue
+          c.url = 'opc.tcp://demo.invalid:4840'
+          if (c.alarms) c.alarms = `ns=1;s=Demo.${cid}.Alarms`
+          // Fake node ids (the public demo shows no real PLC addresses); placeholders stay empty
+          for (const [name, spec] of Object.entries(c.tags ?? {})) {
+            const fake = `ns=1;s=Demo.${cid}.${name}`
+            if (typeof spec === 'string') c.tags![name] = spec.trim() ? fake : spec
+            else if (spec && typeof spec === 'object' && 'node' in spec) {
+              const t = spec as { node?: string }
+              if (t.node?.trim()) t.node = fake
+            }
+          }
+        }
+        return { code: `export default ${JSON.stringify(doc)};`, map: null }
+      }
       if (!id.endsWith('.yaml') && !id.endsWith('.yml')) return null
       return { code: `export default ${JSON.stringify(displayViews(parseYaml(code) ?? {}))};`, map: null }
     },
@@ -55,6 +82,15 @@ export default defineConfig({
     dashboardYaml(),
     excludePublicFiles(isDemo ? DEMO_EXCLUDED_PUBLIC_FILES : NON_DEMO_EXCLUDED_PUBLIC_FILES),
   ],
+  // Two pages: the TV view (/) and the layout editor (/editor/)
+  build: {
+    rollupOptions: {
+      input: {
+        main: path.resolve(__dirname, 'index.html'),
+        editor: path.resolve(__dirname, 'editor/index.html'),
+      },
+    },
+  },
   resolve: {
     alias: {
       "@": path.resolve(__dirname, "./src"),
