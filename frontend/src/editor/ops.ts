@@ -2,16 +2,28 @@
  * Pure operations on the layout document (schema_version 2, as stored by the backend). The editor keeps
  * the whole document as its draft; every change goes through these functions on a copy, so undo/redo
  * is a stack of documents. Rules mirror backend/layout_doc.py (24 × 12 grid, value elements at least
- * 12 × 4, built-in screens alone and full size, screen numbers 1–99 = the PLC's ActiveScreenNr).
+ * 12 × 4, chart/KPI elements at least their catalogue size, built-in screens alone and full size, screen numbers 1–99 = the PLC's ActiveScreenNr).
  */
 import { BUILTIN_KINDS, GRID_COLS, GRID_ROWS, splitRef } from "@/layout/doc";
 import type { Doc } from "./backend";
+import { DEFAULT_LABELS, KINDS, isChartKind, type ChartKind } from "@/charts/metrics";
 
 export const MIN_W = 12;
 export const MIN_H = 4;
 export const VALUE_KINDS = ["number", "percent", "counter", "time", "status"] as const;
 export type ValueKind = (typeof VALUE_KINDS)[number];
 export type BuiltinKind = (typeof BUILTIN_KINDS)[number];
+/** Anything the palette can add to a grid screen */
+export type ElementKind = ValueKind | ChartKind;
+
+/** Smallest legible size in cells: value elements 12 × 4, charts from backend/chart_catalog.json */
+export function minSizeOf(kind: string): [number, number] {
+  return isChartKind(kind) ? KINDS[kind].min : [MIN_W, MIN_H];
+}
+/** Size of a new element (shrinks to the minimum when the screen has no room for it) */
+export function defaultSizeOf(kind: string): [number, number] {
+  return isChartKind(kind) ? KINDS[kind].default : [MIN_W, MIN_H];
+}
 
 export interface Widget {
   id: string;
@@ -108,21 +120,62 @@ export function newId(doc: Doc, did: string, kind: string): string {
 const RESERVED = new Set(["ShiftStart", "ShiftEnd", "ProductionState", "PlannedTime", "GoodCount", "RejectCount"]);
 
 /** A new value element with defaults that pass validation (bound to the display's default PLC) */
-export function newValueWidget(doc: Doc, did: string, kind: ValueKind, at: Rect): Widget {
+/** A first tag for a new element: the display's default PLC, not a reserved one (short name there) */
+export function defaultTagRef(doc: Doc, did: string): string {
   const conn = defaultConnection(doc, did) ?? connectionIds(doc)[0];
   const tags = conn ? tagsOf(doc, conn) : [];
   const tag = tags.find((t) => !RESERVED.has(t)) ?? tags[0] ?? "Tagg";
-  const short = defaultConnection(doc, did) === conn;
+  return defaultConnection(doc, did) === conn ? tag : `${conn}.${tag}`;
+}
+
+export function newValueWidget(doc: Doc, did: string, kind: ValueKind, at: Rect): Widget {
   const w: Widget = {
     id: newId(doc, did, kind),
     kind,
     ...at,
     label: { number: "Tal", percent: "Procent", counter: "Antal", time: "Tid", status: "Status" }[kind],
-    tag: short ? tag : `${conn}.${tag}`,
+    tag: defaultTagRef(doc, did),
   };
   if (kind === "counter") w.unit = "st";
   if (kind === "status")
     w.states = { 1: { text: "STOPP", color: "red" }, 2: { text: "KÖR", color: "green" } };
+  return w;
+}
+
+/** Defaults per chart kind that pass validation and show something meaningful right away */
+const CHART_DEFAULTS: Record<ChartKind, Record<string, unknown>> = {
+  kpi: { metric: "oee", period: "shift" },
+  gauge: { metric: "oee" },
+  breakdown: {},
+  progress: {},
+  bars: { series: "days", count: 7 },
+  trend: { series: "days", count: 7, metric: "oee", target_metric: "oee_target" },
+  timeline: {},
+  table: { series: "shifts", count: 5, columns: ["label", "good", "oee"] },
+};
+
+/** Switch a chart between a live tag and a calculated value, dropping the fields of the other source */
+export function setChartSource(doc: Doc, did: string, w: Widget, source: "tag" | undefined) {
+  if (source === "tag") {
+    for (const k of ["metric", "period", "series"]) delete w[k];
+    w.source = "tag";
+    w.tag ??= defaultTagRef(doc, did);
+  } else {
+    for (const k of ["source", "tag", "unit", "decimals"]) delete w[k];
+    if (w.kind === "kpi" || w.kind === "gauge" || w.kind === "trend") w.metric ??= "oee";
+  }
+}
+
+/** A new chart/KPI element (calculated values of the display's default PLC) */
+export function newChartWidget(doc: Doc, did: string, kind: ChartKind, at: Rect): Widget {
+  const w: Widget = { id: newId(doc, did, kind), kind, ...at, label: DEFAULT_LABELS[kind], ...structuredClone(CHART_DEFAULTS[kind]) };
+  // As many bars/rows as the size has room for with six-digit counts (7 bars on the full width, 3 on half)
+  if (kind === "bars") {
+    w.count = Math.max(1, Math.min(7, Math.floor((at.w * 7) / GRID_COLS)));
+    // the label shares its row with the "— dagsmål" legend: units only where there is room
+    w.label = at.w >= 18 ? `${w.count} dagar · OEE % · st` : `${w.count} dagar`;
+  }
+  if (kind === "table") w.count = at.h >= 8 ? 5 : 3;
   return w;
 }
 
@@ -238,7 +291,8 @@ export function placementProblem(doc: Doc, did: string, nr: number, id: string |
   if (!inGrid(rect)) return `utanför rutnätet ${GRID_COLS}×${GRID_ROWS}`;
   if (isBuiltin(kind)) return "inbyggda skärmar fyller hela skärmen";
   if (s.items.some((w) => w.id !== id && isBuiltin(w.kind))) return "skärmen är en inbyggd skärm – lägg till en rutnätsskärm";
-  if (rect.w < MIN_W || rect.h < MIN_H) return `minst ${MIN_W}×${MIN_H} rutor för värden`;
+  const [mw, mh] = minSizeOf(kind);
+  if (rect.w < mw || rect.h < mh) return `minst ${mw}×${mh} rutor för ${isChartKind(kind) ? KINDS[kind].name.toLowerCase() : "värden"}`;
   const other = s.items.find((w) => w.id !== id && overlaps(rect, w));
   return other ? `överlappar ${other.label ?? other.id}` : null;
 }
@@ -249,17 +303,21 @@ export function setRect(doc: Doc, did: string, nr: number, id: string, rect: Rec
   Object.assign(w, rect);
 }
 
-/** Place a new value element at (or near) `want`; returns its id, or throws with the reason */
-export function addValueWidget(doc: Doc, did: string, nr: number, kind: ValueKind, want?: { x: number; y: number }): string {
+/** Place a new element at (or near) `want`; returns its id, or throws with the reason. Charts get their
+ *  default size where it fits, else their minimum size. */
+export function addWidget(doc: Doc, did: string, nr: number, kind: ElementKind, want?: { x: number; y: number }): string {
   const s = screen(doc, did, nr);
   if (!s) throw new Error("välj en skärm först");
   if (s.items.some((w) => isBuiltin(w.kind))) throw new Error("det här är en inbyggd skärm – lägg till en rutnätsskärm för egna element");
-  const spot = freeSpot(s.items, MIN_W, MIN_H, want);
-  if (!spot) throw new Error(`ingen ledig plats för ${MIN_W}×${MIN_H} rutor – minska eller ta bort ett element`);
-  const w = newValueWidget(doc, did, kind, spot);
+  const [dw, dh] = defaultSizeOf(kind);
+  const [mw, mh] = minSizeOf(kind);
+  const spot = freeSpot(s.items, dw, dh, want) ?? freeSpot(s.items, mw, mh, want);
+  if (!spot) throw new Error(`ingen ledig plats för ${mw}×${mh} rutor – minska eller ta bort ett element`);
+  const w = isChartKind(kind) ? newChartWidget(doc, did, kind, spot) : newValueWidget(doc, did, kind, spot);
   s.items.push(w);
   return w.id;
 }
+
 
 export function removeWidget(doc: Doc, did: string, nr: number, id: string) {
   const s = screen(doc, did, nr);
@@ -277,13 +335,14 @@ export function portableCopy(doc: Doc, did: string, w: Widget): Widget {
   return copy;
 }
 
-/** Paste a copied value element near its old position (same size if it fits, else the minimum) */
+/** Paste a copied element near its old position (same size if it fits, else the minimum) */
 export function pasteWidget(doc: Doc, did: string, nr: number, src: Widget): string {
   const s = screen(doc, did, nr);
   if (!s) throw new Error("välj en skärm först");
   if (isBuiltin(src.kind)) throw new Error("inbyggda skärmar kopieras som hel skärm (Duplicera skärm)");
   if (s.items.some((w) => isBuiltin(w.kind))) throw new Error("det här är en inbyggd skärm – klistra in på en rutnätsskärm");
-  const spot = freeSpot(s.items, src.w, src.h, src) ?? freeSpot(s.items, MIN_W, MIN_H, src);
+  const [mw, mh] = minSizeOf(src.kind);
+  const spot = freeSpot(s.items, src.w, src.h, src) ?? freeSpot(s.items, mw, mh, src);
   if (!spot) throw new Error("ingen ledig plats på skärmen");
   const w: Widget = { ...structuredClone(src), ...spot, id: newId(doc, did, src.kind) };
   // Shorten references to this display's default PLC again

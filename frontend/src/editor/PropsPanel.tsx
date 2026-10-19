@@ -1,8 +1,9 @@
 import type { ReactNode } from "react";
 import type { Doc } from "./backend";
-import { COLORS, ELEMENT_FIELDS, type Field } from "./elements";
+import { COLORS, fieldsFor, type Field } from "./elements";
+import { isChartKind } from "@/charts/metrics";
 import { TYPE_NAMES } from "./names";
-import { findWidget, removeWidget, type ValueKind, type Widget } from "./ops";
+import { findWidget, removeWidget, setChartSource, type ValueKind, type Widget } from "./ops";
 import { useEditorStore } from "./store";
 import { TagPicker } from "./TagPicker";
 import { pasteClipboard } from "./actions";
@@ -32,24 +33,70 @@ const num = (s: string) => (s.trim() === "" ? undefined : Number(s.replace(",", 
 function FieldEditor({ field, w, doc, displayId, set }: { field: Field; w: Widget; doc: Doc; displayId: string; set: (key: string, v: unknown) => void }) {
   const v = w[field.key];
   const t = `prop-${field.key}`;
+  // Chart tags are numbers (the TagPicker's type check); value elements check against their own kind
+  const tagKind: ValueKind = isChartKind(w.kind) ? "number" : (w.kind as ValueKind);
   switch (field.type) {
+    case "select": {
+      const opts = field.options?.(w) ?? [];
+      const cur = v === undefined ? "" : String(v);
+      return (
+        <select data-testid={t} className={input} value={cur} onChange={(e) => set(field.key, e.target.value === "" ? undefined : e.target.value)}>
+          {!opts.some((o) => o.value === cur) && <option value={cur}>{cur}</option>}
+          {opts.map((o) => (
+            <option key={o.value} value={o.value}>
+              {o.label}
+            </option>
+          ))}
+        </select>
+      );
+    }
+    case "columns": {
+      const cols = (v as string[] | undefined) ?? [];
+      const toggle = (c: string, on: boolean) => {
+        const next = on ? [...cols, c] : cols.filter((x) => x !== c);
+        set(field.key, next.length ? next : undefined);
+      };
+      return (
+        <div className="grid grid-cols-2 gap-x-2 gap-y-0.5">
+          {(field.options?.(w) ?? []).map((o) => (
+            <label key={o.value} className="flex items-center gap-2 text-zinc-300">
+              <input
+                data-testid={`${t}-${o.value}`}
+                type="checkbox"
+                checked={cols.includes(o.value)}
+                disabled={!cols.includes(o.value) && cols.length >= 5}
+                onChange={(e) => toggle(o.value, e.target.checked)}
+              />
+              {o.label}
+            </label>
+          ))}
+        </div>
+      );
+    }
+    case "number":
+      return (
+        <input data-testid={t} type="number" min={field.min} max={field.max} className={input} placeholder={field.placeholder} value={v === undefined ? "" : String(v)} onChange={(e) => set(field.key, num(e.target.value))} />
+      );
     case "text":
       return (
         <input data-testid={t} className={input} maxLength={field.max} placeholder={field.placeholder} value={(v as string | undefined) ?? ""} onChange={(e) => set(field.key, e.target.value === "" && !field.required ? undefined : e.target.value)} />
       );
     case "tag":
-      return <TagPicker testId={t} doc={doc} displayId={displayId} kind={w.kind as ValueKind} value={v as string | undefined} onChange={(r) => set(field.key, r)} />;
+      return <TagPicker testId={t} doc={doc} displayId={displayId} kind={tagKind} value={v as string | undefined} onChange={(r) => set(field.key, r)} />;
     case "int":
       return (
         <input data-testid={t} type="number" min={field.min} max={field.max} className={input} placeholder={field.placeholder} value={v === undefined ? "" : String(v)} onChange={(e) => set(field.key, num(e.target.value))} />
       );
-    case "bool":
+    case "bool": {
+      // defaultOn: stored only when switched off (false), like the backend's default
+      const on = field.defaultOn ? v !== false : !!v;
       return (
         <label className="flex items-center gap-2 text-zinc-300">
-          <input data-testid={t} type="checkbox" checked={!!v} onChange={(e) => set(field.key, e.target.checked || undefined)} />
-          {v ? "På" : "Av"}
+          <input data-testid={t} type="checkbox" checked={on} onChange={(e) => set(field.key, field.defaultOn ? (e.target.checked ? undefined : false) : e.target.checked || undefined)} />
+          {on ? "På" : "Av"}
         </label>
       );
+    }
     case "color":
       return (
         <select data-testid={t} className={input} value={(v as string | undefined) ?? ""} onChange={(e) => set(field.key, e.target.value || undefined)}>
@@ -90,13 +137,13 @@ function FieldEditor({ field, w, doc, displayId, set }: { field: Field; w: Widge
             data-testid={t}
             className={input}
             value={mode}
-            onChange={(e) => set(field.key, e.target.value === "none" ? undefined : e.target.value === "number" ? 1000 : (w.tag ?? ""))}
+            onChange={(e) => set(field.key, e.target.value === "none" ? undefined : e.target.value === "number" ? (isChartKind(w.kind) ? 85 : 1000) : (w.tag ?? ""))}
           >
             <option value="none">Inget mål</option>
             <option value="tag">Tagg</option>
             <option value="number">Fast tal</option>
           </select>
-          {mode === "tag" && <TagPicker testId={`${t}-tag`} doc={doc} displayId={displayId} kind={w.kind as ValueKind} value={v as string} onChange={(r) => set(field.key, r)} />}
+          {mode === "tag" && <TagPicker testId={`${t}-tag`} doc={doc} displayId={displayId} kind={tagKind} value={v as string} onChange={(r) => set(field.key, r)} />}
           {mode === "number" && <input type="number" className={input} value={String(v)} onChange={(e) => set(field.key, num(e.target.value) ?? 0)} />}
         </div>
       );
@@ -169,12 +216,13 @@ export function PropsPanel({ id, problems }: { id: string; problems: Record<stri
   if (!doc || !displayId || screenNr === null) return null;
   const w = findWidget(doc, displayId, screenNr, id);
   if (!w) return null;
-  const fields = ELEMENT_FIELDS[w.kind as ValueKind] ?? [];
+  const fields = fieldsFor(w.kind).filter((f) => !f.when || f.when(w));
   const set = (key: string, value: unknown) =>
     edit(
       (d) => {
         const x = findWidget(d, displayId, screenNr, id)!;
-        if (value === undefined) delete x[key];
+        if (key === "source" && isChartKind(x.kind)) setChartSource(d, displayId, x, value === "tag" ? "tag" : undefined);
+        else if (value === undefined) delete x[key];
         else x[key] = value;
       },
       undefined,

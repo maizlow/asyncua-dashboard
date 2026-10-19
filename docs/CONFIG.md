@@ -87,6 +87,9 @@ python -m backend.users remove johan
 - **Element:**
   - **Lägga till:** dra in från paletten (Tal, Procent, Räknare, Tid, Status), eller klicka för att lägga det på första
     lediga plats. Ett nytt element är 12 × 4 rutor, det minsta som är läsbart på 8–10 m.
+  - **Diagram och KPI** (KPI-ruta, OEE-ring, OEE-uppdelning, Mot mål, Stapeldiagram, Trend, Kör/stopp, Tabell) har en egen
+    grupp i paletten. De får sin standardstorlek där den får plats, annars sin minsta storlek
+    ([tabellen](#diagram-och-kpi)). På duken visas de med demons simulerade skift och historik.
   - **Flytta och ändra storlek:** dra elementet för att flytta det, och hörnet nere till höger för att ändra storleken.
   - **Krockar:** element kan aldrig överlappa. Om du drar mot ett annat element stannar ditt på sista lediga plats.
 - **Skärmar:**
@@ -97,6 +100,9 @@ python -m backend.users remove johan
   - Skärmar kan också dupliceras och tas bort.
 - **Egenskaper:** välj ett element för att ändra etikett, tagg, enhet, decimaler, mål, trend, gränser, bättre-riktning,
   färg och tillstånd (status). Panelen visar bara de egenskaper elementtypen har. Fel visas direkt vid fältet.
+  - **Diagram och KPI:** datakälla (beräknat eller live-tagg), värde, period, serie och antal, mål (tal, tagg eller
+    beräknat, t.ex. OEE-målet), gränser, bättre-riktning, färg, rad under värdet, PÅ MÅL/STÅR i rubrikraden, skalans max
+    och tabellens kolumner. Byter du datakälla tas den andra källans fält bort.
 - **Taggväljaren:**
   - Taggarna är grupperade per PLC. Displayens standard-PLC skrivs kort (`OEE`) och andra PLC:er med anslutningen
     (`plc2.GlazeLevel`).
@@ -106,6 +112,9 @@ python -m backend.users remove johan
   sker vid 1080p:
   - **Fel (✖), som spärrar publicering:** text under 37 px versalhöjd, eller ett värde som inte får plats.
   - **Varning (⚠):** värdet under 90 px.
+  - I diagram och KPI spärrar även text som kortas med … (utom raden under KPI-värdet, som bara varnar), och värden som
+    inte får plats. Värsta fallet där är sexsiffriga
+    tal, 100,0 % och 999 stopp i varje period.
   - Värsta fallet är 999 999 för räknare och mål, 100,0 % och femsiffriga negativa tal (eller taggens `demo`-intervall),
     den längsta statustexten och en vanlig trendändring.
   - Alla fel och varningar listas under duken, och ett klick väljer elementet.

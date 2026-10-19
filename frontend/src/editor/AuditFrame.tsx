@@ -5,6 +5,13 @@ import { GridScreen } from "@/screens/GridScreen";
 import type { Layout, ScreenConfig } from "@/layout/layout";
 import { auditRoot, type ItemAudit } from "./audit";
 import { worstValues } from "./worst";
+import { ChartDataContext } from "@/charts/context";
+import type { ChartData } from "@/charts/metrics";
+import { sampleChartData, worstAggregates, worstDetails } from "@/lib/history";
+
+let cached: ReturnType<typeof sampleChartData> | null = null;
+/** The simulated history (worst-cased below); its shape, not the clock, is what is measured */
+const sample = () => (cached ??= sampleChartData(Date.now()));
 
 /**
  * The screen rendered off-screen at full canvas size with worst-case values (same components as the
@@ -13,6 +20,11 @@ import { worstValues } from "./worst";
 export function AuditFrame({ layout, screen, onResult }: { layout: Layout; screen: ScreenConfig; onResult: (r: Record<string, ItemAudit>) => void }) {
   const ref = useRef<HTMLDivElement>(null);
   const worst = useMemo(() => worstValues(screen, layout.tags), [screen, layout.tags]);
+  // Charts: six-digit counts, 100,0 %, 999 stops in every period (like check-fit's ?count)
+  const chartData = useMemo<ChartData>(() => {
+    const s = sample();
+    return { metrics: worst.values, connected: {}, histories: worst.histories, details: worstDetails(s.details), aggregates: worstAggregates(s.aggregates) };
+  }, [worst]);
   useLayoutEffect(() => {
     let cancelled = false;
     const run = async () => {
@@ -36,7 +48,9 @@ export function AuditFrame({ layout, screen, onResult }: { layout: Layout; scree
     >
       <Header header={layout.display.header} />
       <div data-fit className="flex min-h-0 flex-1 flex-col">
-        <GridScreen key={screen.nr} screen={screen} values={worst.values} valueHistories={worst.histories} />
+        <ChartDataContext.Provider value={chartData}>
+          <GridScreen key={screen.nr} screen={screen} values={worst.values} valueHistories={worst.histories} />
+        </ChartDataContext.Provider>
       </div>
     </div>
   );

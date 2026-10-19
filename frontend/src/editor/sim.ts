@@ -29,6 +29,7 @@ export function simulatedMetrics(layout: Layout): Record<string, MetricValue> {
   const out: Record<string, MetricValue> = {};
   for (const screen of layout.screens)
     for (const item of screen.items) {
+      if (!item.tag) continue; // charts on calculated values (simulated aggregates in the canvas)
       const demo = layout.tags[item.tag]?.demo;
       if (typeof demo === "number") out[item.tag] = item.type === "time" ? hms(demo) : demo;
       else if (Array.isArray(demo)) out[item.tag] = Math.round(((demo[0] + demo[1]) / 2) * 10) / 10;
