@@ -75,10 +75,11 @@ function Row({ row, hero }: { row: HsRow; hero: boolean }) {
   );
 }
 
-export function HighscoreScreen() {
+/** `connection` = the PLC (line) whose runs are shown (layout document, built-in element) */
+export function HighscoreScreen({ connection = "plc1" }: { connection?: string }) {
   const data = useMetricsStore((s) => s.highscores);
   const at = useMetricsStore((s) => s.highscoresAt);
-  const state = useMetricsStore((s) => s.metrics.ProductionState);
+  const state = useMetricsStore((s) => s.metrics[`${connection}.ProductionState`]);
   const now = useNow(1000);
   const cur = data?.current ?? null;
   const live = cur ? cur.duration_s + (cur.running ? Math.max(0, (now - at) / 1000) : 0) : null;

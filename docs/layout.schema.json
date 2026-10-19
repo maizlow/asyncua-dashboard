@@ -58,7 +58,7 @@
     },
     "Display": {
       "additionalProperties": false,
-      "description": "One TV: its own screens, header and theme, reading from one connection.",
+      "description": "One TV: its own screens and header. Reads from any number of connections (shared with other\ndisplays); elements name theirs in the tag reference (plc2.OEE).",
       "properties": {
         "name": {
           "anyOf": [
@@ -74,11 +74,19 @@
           "description": "Visningsnamn, t.ex. 'Linje 3 norr'",
           "title": "Name"
         },
-        "connection": {
-          "default": "plc1",
-          "pattern": "^[a-z][a-z0-9_-]{0,31}$",
-          "title": "Connection",
-          "type": "string"
+        "default_connection": {
+          "anyOf": [
+            {
+              "pattern": "^[a-z][a-z0-9_-]{0,31}$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Anslutning för korta taggnamn (OEE = plc1.OEE). Standard: den enda anslutningen om det bara finns en",
+          "title": "Default Connection"
         },
         "theme": {
           "const": "abece-dark",
@@ -87,8 +95,8 @@
           "type": "string"
         },
         "screen": {
-          "$ref": "#/$defs/ScreenNodes",
-          "description": "Screen switching nodes on the connection's PLC (ActiveScreenNr)"
+          "$ref": "#/$defs/ScreenControl",
+          "description": "Skärmväxlingens noder (ActiveScreenNr) på en anslutning"
         },
         "header": {
           "$ref": "#/$defs/Header"
@@ -110,70 +118,32 @@
     },
     "Header": {
       "additionalProperties": false,
-      "description": "Header area above the grid, kept while the screens change. Default = today's header.",
+      "description": "Header area above the grid, kept while the screens change: a logo on each side and the clock in\nthe middle (always). Default = today's header. none = empty.",
       "properties": {
         "left": {
-          "$ref": "#/$defs/HeaderSlot"
-        },
-        "center": {
-          "$ref": "#/$defs/HeaderSlot"
+          "default": "customer",
+          "description": "customer = kundens logotyp, vendor = ABECE, none = tom",
+          "enum": [
+            "customer",
+            "vendor",
+            "none"
+          ],
+          "title": "Left",
+          "type": "string"
         },
         "right": {
-          "$ref": "#/$defs/HeaderSlot"
+          "default": "vendor",
+          "description": "customer = kundens logotyp, vendor = ABECE, none = tom",
+          "enum": [
+            "customer",
+            "vendor",
+            "none"
+          ],
+          "title": "Right",
+          "type": "string"
         }
       },
       "title": "Header",
-      "type": "object"
-    },
-    "HeaderSlot": {
-      "additionalProperties": false,
-      "properties": {
-        "kind": {
-          "default": "none",
-          "enum": [
-            "logo",
-            "clock",
-            "text",
-            "title",
-            "none"
-          ],
-          "title": "Kind",
-          "type": "string"
-        },
-        "asset": {
-          "anyOf": [
-            {
-              "enum": [
-                "customer",
-                "vendor"
-              ],
-              "type": "string"
-            },
-            {
-              "type": "null"
-            }
-          ],
-          "default": null,
-          "description": "logo: customer = kundlogotyp, vendor = ABECE",
-          "title": "Asset"
-        },
-        "text": {
-          "anyOf": [
-            {
-              "maxLength": 40,
-              "minLength": 1,
-              "type": "string"
-            },
-            {
-              "type": "null"
-            }
-          ],
-          "default": null,
-          "description": "text: fast text",
-          "title": "Text"
-        }
-      },
-      "title": "HeaderSlot",
       "type": "object"
     },
     "Screen": {
@@ -203,9 +173,16 @@
       "title": "Screen",
       "type": "object"
     },
-    "ScreenNodes": {
+    "ScreenControl": {
       "additionalProperties": false,
+      "description": "Screen switching for one display: the PLC asks for a screen (requested), the backend acknowledges\nby writing active. Both nodes are on one explicit connection.",
       "properties": {
+        "connection": {
+          "description": "Anslutningen (PLC) som styr displayens skärmväxling",
+          "pattern": "^[a-z][a-z0-9_-]{0,31}$",
+          "title": "Connection",
+          "type": "string"
+        },
         "active": {
           "description": "ActiveScreenNr (written back by the backend)",
           "minLength": 1,
@@ -220,10 +197,11 @@
         }
       },
       "required": [
+        "connection",
         "active",
         "requested"
       ],
-      "title": "ScreenNodes",
+      "title": "ScreenControl",
       "type": "object"
     },
     "State": {
@@ -371,7 +349,7 @@
             }
           ],
           "default": null,
-          "description": "Alias under the display's connection",
+          "description": "Tagg: plc1.OEE (anslutning.alias), eller bara OEE med displayens default_connection",
           "title": "Tag"
         },
         "unit": {
@@ -414,6 +392,7 @@
             }
           ],
           "default": null,
+          "description": "Mål: en tagg (som tag) eller ett fast tal",
           "title": "Target"
         },
         "trend": {
@@ -494,6 +473,20 @@
           ],
           "default": null,
           "title": "States"
+        },
+        "connection": {
+          "anyOf": [
+            {
+              "pattern": "^[a-z][a-z0-9_-]{0,31}$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Inbyggda skärmar: anslutningen (linjen) de visar, t.ex. plc1",
+          "title": "Connection"
         }
       },
       "required": [

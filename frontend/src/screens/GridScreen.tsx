@@ -1,5 +1,7 @@
 import { ItemCard } from "@/components/ItemCard";
 import { useLiveMetrics } from "@/hooks/useLiveMetrics";
+import { bound } from "@/lib/connection";
+import { useMetricsStore } from "@/stores/useMetricsStore";
 import type { ScreenConfig } from "@/layout/layout";
 import { GRID_COLS, GRID_ROWS } from "@/layout/doc";
 
@@ -8,6 +10,7 @@ import { GRID_COLS, GRID_ROWS } from "@/layout/doc";
 // 12 x 4 (backend validation) keeps the 290 px hero values (incl. "00:00:00" and 6-digit counts) fitting.
 export function GridScreen({ screen }: { screen: ScreenConfig }) {
   const { metrics, histories } = useLiveMetrics();
+  const connected = useMetricsStore((s) => s.connected);
 
   return (
     <div
@@ -18,7 +21,10 @@ export function GridScreen({ screen }: { screen: ScreenConfig }) {
         gridTemplateRows: `repeat(${GRID_ROWS}, minmax(0, 1fr))`,
       }}
     >
-      {screen.items.map((item) => (
+      {screen.items.map((item) => {
+        const { value, down } = bound(metrics, connected, item.tag);
+        const target = typeof item.target === "string" ? bound(metrics, connected, item.target) : null;
+        return (
         <div
           key={item.id}
           className="min-w-0 min-h-0 grid"
@@ -30,12 +36,14 @@ export function GridScreen({ screen }: { screen: ScreenConfig }) {
         >
           <ItemCard
             item={item}
-            value={metrics[item.tag]}
-            history={histories[item.tag]}
-            targetValue={typeof item.target === "string" ? metrics[item.target] : item.target}
+            value={value}
+            history={down ? undefined : histories[item.tag]}
+            targetValue={target ? target.value : item.target}
+            offline={down}
           />
         </div>
-      ))}
+        );
+      })}
     </div>
   );
 }

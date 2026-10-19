@@ -137,7 +137,7 @@ async def test_store_setters_from_opc_thread_reach_websocket_loop(monkeypatch):
     await asyncio.wait_for(b.wait_idle(), 5)
 
     assert [m["type"] for m in received] == ["data_update", "screen_change", "alarm_added", "alarm_removed"]
-    assert received[0] == {"type": "data_update", "key": "OEE", "value": 88.5}
+    assert received[0] == {"type": "data_update", "connection": "plc1", "key": "OEE", "value": 88.5}
     assert received[1] == {"type": "screen_change", "screen": 3}
     await b.stop()
 

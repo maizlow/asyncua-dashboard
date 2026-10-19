@@ -14,18 +14,18 @@ const DEFAULT_DISPLAY = "tv1";
 type Raw = Record<string, unknown>;
 const isObj = (v: unknown): v is Raw => typeof v === "object" && v !== null && !Array.isArray(v);
 
-export interface HeaderSlotView {
-  kind: "logo" | "clock" | "text" | "title" | "none";
-  asset?: "customer" | "vendor";
-  text?: string;
-}
+/** Header: a logo on each side (customer, vendor or none), the clock always in the middle */
+export type LogoAsset = "customer" | "vendor" | "none";
 export interface LayoutView {
   schema_version: 2;
   version: number | null;
-  display: { id: string; name: string | null; theme: string; header: Record<"left" | "center" | "right", HeaderSlotView> };
+  display: { id: string; name: string | null; theme: string; header: { left: LogoAsset; right: LogoAsset } };
   displays: { id: string; name: string | null }[];
+  /** PLCs this display reads from (shared with other displays) */
+  connections: Record<string, { name: string | null }>;
   grid: { cols: number; rows: number };
   screens: Record<string, { title: string | null; items: Raw[] }>;
+  /** Qualified tag (plc1.OEE) -> type, demo value, placeholder */
   tags: Record<string, Raw>;
 }
 
@@ -58,34 +58,33 @@ export function migrateV1(raw: unknown): Raw {
         return { id: `s${nr}-${i + 1}`, kind, x, y, w, h, ...fields };
       });
     } else {
-      items = [{ id: `s${nr}-1`, kind: type, x: 0, y: 0, w: GRID_COLS, h: GRID_ROWS }];
+      items = [{ id: `s${nr}-1`, kind: type, x: 0, y: 0, w: GRID_COLS, h: GRID_ROWS, connection: DEFAULT_CONNECTION }];
     }
     screens[nr] = { title: scr.title ?? null, items };
   }
   return {
     schema_version: 2,
     connections: { [DEFAULT_CONNECTION]: { url: opc.url ?? null, alarms: opc.alarms ?? "", tags: root.tags ?? {} } },
-    displays: { [DEFAULT_DISPLAY]: { connection: DEFAULT_CONNECTION, screen: opc.screen, screens } },
+    displays: {
+      [DEFAULT_DISPLAY]: {
+        default_connection: DEFAULT_CONNECTION,
+        screen: { connection: DEFAULT_CONNECTION, ...(isObj(opc.screen) ? opc.screen : {}) },
+        screens,
+      },
+    },
   };
 }
 
-const DEFAULT_HEADER: LayoutView["display"]["header"] = {
-  left: { kind: "logo", asset: "customer" },
-  center: { kind: "clock" },
-  right: { kind: "logo", asset: "vendor" },
-};
-
 function headerView(raw: unknown): LayoutView["display"]["header"] {
   const h = isObj(raw) ? raw : {};
-  const slot = (key: "left" | "center" | "right"): HeaderSlotView => {
-    const s = h[key];
-    if (!isObj(s)) return DEFAULT_HEADER[key];
-    const out: HeaderSlotView = { kind: (s.kind as HeaderSlotView["kind"]) ?? "none" };
-    if (s.asset != null) out.asset = s.asset as HeaderSlotView["asset"];
-    if (s.text != null) out.text = String(s.text);
-    return out;
-  };
-  return { left: slot("left"), center: slot("center"), right: slot("right") };
+  const asset = (v: unknown, fallback: LogoAsset): LogoAsset => (v === "customer" || v === "vendor" || v === "none" ? v : fallback);
+  return { left: asset(h.left, "customer"), right: asset(h.right, "vendor") };
+}
+
+/** Tag reference -> [connection, tag]: "plc2.OEE" or "OEE" with the display's default connection */
+export function splitRef(ref: string, defaultConnection: string | null): [string | null, string] {
+  const i = ref.indexOf(".");
+  return i >= 0 ? [ref.slice(0, i), ref.slice(i + 1)] : [defaultConnection, ref];
 }
 
 function widgetView(w: Raw): Raw {
@@ -106,30 +105,52 @@ function tagView(spec: unknown): Raw {
   return out;
 }
 
-/** A v2 document -> the view of one display (default: the first). No node ids, no URLs. */
+/** A v2 document -> the view of one display (default: the first). Mirrors layout_view in the backend:
+ * qualified tag references (plc1.OEE), only the connections the display uses. No node ids, no URLs. */
 export function documentView(doc: Raw, displayId?: string, version: number | null = null): LayoutView {
   const displays = isObj(doc.displays) ? doc.displays : {};
   const connections = isObj(doc.connections) ? doc.connections : {};
+  const connIds = Object.keys(connections);
   const id = displayId ?? Object.keys(displays)[0];
   const d = isObj(displays[id]) ? (displays[id] as Raw) : {};
-  const conn = connections[(d.connection as string | undefined) ?? DEFAULT_CONNECTION];
-  const tags = isObj(conn) && isObj(conn.tags) ? conn.tags : {};
+  const defConn = (d.default_connection as string | undefined) ?? (connIds.length === 1 ? connIds[0] : null);
+  const qualify = (ref: string) => splitRef(ref, defConn).join(".");
   const screens = isObj(d.screens) ? d.screens : {};
+  const used = new Set<string>();
+  if (isObj(d.screen) && typeof d.screen.connection === "string") used.add(d.screen.connection);
+  if (defConn) used.add(defConn);
+
+  const screenViews = Object.entries(screens)
+    .sort(([a], [b]) => Number(a) - Number(b))
+    .map(([nr, s]) => {
+      const scr = isObj(s) ? s : {};
+      const items = (Array.isArray(scr.items) ? scr.items : []).filter(isObj).map((w) => {
+        const out = widgetView(w);
+        if (typeof out.connection === "string") used.add(out.connection);
+        for (const f of ["tag", "target"] as const)
+          if (typeof out[f] === "string") {
+            out[f] = qualify(out[f] as string);
+            used.add(splitRef(out[f] as string, null)[0]!);
+          }
+        return out;
+      });
+      return [nr, { title: (scr.title as string | undefined) ?? null, items }] as const;
+    });
+  const usedIds = connIds.filter((c) => used.has(c));
+  const tags: Record<string, Raw> = {};
+  for (const c of usedIds) {
+    const conn = connections[c];
+    for (const [name, spec] of Object.entries(isObj(conn) && isObj(conn.tags) ? conn.tags : {})) tags[`${c}.${name}`] = tagView(spec);
+  }
   return {
     schema_version: 2,
     version,
     display: { id, name: (d.name as string | undefined) ?? null, theme: (d.theme as string | undefined) ?? "abece-dark", header: headerView(d.header) },
     displays: Object.entries(displays).map(([k, v]) => ({ id: k, name: (isObj(v) && (v.name as string)) || null })),
+    connections: Object.fromEntries(usedIds.map((c) => [c, { name: ((connections[c] as Raw)?.name as string | undefined) ?? null }])),
     grid: { cols: GRID_COLS, rows: GRID_ROWS },
-    screens: Object.fromEntries(
-      Object.entries(screens)
-        .sort(([a], [b]) => Number(a) - Number(b))
-        .map(([nr, s]) => {
-          const scr = isObj(s) ? s : {};
-          return [nr, { title: (scr.title as string | undefined) ?? null, items: (Array.isArray(scr.items) ? scr.items : []).filter(isObj).map(widgetView) }];
-        }),
-    ),
-    tags: Object.fromEntries(Object.entries(tags).map(([name, spec]) => [name, tagView(spec)])),
+    screens: Object.fromEntries(screenViews),
+    tags,
   };
 }
 

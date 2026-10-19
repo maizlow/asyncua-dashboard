@@ -1,10 +1,11 @@
 # Plan: verktyg för att designa dashboards (editor)
 
-> **Status: inriktningen är beslutad** (Johans svar 19 okt 2026, se [Beslut](#beslut)). Etapp 0 (spik, PR #18) och
-> etapp 1 (dokument och renderare, PR #19) är klara. Resten väntar på avstämning. Etapp 1 i korthet: layoutdokumentet finns
-> i databasen (`layout_versions`), och `dashboard.yaml` importeras bara när filen har ändrats. Renderaren ritar på ett
-> rutnät med 24 × 12 rutor, och header-ytan kommer från dokumentet. Driften stöder fortfarande en PLC och en display
-> (etapp 4). Se [CONFIG.md](CONFIG.md#var-layouten-sparas-databasen).
+> **Status: inriktningen är beslutad** (Johans svar 19 okt 2026, se [Beslut](#beslut)).
+> - **Klart:** etapp 0 (spik, PR #18) och etapp 1 (dokument och renderare, PR #19).
+> - **Etapp 2 (MVP-editor) pågår:** först modellen för flera PLC:er per display och den förenklade headern (PR #20), sedan
+>   editorn.
+> - **Driften** stöder fortfarande en PLC och en display tills etapp 4. Se
+>   [CONFIG.md](CONFIG.md#layoutdokumentet-schema_version-2).
 
 Målet är ett verktyg där man bygger TV-dashboards som vår från grunden: väljer elementtyper, kopplar OPC UA-taggar, drar och
 släpper, ändrar ordning och storlek, sätter tema och logotyper och publicerar till TV:n. Resultatet ska se **helt eget** ut
@@ -63,6 +64,18 @@ Johans svar på de öppna frågorna (19 okt 2026):
 | 6 | Demo | **Editorn finns i Pages-demon**, med lagring i `localStorage` | se [Redigering](#redigering-spara-och-publicera) |
 | 7 | Larm | **Larmskärmen är alltid helskärm** | valideras |
 
+Johans svar före etapp 2 (19 okt 2026):
+
+| # | Fråga | Beslut |
+|---|---|---|
+| 8 | `dashboard.yaml` efter editorn | `LAYOUT_YAML_IMPORT=auto` importerar en ändrad fil **bara tills editorn har publicerat första gången**. Därefter vinner editorn. `always` importerar ändå, `off` aldrig |
+| 9 | Minsta storlek | Värdeelement minst 12×4 rutor och inbyggda skärmar helskärm, tills de beräknade läsbarhetskontrollerna tillåter mindre |
+| 10 | Display-adress | `/?display=tv2` |
+| 11 | Taggändringar | Kräver omstart av backend fram till etapp 4 |
+| 12 | Header | **Bara två logotyper och klockan:** logotyp till vänster, klocka i mitten och logotyp till höger. Varje logotypplats väljer tillgång (`customer`, `vendor`) eller är tom (`none`). Ingen text och ingen skärmtitel |
+| 13 | Inloggning | Två lokala konton i SQLite med argon2-hash, skapas med `python -m backend.users add <namn>` (frågar efter lösenord). Ingen registreringssida. Sessionskaka och inloggning på `/editor` i fabriksnätet. Pages-demons editor har ingen inloggning, sparar bara i `localStorage`, visar påhittade värden och kan aldrig nå en riktig PLC |
+| 14 | Flera PLC:er per display | En display kan läsa **flera PLC:er** och PLC:er **delas** mellan displayer (TV1 läser A, B och C, TV2 läser B och C). `connections` är en gemensam pool med **en OPC UA-klient per PLC**. Taggar skrivs med anslutning (`plc2.OEE`) eller kort med displayens `default_connection`. Skärmväxlingen pekar på en anslutning. Inbyggda skärmar anger sin anslutning (linje). Historiken sparas per anslutning. Modell, validering och migrering finns från etapp 2. Driften med flera PLC:er kommer i etapp 4 |
+
 ## Alternativ och rekommendation
 
 Tre vägar har utvärderats (oktober 2026):
@@ -109,30 +122,41 @@ Tre vägar har utvärderats (oktober 2026):
 
 ```mermaid
 flowchart LR
-  P1["PLC 1<br/>OPC UA-server"] -- "anslutning plc1" --> BE
-  P2["PLC 2<br/>OPC UA-server"] -- "anslutning plc2" --> BE
-  BE["FastAPI på Fitlet3 (en per linje)<br/>en kontext per anslutning:<br/>asyncua, DataStore, skift, OEE, highscore<br/>SQLite med layoutversioner"]
-  BE -- "/api/layout?display=tv1 + WebSocket" --> T1["Display tv1<br/>t.ex. PLC 1"]
-  BE -- "/api/layout?display=tv2 + WebSocket" --> T2["Display tv2<br/>t.ex. PLC 2"]
+  PA["PLC A"] -- "en klient" --> BE
+  PB["PLC B"] -- "en klient" --> BE
+  PC["PLC C"] -- "en klient" --> BE
+  BE["FastAPI på Fitlet3 (en per linje)<br/>connections: gemensam pool<br/>en OPC UA-klient och en prenumeration per nod och PLC<br/>skift, OEE, 7 dagar, highscore per anslutning<br/>SQLite med layoutversioner"]
+  BE -- "A.*, B.*, C.*" --> T1["Display tv1<br/>läser A, B, C"]
+  BE -- "B.*, C.* (bara det tv2 visar)" --> T2["Display tv2<br/>läser B, C"]
   ED["Editor: /editor<br/>två användare"] -- "utkast, validera, publicera" --> BE
 ```
 
-- **En Fitlet3 per linje och flera displayer:**
-  - Varje display (TV) har ett id (`tv1`, `tv2` …), egna skärmar, egen header och ett eget tema.
-  - En display läser från **en anslutning** (PLC), och flera displayer kan dela en anslutning.
-  - TV:n väljer display med `/?display=tv1`. Utan parameter visas den första.
-- **Anslutning = en PLC:**
-  - Varje anslutning har sin URL, sina taggar (alias), sina larm och sin skärmväxling (`ActiveScreenNr` per display på
-    displayens PLC).
-  - Lösenord och certifikat per anslutning står i `.env` (den första anslutningen med dagens namn, övriga med prefix, t.ex.
-    `PLC2_OPC_PASSWORD`).
-- **Runtime per anslutning:**
-  - OPC-klient, `DataStore`, skiftlogg, OEE, 7 dagar och highscore kör i en kontext per anslutning.
-  - Historiktabellerna får en `connection`-kolumn. Befintliga rader tillhör den första anslutningen.
-  - Det är etapp 4. I etapp 1 är **modellen** klar för flera anslutningar och displayer, men driften stöder en av varje
-    (valideras med ett tydligt fel).
-- **Skärmväxlingen** är som idag: PLC:n begär en skärm, backend kvitterar genom att skriva `ActiveScreenNr` till PLC:n, och
-  TV:n skriver aldrig. Det är den enda skrivningen till PLC:n, och den görs av backendens drift, aldrig av editorn.
+- **Gemensam pool med PLC:er (`connections`):**
+  - Varje anslutning är en PLC med URL, taggar (alias till nod-id), larm och egen inloggning i `.env`. Den första
+    anslutningen använder dagens namn, övriga får prefix, t.ex. `PLC2_OPC_PASSWORD`.
+  - Backend öppnar **en OPC UA-klient per PLC** och prenumererar **en gång per nod**, oavsett hur många displayer som
+    använder den. Värdena skickas ut till alla displayer som behöver dem (`subscription_plan` i `backend/layout_doc.py`).
+- **Displayer läser flera PLC:er:**
+  - Varje display (TV) har ett id (`tv1`, `tv2` …), egna skärmar och egen header.
+  - Ett element anger sin tagg med anslutning, `plc2.OEE`. Ett kort namn (`OEE`) gäller displayens `default_connection`,
+    så dagens filer fungerar oförändrade.
+  - Flera displayer kan läsa samma PLC. TV:n väljer display med `/?display=tv1`. Utan parameter visas den första.
+- **Skärmväxling per display:** `screen: {connection, active, requested}` pekar på en anslutning och dess noder.
+- **Inbyggda skärmar per linje:**
+  - OEE, skiftmönster, 7 dagar, highscore och larm anger sin anslutning (`connection: plc1`).
+  - Skiftlogg, OEE-beräkning och run-tabeller får en `connection`-kolumn. Befintliga rader tillhör den första
+    anslutningen.
+- **WebSocket per display:**
+  - Värdena skickas med anslutningens id (`data_update {connection, key}`), och TV:n håller dem isär (`plc1.OEE`).
+  - En display får bara de värden den visar (`display_keys`). Etapp 4 filtrerar per klient, så överlappande displayer
+    inte ger dubbel last.
+- **En PLC som tappar kontakten** påverkar bara elementen som är kopplade till den. De visar `–` och ⚠
+  (`connection_status`), medan övriga fortsätter att uppdateras.
+- **Etapper:** etapp 1–2 har **modellen**, valideringen, migreringen och TV:ns hantering av flera anslutningar. Driften med
+  flera klienter, historik per anslutning och filtrering per display kommer i etapp 4. Till dess stöder driften en
+  anslutning och en display (valideras med ett tydligt fel).
+- **Skärmväxlingen** fungerar som idag: PLC:n begär en skärm, backend kvitterar genom att skriva `ActiveScreenNr` till
+  PLC:n, och TV:n skriver aldrig. Det är den enda skrivningen till PLC:n. Den görs av backendens drift, aldrig av editorn.
 
 - **En backend, två appar:** FastAPI serverar både TV-appen (`/`) och editorn (`/editor`) från samma byggda frontend
   (Vite multi-page). Detta hänger ihop med "Docker för drift på Fitlet3" i ROADMAP, där FastAPI ändå ska servera
@@ -157,19 +181,20 @@ fast mellanrum.
 ```text
 LayoutDocument
   schema_version: 2
-  connections: { id: Connection }                      # en per PLC
+  connections: { id: Connection }                      # gemensam pool, en per PLC (en OPC UA-klient var)
   displays:    { id: Display }                         # en per TV
 Connection
-  url?, alarms                                         # lösenord och certifikat i .env
-  tags: { alias: { node, type, demo? } }               # alias = dagens taggnamn, element pekar på alias
+  name?, url?, alarms                                  # lösenord och certifikat i .env
+  tags: { alias: { node, type, demo? } }               # alias = taggnamn inom anslutningen
 Display
-  name, connection, theme
-  screen: { active, requested }                        # skärmväxlingens noder på anslutningens PLC
-  header: Header                                       # se Header-yta
+  name, default_connection?, theme
+  screen: { connection, active, requested }            # skärmväxlingens noder på en anslutning
+  header: { left, right }                              # customer | vendor | none, klockan i mitten
   screens: { nr: Screen }                              # nr = ActiveScreenNr
 Screen
   title
-  items: [ { id, kind, x, y, w, h, ...egenskaper } ]   # kind = elementtyp, 24x12 rutor
+  items: [ { id, kind, x, y, w, h, ...egenskaper } ]   # tag: plc2.OEE (eller OEE med default_connection)
+                                                       # inbyggda: connection = linjen de visar
 ```
 
 - **Inbyggda skärmar** (skiftmönster, OEE, 7 dagar, highscore) är element. Fyller de hela rutnätet (`0,0,24,12`) ritas de
@@ -196,14 +221,18 @@ Screen
 
 ### Header-yta
 
-Varje display har en **header-yta ovanför rutnätet** (beslut 5). Den ligger kvar när skärmarna växlar och påverkar inte
-rutnätet.
+Varje display har en **header-yta ovanför rutnätet** (beslut 5 och 12). Den ligger kvar när skärmarna växlar och påverkar
+inte rutnätet.
 
-- **Tre platser:** vänster, mitten och höger, med ett element var. Elementtyper: `logo` (tillgång: kundlogotyp,
-  leverantörslogotyp eller uppladdad bild), `clock`, `text`, `title` (aktuell skärms titel) och `none`.
-- **Standard = dagens header:** kundlogotyp till vänster, klocka i mitten, ABECE till höger.
-- Headerns höjd är fast i första versionen. Höjd, bakgrund och kantlinje kommer från temat (etapp 5).
-- I demon visas alltid platshållarlogotypen och märket "DEMO".
+- **Fast utformning:** logotyp till vänster, klocka i mitten och logotyp till höger.
+- **Logotypplatserna:** varje plats väljer tillgång, `customer` (kundlogotyp) eller `vendor` (ABECE), eller `none`
+  (tom). Från etapp 5 kan den också vara en uppladdad bild. Det finns ingen text och ingen skärmtitel.
+- **Standard = dagens header:** kundlogotyp, klocka, ABECE.
+- **Höjd och utseende:** headerns höjd är fast (klockans 200 px), så rutnätet får samma storlek oavsett logotyper. Bakgrund
+  och kantlinje kommer från temat (etapp 5).
+- **Demon:** där visas alltid platshållarlogotypen och märket "DEMO".
+- **Äldre versioner:** dokument sparade i etapp 1 hade tre fria platser. De läses fortfarande. En logotyp behålls, och allt
+  annat blir `none`.
 
 ## Elementkatalog och egenskapspanel
 

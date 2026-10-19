@@ -6,17 +6,8 @@
     "name": null,
     "theme": "abece-dark",
     "header": {
-      "left": {
-        "kind": "logo",
-        "asset": "customer"
-      },
-      "center": {
-        "kind": "clock"
-      },
-      "right": {
-        "kind": "logo",
-        "asset": "vendor"
-      }
+      "left": "customer",
+      "right": "vendor"
     }
   },
   "displays": [
@@ -25,6 +16,11 @@
       "name": null
     }
   ],
+  "connections": {
+    "plc1": {
+      "name": null
+    }
+  },
   "grid": {
     "cols": 24,
     "rows": 12
@@ -39,7 +35,8 @@
           "x": 0,
           "y": 0,
           "w": 24,
-          "h": 12
+          "h": 12,
+          "connection": "plc1"
         }
       ]
     },
@@ -54,9 +51,9 @@
           "w": 12,
           "h": 4,
           "label": "Överhettningsskyddet",
-          "tag": "ProductionCount",
+          "tag": "plc1.ProductionCount",
           "unit": "tjocka",
-          "target": "TargetCount"
+          "target": "plc1.TargetCount"
         },
         {
           "id": "s2-2",
@@ -66,7 +63,7 @@
           "w": 12,
           "h": 4,
           "label": "MEDELTRYCK HYDRAULIK",
-          "tag": "Negative",
+          "tag": "plc1.Negative",
           "unit": "mmmmmm",
           "decimals": 1,
           "trend": true
@@ -79,7 +76,7 @@
           "w": 12,
           "h": 4,
           "label": "OEE för hela skiftet",
-          "tag": "OEE",
+          "tag": "plc1.OEE",
           "decimals": 1,
           "trend": true,
           "thresholds": [
@@ -96,7 +93,7 @@
           "w": 12,
           "h": 4,
           "label": "Kassation i procent",
-          "tag": "Scrap",
+          "tag": "plc1.Scrap",
           "decimals": 1,
           "thresholds": [
             2.0,
@@ -113,7 +110,7 @@
           "w": 12,
           "h": 4,
           "label": "Linjeläge just nu",
-          "tag": "Mode",
+          "tag": "plc1.Mode",
           "states": {
             "1": {
               "text": "STOPP",
@@ -137,7 +134,7 @@
           "w": 12,
           "h": 4,
           "label": "Aktuell körtid total",
-          "tag": "CurrentRuntime"
+          "tag": "plc1.CurrentRuntime"
         }
       ]
     },
@@ -152,7 +149,7 @@
           "w": 24,
           "h": 12,
           "label": "Godkända idag",
-          "tag": "ProductionCount",
+          "tag": "plc1.ProductionCount",
           "unit": "st",
           "target": 999999.0
         }
@@ -169,7 +166,7 @@
           "w": 12,
           "h": 6,
           "label": "Ugnstemperatur zon 4",
-          "tag": "Temp",
+          "tag": "plc1.Temp",
           "unit": "°C",
           "decimals": 1,
           "thresholds": [
@@ -186,7 +183,7 @@
           "w": 12,
           "h": 6,
           "label": "Ej kopplad tagg",
-          "tag": "NotYet",
+          "tag": "plc1.NotYet",
           "unit": "st"
         },
         {
@@ -197,7 +194,7 @@
           "w": 12,
           "h": 6,
           "label": "Takt",
-          "tag": "TPM",
+          "tag": "plc1.TPM",
           "unit": "TPM",
           "trend": true
         }
@@ -212,7 +209,8 @@
           "x": 0,
           "y": 0,
           "w": 24,
-          "h": 12
+          "h": 12,
+          "connection": "plc1"
         }
       ]
     },
@@ -225,7 +223,8 @@
           "x": 0,
           "y": 0,
           "w": 24,
-          "h": 12
+          "h": 12,
+          "connection": "plc1"
         }
       ]
     },
@@ -238,7 +237,8 @@
           "x": 0,
           "y": 0,
           "w": 24,
-          "h": 12
+          "h": 12,
+          "connection": "plc1"
         }
       ]
     },
@@ -251,27 +251,28 @@
           "x": 0,
           "y": 0,
           "w": 24,
-          "h": 12
+          "h": 12,
+          "connection": "plc1"
         }
       ]
     }
   },
   "tags": {
-    "ProductionCount": {
+    "plc1.ProductionCount": {
       "type": "auto",
       "demo": 999999.0,
       "placeholder": false
     },
-    "TargetCount": {
+    "plc1.TargetCount": {
       "type": "auto",
       "demo": 999999.0,
       "placeholder": false
     },
-    "ProductionState": {
+    "plc1.ProductionState": {
       "type": "auto",
       "placeholder": false
     },
-    "OEE": {
+    "plc1.OEE": {
       "type": "auto",
       "demo": [
         60.0,
@@ -279,28 +280,28 @@
       ],
       "placeholder": false
     },
-    "TPM": {
+    "plc1.TPM": {
       "type": "auto",
       "placeholder": false
     },
-    "ShiftStart": {
+    "plc1.ShiftStart": {
       "type": "time",
       "placeholder": false
     },
-    "ShiftEnd": {
+    "plc1.ShiftEnd": {
       "type": "time",
       "placeholder": false
     },
-    "CurrentRuntime": {
+    "plc1.CurrentRuntime": {
       "type": "time",
       "placeholder": false
     },
-    "Negative": {
+    "plc1.Negative": {
       "type": "auto",
       "demo": -99999.9,
       "placeholder": false
     },
-    "Scrap": {
+    "plc1.Scrap": {
       "type": "auto",
       "demo": [
         0.0,
@@ -308,7 +309,7 @@
       ],
       "placeholder": false
     },
-    "Temp": {
+    "plc1.Temp": {
       "type": "auto",
       "demo": [
         180.0,
@@ -316,12 +317,12 @@
       ],
       "placeholder": false
     },
-    "Mode": {
+    "plc1.Mode": {
       "type": "auto",
       "demo": 3.0,
       "placeholder": false
     },
-    "NotYet": {
+    "plc1.NotYet": {
       "type": "auto",
       "placeholder": true
     }

@@ -44,9 +44,11 @@ interface ItemCardProps {
   value: MetricValue | undefined;
   history?: MetricValue[];
   targetValue?: MetricValue;
+  /** The element's PLC is not connected: "–" and a ⚠ marker instead of a stale value */
+  offline?: boolean;
 }
 
-export function ItemCard({ item, value, history, targetValue }: ItemCardProps) {
+export function ItemCard({ item, value, history, targetValue, offline = false }: ItemCardProps) {
   const numeric = isValidNumber(value) ? Number(value) : null;
   if (
     !fractionalTags.has(item.tag) &&
@@ -73,7 +75,9 @@ export function ItemCard({ item, value, history, targetValue }: ItemCardProps) {
     if (status) color = STATUS_COLOR[status];
   }
   // Non-colour cue: ▼ = below target (higher is better), ▲ = above limit (lower is better)
-  const cue = status && status !== "good" ? (item.better === "low" ? "▲" : "▼") : null;
+  // ⚠ = no connection to the element's PLC (shape cue, not only colour)
+  const cue = offline ? "⚠" : status && status !== "good" ? (item.better === "low" ? "▲" : "▼") : null;
+  if (offline) color = COLOR_VAR.amber;
 
   // ----- latest change (trend) -----
   let deltaText: string | null = null;

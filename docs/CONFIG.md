@@ -20,21 +20,24 @@ Hur de beräknade värdena räknas fram (OEE, mål, prognos, kassation, stopp, t
 
 ## Var layouten sparas: databasen
 
-Sedan editorns etapp 1 är **databasen** (`data.db`, tabellen `layout_versions`) den enda källan för vad TV:n visar.
-`dashboard.yaml` är kvar som startpunkt och som enkelt sätt att ändra tills editorn finns (etapp 2):
+**Databasen** (`data.db`, tabellen `layout_versions`) är den enda källan för vad TV:n visar. `dashboard.yaml` är
+startpunkten, och fram till att editorn används är filen också det enkla sättet att ändra layouten:
 
 1. **Första starten:** backend läser `dashboard.yaml`, kontrollerar den och sparar den som **version 1** (publicerad).
-2. **Senare starter:** filen importeras igen **bara om den har ändrats** sedan den senaste importen. Backend jämför filens
-   sha256 med den som sparades vid importen. Den blir då en ny version och publiceras. En oförändrad fil rör ingenting, så
-   en version som publicerats på annat sätt (editorn senare, `restore` nedan) ligger kvar.
-3. **Ogiltig ändrad fil:** backend startar inte och loggen visar felen. Rätta filen eller ta tillbaka den gamla.
-4. **Inget raderas:** varje import eller publicering är en ny version. Versionerna gallras inte med mätdatan
+2. **Senare starter, före editorn:** filen importeras igen **bara om den har ändrats** sedan den senaste importen. Backend
+   jämför filens sha256 med den som sparades vid importen. Den ändrade filen blir en ny version och publiceras.
+3. **Efter första publiceringen i editorn:** en ändrad fil importeras **inte** längre. Loggen säger att filen har ändrats.
+   Layouten ändras då i editorn (som också kan importera en fil). Det skyddar editorns arbete mot en gammal fil vid en
+   omstart.
+4. **Ogiltig ändrad fil:** backend startar inte och loggen visar felen. Rätta filen eller ta tillbaka den gamla.
+5. **Inget raderas:** varje import eller publicering är en ny version. Versionerna gallras inte med mätdatan
    (`RETENTION_DAYS`).
 
 | `.env` | Betyder |
 |---|---|
-| `LAYOUT_YAML_IMPORT=auto` (standard) | Importera `dashboard.yaml` när den har ändrats, enligt ovan. |
-| `LAYOUT_YAML_IMPORT=off` | Läs aldrig filen igen efter första importen. Använd det när layouten bara ändras i editorn. |
+| `LAYOUT_YAML_IMPORT=auto` (standard) | Importera en ändrad `dashboard.yaml` tills editorn har publicerat första gången, enligt ovan. |
+| `LAYOUT_YAML_IMPORT=always` | Importera en ändrad fil även efter att editorn har publicerat. Filen vinner över editorn vid omstart, så använd det bara tillfälligt. |
+| `LAYOUT_YAML_IMPORT=off` | Läs aldrig filen igen efter första importen. |
 
 Versionerna hanteras från projektets rotmapp, på Fitlet3:
 
@@ -44,49 +47,70 @@ python -m backend.layout_store show 3      # version 3 som YAML (schema_version 
 python -m backend.layout_store restore 3   # publicera version 3 igen som en ny version, starta sedan om backend
 ```
 
-Backend läser layouten vid start. En ändring kräver därför omstart tills editorn publicerar direkt (etapp 2): då laddar
-TV:n om layouten av sig själv (`layout_changed`).
+Backend läser layouten vid start. En publicering från editorn laddar om TV:n direkt (`layout_changed`), men nya eller
+ändrade taggar kräver omstart av backend tills prenumerationerna laddas om live (etapp 4).
 
 ## Layoutdokumentet (schema_version 2)
 
-I databasen sparas layouten som ett **layoutdokument**. Det har plats för flera PLC:er (`connections`) och flera TV:ar
-(`displays`) på samma Fitlet3, var och en med egna skärmar och en egen header-yta. `dashboard.yaml` i formatet nedan
-(version 1) översätts automatiskt:
+I databasen sparas layouten som ett **layoutdokument**:
+
+- **`connections`** är en gemensam pool av PLC:er. Varje PLC har sin URL, sina larm och sina taggar (alias → nod-id).
+- **`displays`** är TV:arna. En display kan läsa från **flera PLC:er**, och flera displayer kan läsa samma PLC. Exempel:
+  TV1 läser PLC 1, 2 och 3, och TV2 läser PLC 2 och 3.
+- **En anslutning per PLC:** backend öppnar en enda OPC UA-anslutning till varje PLC och prenumererar en gång per nod, hur
+  många displayer som än visar den. Värdena skickas sedan ut till alla displayer som behöver dem.
+
+`dashboard.yaml` i formatet längre ned (version 1) översätts automatiskt:
 
 | `dashboard.yaml` (version 1) | Layoutdokument |
 |---|---|
 | `opc` + `tags` | anslutningen `plc1` (`url`, `alarms`, `tags`) |
-| `opc.screen` + `screens` | displayen `tv1` (`connection: plc1`, `screen`, `screens`) |
+| `opc.screen` | `displays → tv1 → screen` med `connection: plc1` |
+| `screens` | displayen `tv1` med `default_connection: plc1`, så korta taggnamn fungerar som förut |
 | grid-skärm med 1 objekt | ett element på hela rutnätet: `x: 0, y: 0, w: 24, h: 12` |
 | grid-skärm med 2–6 objekt | 2 kolumner (`w: 12`) och 1–3 rader (`h: 12`, `6` eller `4`), i filens ordning |
-| `type: alarms` / `shift` / `oee` / `week` / `highscore` | ett inbyggt element på hela rutnätet |
-| (saknas) | header: kundens logotyp, klocka, ABECE-logotyp (som tidigare) |
+| `type: alarms` / `shift` / `oee` / `week` / `highscore` | ett inbyggt element på hela rutnätet med `connection: plc1` |
+| (saknas) | header: kundens logotyp till vänster, klockan i mitten, ABECE till höger (som tidigare) |
 
 Varje skärm är ett fast **rutnät på 24 × 12 rutor** under header-ytan. Rutnätet ger exakt samma storlekar som tidigare,
-så TV:n ser likadan ut. Ett element har `id`, `kind` (`number`, `percent`, `counter`, `time`, `status` eller en inbyggd
-skärm), läge och storlek i rutor (`x`, `y`, `w`, `h`) och samma egenskaper som ett objekt (`label`, `tag`, `unit` …).
+så TV:n ser likadan ut. Ett element har:
+
+- `id`;
+- `kind`: `number`, `percent`, `counter`, `time`, `status` eller en inbyggd skärm;
+- läge och storlek i rutor: `x`, `y`, `w`, `h`;
+- samma egenskaper som ett objekt: `label`, `tag`, `unit` och så vidare.
 
 ```yaml
 schema_version: 2
-connections:
+connections:                                   # gemensam pool, en per PLC
   plc1: { url: opc.tcp://192.168.0.1:4840, alarms: ns=3;i=1815, tags: { OEE: ns=3;s="DB"."oee" } }
+  plc2: { url: opc.tcp://192.168.0.2:4840, tags: { Level: ns=3;s="DB"."level" } }
 displays:
   tv1:
-    connection: plc1
-    screen: { active: …, requested: … }
-    header:                                     # valfri; standard = som idag
-      left: { kind: logo, asset: customer }     # logo (customer | vendor), clock, text, title (skärmens title), none
-      center: { kind: clock }
-      right: { kind: text, text: Linje 3 }      # högst 40 tecken
+    default_connection: plc1                   # korta taggnamn: OEE betyder plc1.OEE
+    screen: { connection: plc1, active: …, requested: … }   # skärmväxlingen styrs av en PLC
+    header: { left: customer, right: vendor }  # customer | vendor | none; klockan är alltid i mitten
     screens:
       2:
         title: Dashboard
         items:
           - { id: oee, kind: percent, x: 0, y: 0, w: 12, h: 12, label: OEE, tag: OEE, thresholds: [75, 85] }
+          - { id: niva, kind: number, x: 12, y: 0, w: 12, h: 12, label: Nivå, tag: plc2.Level }
+      4:
+        items:
+          - { id: oee-skarm, kind: oee, connection: plc1, x: 0, y: 0, w: 24, h: 12 }   # inbyggd: vilken linje
 ```
 
-Ett fullständigt exempel med två PLC:er och två displayer finns i
-[`docs/examples/flera-displayer.yaml`](examples/flera-displayer.yaml). JSON-schema för VS Code:
+| Nyckel | Betyder |
+|---|---|
+| `tag`, `target` | `plc2.Level` = taggen `Level` i anslutningen `plc2`. Ett kort namn (`OEE`) gäller displayens `default_connection`. |
+| `default_connection` | Valfri. Standard är den enda anslutningen om det bara finns en. Med flera PLC:er och ingen standard måste varje tagg skrivas med anslutning. |
+| `screen.connection` | PLC:n som styr displayens skärmväxling (`ActiveScreenNr`). |
+| `connection` (inbyggda skärmar) | Krävs. Linjen (PLC:n) vars skiftlogg, OEE, 7 dagar, highscore eller larm visas. Historiken sparas per anslutning. |
+| `header.left`, `header.right` | `customer` (kundens logotyp), `vendor` (ABECE) eller `none` (tomt). Klockan sitter alltid i mitten. |
+
+**Ett fullständigt exempel** med tre PLC:er som delas av två displayer finns i
+[`docs/examples/flera-displayer.yaml`](examples/flera-displayer.yaml). JSON-schema för VS Code finns i
 [`docs/layout.schema.json`](layout.schema.json).
 
 ```bash
@@ -97,16 +121,25 @@ python -m backend.layout_doc --view                # det GET /api/layout skickar
 
 Regler utöver dem för objekten:
 
-- Ett värdeelement är **minst 12 × 4 rutor** (en halv bredd, en tredjedel av höjden). Det är den minsta storlek där
-  290 px-siffrorna, även `00:00:00` och sexsiffriga tal, har plats. Editorn får räkna fram mindre storlekar (etapp 2).
-- **Inbyggda skärmar** täcker tills vidare hela rutnätet och står ensamma (mindre varianter kommer i etapp 6). Larm är
-  alltid helskärm.
-- Element får inte överlappa eller gå utanför rutnätet, och `id` måste vara unikt.
-- `displays → … → connection` måste finnas under `connections`, och taggarna läses från den anslutningen.
-- **Driften stöder än så länge en anslutning och en display.** Ett dokument med fler godkänns av `python -m backend.layout_doc`
-  (med "Obs"), men backend vägrar att publicera det tills etapp 4.
+- **Minsta storlek:** ett värdeelement är minst 12 × 4 rutor (en halv bredd, en tredjedel av höjden). Det är den minsta
+  storlek där 290 px-siffrorna har plats, även `00:00:00` och sexsiffriga tal.
+- **Inbyggda skärmar:** de täcker hela rutnätet och står ensamma tills mindre varianter kommer i etapp 6. Larm är alltid
+  helskärm.
+- **Placering:** element får inte överlappa eller gå utanför rutnätet, och `id` måste vara unikt.
+- **Anslutningar och taggar:** varje anslutning (i `tag`, `default_connection`, `screen` och på inbyggda skärmar) måste
+  finnas under `connections`. Taggen måste finnas i den anslutningen. Felen anger rad och nyckel, t.ex.
+  `items → 2 → tag: okänd tagg 'Levle' i plc2 (menade du 'Level'?)`.
+- **Driften stöder än så länge en anslutning och en display.** Ett dokument med fler godkänns av
+  `python -m backend.layout_doc` (med "Obs"), men backend vägrar att publicera det tills etapp 4. Etapp 4 kör en
+  OPC-klient per anslutning, filtrerar WebSocket-meddelandena per display och sparar historiken per anslutning.
 
-TV:n väljer display med `?display=tv2` i adressen (standard: den första). `GET /api/displays` listar dem.
+**Displayer och PLC-status:**
+- **Välja display:** TV:n väljer display med `?display=tv2` i adressen (standard: den första). `GET /api/displays` listar
+  dem.
+- **Värdenas nycklar:** värdena skickas med anslutningens id (`data_update` med `connection`), och TV:n håller isär
+  PLC:erna (`plc1.OEE`).
+- **En PLC tappar kontakten** (`connection_status`): bara de element som är kopplade till den visar `–` och ⚠. Övriga
+  fortsätter att uppdateras. I demon visar `?layout=multi&display=tv1&screen=2&down=plc2` hur det ser ut.
 
 ## Filens delar
 

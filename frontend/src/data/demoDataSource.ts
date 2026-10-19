@@ -441,12 +441,22 @@ export function createDemoDataSource(): DataSource {
       if (i.type === "status" && i.states && !statusTags.has(i.tag)) statusTags.set(i.tag, Number(Object.keys(i.states)[0]));
   const walk: Record<string, number> = {};
 
-  const setMetric = (key: string, value: MetricValue, historical = false, fromLayout = false) => {
+  // Keys are qualified (plc1.OEE). The simulated line feeds the same tag name on every PLC of the
+  // display; ?down=plc2 simulates a PLC without connection (its elements show "–" and ⚠).
+  const connIds = Object.keys(layout.connections).length ? Object.keys(layout.connections) : ["plc1"];
+  const down = new Set((params.get("down") ?? "").split(",").filter(Boolean));
+  const setQualified = (key: string, value: MetricValue, historical: boolean, fromLayout: boolean) => {
+    if (down.has(key.slice(0, key.indexOf(".")))) return;
     if (!fromLayout && demoOverrides.has(key)) return;
     if (historical) histories[key] = [...(histories[key] ?? []), value].slice(-HISTORY_POINTS);
     if (metrics[key] === value) return;
     metrics[key] = value;
     emit({ type: "data_update", key, value });
+  };
+  /** A built-in simulation value by tag name: set on every PLC (or a qualified key as is) */
+  const setMetric = (key: string, value: MetricValue, historical = false, fromLayout = false) => {
+    if (key.includes(".")) return setQualified(key, value, historical, fromLayout);
+    for (const c of connIds) setQualified(`${c}.${key}`, value, historical, fromLayout);
   };
 
   const addAlarm = (template: Omit<Alarm, "timestamp">) => {
@@ -505,7 +515,7 @@ export function createDemoDataSource(): DataSource {
         const next = Math.min(hi, Math.max(lo, prev + (Math.random() - 0.5) * (hi - lo) * 0.04));
         walk[name] = next;
         setMetric(name, tag.type === "time" ? hms(next) : round(next, 1), historical, true);
-      } else if (!BUILT_IN.has(name) && !tag.placeholder) {
+      } else if (!BUILT_IN.has(name.slice(name.indexOf(".") + 1)) && !tag.placeholder) {
         if (statusTags.has(name)) setMetric(name, statusTags.get(name)!, false, true);
         else if (tag.type === "time") setMetric(name, hms(sim.elapsed), false, true);
         else {
@@ -519,6 +529,7 @@ export function createDemoDataSource(): DataSource {
 
   const snapshot = (): ServerMessage => ({
     type: "full_snapshot",
+    connected: Object.fromEntries(connIds.map((c) => [c, !down.has(c)])),
     data: { ...metrics },
     histories: Object.fromEntries(Object.entries(histories).map(([k, v]) => [k, [...v]])),
   });

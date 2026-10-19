@@ -6,17 +6,8 @@
     "name": null,
     "theme": "abece-dark",
     "header": {
-      "left": {
-        "kind": "logo",
-        "asset": "customer"
-      },
-      "center": {
-        "kind": "clock"
-      },
-      "right": {
-        "kind": "logo",
-        "asset": "vendor"
-      }
+      "left": "customer",
+      "right": "vendor"
     }
   },
   "displays": [
@@ -25,6 +16,11 @@
       "name": null
     }
   ],
+  "connections": {
+    "plc1": {
+      "name": null
+    }
+  },
   "grid": {
     "cols": 24,
     "rows": 12
@@ -39,7 +35,8 @@
           "x": 0,
           "y": 0,
           "w": 24,
-          "h": 12
+          "h": 12,
+          "connection": "plc1"
         }
       ]
     },
@@ -54,9 +51,9 @@
           "w": 12,
           "h": 4,
           "label": "Produktion",
-          "tag": "ProductionCount",
+          "tag": "plc1.ProductionCount",
           "unit": "st",
-          "target": "TargetCount"
+          "target": "plc1.TargetCount"
         },
         {
           "id": "s2-2",
@@ -66,7 +63,7 @@
           "w": 12,
           "h": 4,
           "label": "Delta",
-          "tag": "ProductionDelta",
+          "tag": "plc1.ProductionDelta",
           "unit": "st",
           "trend": true
         },
@@ -78,7 +75,7 @@
           "w": 12,
           "h": 4,
           "label": "OEE",
-          "tag": "OEE",
+          "tag": "plc1.OEE",
           "trend": true,
           "unit": "%"
         },
@@ -90,7 +87,7 @@
           "w": 12,
           "h": 4,
           "label": "Linjehastighet",
-          "tag": "TPM",
+          "tag": "plc1.TPM",
           "unit": "TPM",
           "decimals": 1,
           "trend": true
@@ -103,7 +100,7 @@
           "w": 12,
           "h": 4,
           "label": "Aktuell körtid",
-          "tag": "CurrentRuntime"
+          "tag": "plc1.CurrentRuntime"
         },
         {
           "id": "s2-6",
@@ -113,7 +110,7 @@
           "w": 12,
           "h": 4,
           "label": "Total stopptid",
-          "tag": "AccumulatedStoptime",
+          "tag": "plc1.AccumulatedStoptime",
           "color": "red"
         }
       ]
@@ -127,7 +124,8 @@
           "x": 0,
           "y": 0,
           "w": 24,
-          "h": 12
+          "h": 12,
+          "connection": "plc1"
         }
       ]
     },
@@ -140,7 +138,8 @@
           "x": 0,
           "y": 0,
           "w": 24,
-          "h": 12
+          "h": 12,
+          "connection": "plc1"
         }
       ]
     },
@@ -153,7 +152,8 @@
           "x": 0,
           "y": 0,
           "w": 24,
-          "h": 12
+          "h": 12,
+          "connection": "plc1"
         }
       ]
     },
@@ -166,73 +166,74 @@
           "x": 0,
           "y": 0,
           "w": 24,
-          "h": 12
+          "h": 12,
+          "connection": "plc1"
         }
       ]
     }
   },
   "tags": {
-    "TargetCount": {
+    "plc1.TargetCount": {
       "type": "auto",
       "placeholder": false
     },
-    "ProductionCount": {
+    "plc1.ProductionCount": {
       "type": "auto",
       "placeholder": false
     },
-    "ProductionDelta": {
+    "plc1.ProductionDelta": {
       "type": "auto",
       "placeholder": false
     },
-    "ProductionState": {
+    "plc1.ProductionState": {
       "type": "auto",
       "placeholder": false
     },
-    "OEE": {
+    "plc1.OEE": {
       "type": "auto",
       "placeholder": false
     },
-    "TPM": {
+    "plc1.TPM": {
       "type": "auto",
       "placeholder": false
     },
-    "CurrentRuntime": {
+    "plc1.CurrentRuntime": {
       "type": "time",
       "placeholder": false
     },
-    "AccumulatedStoptime": {
+    "plc1.AccumulatedStoptime": {
       "type": "time",
       "placeholder": false
     },
-    "ShiftStart": {
+    "plc1.ShiftStart": {
       "type": "time",
       "placeholder": false
     },
-    "ShiftEnd": {
+    "plc1.ShiftEnd": {
       "type": "time",
       "placeholder": false
     },
-    "GoodCount": {
+    "plc1.GoodCount": {
       "type": "auto",
       "placeholder": true
     },
-    "RejectCount": {
+    "plc1.RejectCount": {
       "type": "auto",
       "placeholder": true
     },
-    "ShiftTarget": {
+    "plc1.ShiftTarget": {
       "type": "auto",
       "placeholder": true
     },
-    "OeeTarget": {
+    "plc1.OeeTarget": {
       "type": "auto",
       "placeholder": true
     },
-    "PlannedTime": {
+    "plc1.PlannedTime": {
       "type": "auto",
       "placeholder": true
     },
-    "ShiftTeam": {
+    "plc1.ShiftTeam": {
       "type": "auto",
       "placeholder": true
     }

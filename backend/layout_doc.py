@@ -20,7 +20,7 @@ from pathlib import Path
 from typing import Annotated, Any, Literal
 
 import yaml
-from pydantic import BaseModel, ConfigDict, Field, ValidationError
+from pydantic import BaseModel, ConfigDict, Field, ValidationError, model_validator
 
 from backend.dashboard_config import (
     DEFAULT_PATH,
@@ -31,7 +31,6 @@ from backend.dashboard_config import (
     Color,
     ConfigError,
     Dashboard,
-    ScreenNodes,
     State,
     TagSpec,
     _line_index,
@@ -73,18 +72,30 @@ class Connection(_Strict):
         return TagSpec(node=spec) if isinstance(spec, str) else spec
 
 
-class HeaderSlot(_Strict):
-    kind: Literal["logo", "clock", "text", "title", "none"] = "none"
-    asset: Literal["customer", "vendor"] | None = Field(None, description="logo: customer = kundlogotyp, vendor = ABECE")
-    text: str | None = Field(None, min_length=1, max_length=40, description="text: fast text")
+LogoAsset = Literal["customer", "vendor", "none"]
 
 
 class Header(_Strict):
-    """Header area above the grid, kept while the screens change. Default = today's header."""
+    """Header area above the grid, kept while the screens change: a logo on each side and the clock in
+    the middle (always). Default = today's header. none = empty."""
 
-    left: HeaderSlot = Field(default_factory=lambda: HeaderSlot(kind="logo", asset="customer"))
-    center: HeaderSlot = Field(default_factory=lambda: HeaderSlot(kind="clock"))
-    right: HeaderSlot = Field(default_factory=lambda: HeaderSlot(kind="logo", asset="vendor"))
+    left: LogoAsset = Field("customer", description="customer = kundens logotyp, vendor = ABECE, none = tom")
+    right: LogoAsset = Field("vendor", description="customer = kundens logotyp, vendor = ABECE, none = tom")
+
+    @model_validator(mode="before")
+    @classmethod
+    def _etapp1_slots(cls, data: Any) -> Any:
+        """Versions saved in etapp 1 had three free slots ({kind, asset, text}); keep them loadable."""
+        if not isinstance(data, dict) or not any(isinstance(data.get(k), dict) for k in ("left", "center", "right")):
+            return data
+        out = {}
+        for side in ("left", "right"):
+            v = data.get(side)
+            if isinstance(v, dict):
+                out[side] = v.get("asset") if v.get("kind") == "logo" and v.get("asset") in ("customer", "vendor") else "none"
+            elif v is not None:
+                out[side] = v
+        return out
 
 
 class Widget(_Strict):
@@ -98,15 +109,17 @@ class Widget(_Strict):
     h: int = Field(..., ge=1, le=GRID_ROWS)
     # Value elements (same meaning as the items in dashboard.yaml, see docs/CONFIG.md)
     label: str | None = Field(None, min_length=1, max_length=MAX_LABEL)
-    tag: str | None = Field(None, description="Alias under the display's connection")
+    tag: str | None = Field(None, description="Tagg: plc1.OEE (anslutning.alias), eller bara OEE med displayens default_connection")
     unit: str | None = Field(None, max_length=MAX_UNIT)
     decimals: int | None = Field(None, ge=0, le=3)
-    target: str | float | None = None
+    target: str | float | None = Field(None, description="Mål: en tagg (som tag) eller ett fast tal")
     trend: bool | None = None
     color: Color | None = None
     thresholds: list[float] | None = Field(None, min_length=2, max_length=2)
     better: Literal["high", "low"] | None = None
     states: dict[int, State] | None = None
+    # Built-in screens: which PLC (line) they show; shift log, OEE, 7 days and highscore are per connection
+    connection: Id | None = Field(None, description="Inbyggda skärmar: anslutningen (linjen) de visar, t.ex. plc1")
 
     @property
     def type(self) -> str:  # same name as Item.type, for the shared rules
@@ -118,15 +131,50 @@ class Screen(_Strict):
     items: list[Widget] = Field(default_factory=list)
 
 
+class ScreenControl(_Strict):
+    """Screen switching for one display: the PLC asks for a screen (requested), the backend acknowledges
+    by writing active. Both nodes are on one explicit connection."""
+
+    connection: Id = Field(..., description="Anslutningen (PLC) som styr displayens skärmväxling")
+    active: str = Field(..., min_length=1, description="ActiveScreenNr (written back by the backend)")
+    requested: str = Field(..., min_length=1, description="RequestedScreenNr (set by the PLC)")
+
+
 class Display(_Strict):
-    """One TV: its own screens, header and theme, reading from one connection."""
+    """One TV: its own screens and header. Reads from any number of connections (shared with other
+    displays); elements name theirs in the tag reference (plc2.OEE)."""
 
     name: str | None = Field(None, max_length=40, description="Visningsnamn, t.ex. 'Linje 3 norr'")
-    connection: Id = DEFAULT_CONNECTION
+    default_connection: Id | None = Field(
+        None, description="Anslutning för korta taggnamn (OEE = plc1.OEE). Standard: den enda anslutningen om det bara finns en"
+    )
     theme: Literal["abece-dark"] = "abece-dark"
-    screen: ScreenNodes = Field(..., description="Screen switching nodes on the connection's PLC (ActiveScreenNr)")
+    screen: ScreenControl = Field(..., description="Skärmväxlingens noder (ActiveScreenNr) på en anslutning")
     header: Header = Field(default_factory=Header)
     screens: dict[Annotated[int, Field(ge=1, le=99)], Screen]
+
+    @model_validator(mode="before")
+    @classmethod
+    def _etapp1_display(cls, data: Any) -> Any:
+        """Versions saved in etapp 1 tied a display to one `connection`: it becomes the default
+        connection, the screen control's connection and the connection of every built-in."""
+        if not isinstance(data, dict) or "connection" not in data:
+            return data
+        data = dict(data)
+        conn = data.pop("connection")
+        data.setdefault("default_connection", conn)
+        if isinstance(data.get("screen"), dict):
+            data["screen"] = {"connection": conn, **data["screen"]}
+        if isinstance(data.get("screens"), dict):
+            screens = {}
+            for nr, scr in data["screens"].items():
+                if isinstance(scr, dict) and isinstance(scr.get("items"), list):
+                    scr = {**scr, "items": [
+                        {"connection": conn, **w} if isinstance(w, dict) and w.get("kind") in BUILTIN_KINDS else w for w in scr["items"]
+                    ]}
+                screens[nr] = scr
+            data["screens"] = screens
+        return data
 
 
 class LayoutDocument(_Strict):
@@ -135,7 +183,7 @@ class LayoutDocument(_Strict):
     displays: dict[Id, Display] = Field(..., min_length=1)
 
 
-_MODELS = (LayoutDocument, Connection, Display, Header, HeaderSlot, Screen, Widget, ScreenNodes, TagSpec, State)
+_MODELS = (LayoutDocument, Connection, Display, Header, Screen, Widget, ScreenControl, TagSpec, State)
 
 
 # ===================== migration from dashboard.yaml (version 1) =====================
@@ -151,7 +199,8 @@ def grid_placement(n: int) -> list[tuple[int, int, int, int]]:
 
 
 def migrate_v1(dash: Dashboard) -> LayoutDocument:
-    """dashboard.yaml (version 1) -> document: opc + tags = connection plc1, screens = display tv1."""
+    """dashboard.yaml (version 1) -> document: opc + tags = connection plc1, screens = display tv1
+    (default connection plc1, so the short tag names stay as they are)."""
     screens: dict[int, Screen] = {}
     for nr, s in sorted(dash.screens.items()):
         if s.type == "grid":
@@ -160,12 +209,92 @@ def migrate_v1(dash: Dashboard) -> LayoutDocument:
                 for i, (item, (x, y, w, h)) in enumerate(zip(s.items, grid_placement(len(s.items)), strict=True))
             ]
         else:
-            items = [Widget(id=f"s{nr}-1", kind=s.type, x=0, y=0, w=GRID_COLS, h=GRID_ROWS)]
+            items = [Widget(id=f"s{nr}-1", kind=s.type, x=0, y=0, w=GRID_COLS, h=GRID_ROWS, connection=DEFAULT_CONNECTION)]
         screens[nr] = Screen(title=s.title, items=items)
     return LayoutDocument(
         connections={DEFAULT_CONNECTION: Connection(url=dash.opc.url, alarms=dash.opc.alarms, tags=dash.tags)},
-        displays={DEFAULT_DISPLAY: Display(connection=DEFAULT_CONNECTION, screen=dash.opc.screen, screens=screens)},
+        displays={
+            DEFAULT_DISPLAY: Display(
+                default_connection=DEFAULT_CONNECTION,
+                screen=ScreenControl(connection=DEFAULT_CONNECTION, **dash.opc.screen.model_dump()),
+                screens=screens,
+            )
+        },
     )
+
+
+# ===================== tag references: plc1.OEE or OEE (display default) =====================
+
+
+def default_connection(doc: LayoutDocument, d: Display) -> str | None:
+    if d.default_connection is not None:
+        return d.default_connection
+    return next(iter(doc.connections)) if len(doc.connections) == 1 else None
+
+
+def split_ref(doc: LayoutDocument, d: Display, ref: str) -> tuple[str | None, str]:
+    """'plc2.OEE' -> ('plc2', 'OEE'); 'OEE' -> (default connection or None, 'OEE')."""
+    conn, sep, name = ref.partition(".")
+    if sep:
+        return conn, name
+    return default_connection(doc, d), ref
+
+
+def qualify(doc: LayoutDocument, d: Display, ref: str) -> str:
+    conn, name = split_ref(doc, d, ref)
+    return f"{conn}.{name}"
+
+
+def display_connections(doc: LayoutDocument, did: str) -> list[str]:
+    """Connections one display reads from (default, screen control, tags of its elements, built-ins),
+    in the order of the document's connection pool."""
+    d = doc.displays[did]
+    used = {d.screen.connection}
+    if (dc := default_connection(doc, d)) is not None:
+        used.add(dc)
+    for s in d.screens.values():
+        for w in s.items:
+            if w.connection:
+                used.add(w.connection)
+            for ref in (w.tag, w.target if isinstance(w.target, str) else None):
+                if ref:
+                    used.add(split_ref(doc, d, ref)[0])
+    return [c for c in doc.connections if c in used]
+
+
+def display_keys(doc: LayoutDocument, did: str) -> set[str]:
+    """Qualified tags (plc1.OEE) a display shows: what its WebSocket clients need (the backend filters
+    per display, etapp 4). Built-ins need their connection's reserved tags."""
+    d = doc.displays[did]
+    keys: set[str] = set()
+    for s in d.screens.values():
+        for w in s.items:
+            for ref in (w.tag, w.target if isinstance(w.target, str) else None):
+                if ref:
+                    keys.add(qualify(doc, d, ref))
+            if w.connection:
+                need = {"shift": SHIFT_TAGS, "week": SHIFT_TAGS, "oee": OEE_TAGS, "highscore": ("ProductionState",)}.get(w.kind, ())
+                tags = doc.connections[w.connection].tags
+                keys |= {f"{w.connection}.{n}" for n in need if n in tags}
+    return keys
+
+
+def subscription_plan(doc: LayoutDocument) -> dict[str, dict[str, list[str]]]:
+    """One OPC UA client per connection, however many displays use it: connection -> node -> the
+    qualified tags on that node. Nodes are subscribed once and the values fanned out (etapp 4 runs
+    one client per entry; until then the runtime supports one connection). Only connections and tags
+    some display uses are included; placeholder tags (no node id) are skipped."""
+    needed: set[str] = set()
+    for did in doc.displays:
+        needed |= display_keys(doc, did)
+    plan: dict[str, dict[str, list[str]]] = {}
+    for cid, conn in doc.connections.items():
+        for name in conn.tags:
+            key = f"{cid}.{name}"
+            node = conn.tag(name).node.strip()
+            if key in needed and node:
+                plan.setdefault(cid, {}).setdefault(node, []).append(key)
+    return plan
 
 
 # ===================== rules between fields (pydantic can't express them per field) =====================
@@ -185,26 +314,32 @@ def builtin_tag_problems(kind: str, tags: set[str], loc: tuple) -> list[tuple[tu
 _VALUE_FIELDS = ("label", "tag", "unit", "decimals", "target", "trend", "color", "thresholds", "better", "states")
 
 
+def _ref_problems(doc: LayoutDocument, d: Display, ref: str, loc: tuple) -> list[tuple[tuple, str]]:
+    conn_id, name = split_ref(doc, d, ref)
+    if conn_id is None:
+        ex = next(iter(doc.connections))
+        return [(loc, f"ange anslutningen, t.ex. '{ex}.{name}' (eller default_connection på displayen)")]
+    conn = doc.connections.get(conn_id)
+    if conn is None:
+        return [(loc, f"okänd anslutning '{conn_id}'{_suggest(conn_id, doc.connections)}")]
+    if name not in conn.tags:
+        return [(loc, f"okänd tagg '{name}' i {conn_id}{_suggest(name, conn.tags)}")]
+    return []
+
+
 def document_problems(doc: LayoutDocument) -> list[tuple[tuple, str]]:
     problems: list[tuple[tuple, str]] = []
     ids: dict[str, tuple] = {}
+
+    def conn_problem(cid: str, loc: tuple) -> None:
+        if cid not in doc.connections:
+            problems.append((loc, f"okänd anslutning '{cid}'{_suggest(cid, doc.connections)}"))
+
     for did, d in doc.displays.items():
         dloc = ("displays", did)
-        conn = doc.connections.get(d.connection)
-        if conn is None:
-            problems.append(((*dloc, "connection"), f"okänd anslutning '{d.connection}'{_suggest(d.connection, doc.connections)}"))
-        tags = set(conn.tags) if conn else set()
-        for side in ("left", "center", "right"):
-            slot: HeaderSlot = getattr(d.header, side)
-            sloc = (*dloc, "header", side)
-            if slot.kind == "logo" and slot.asset is None:
-                problems.append(((*sloc, "asset"), "logo behöver asset (customer eller vendor)"))
-            if slot.kind != "logo" and slot.asset is not None:
-                problems.append(((*sloc, "asset"), "asset används bara med kind: logo"))
-            if slot.kind == "text" and not slot.text:
-                problems.append(((*sloc, "text"), "text behöver text"))
-            if slot.kind != "text" and slot.text is not None:
-                problems.append(((*sloc, "text"), "text används bara med kind: text"))
+        if d.default_connection is not None:
+            conn_problem(d.default_connection, (*dloc, "default_connection"))
+        conn_problem(d.screen.connection, (*dloc, "screen", "connection"))
         for nr, screen in d.screens.items():
             base = (*dloc, "screens", nr)
             if not screen.items:
@@ -227,20 +362,39 @@ def document_problems(doc: LayoutDocument) -> list[tuple[tuple, str]]:
                     if not full or len(screen.items) > 1:
                         why = "larm visas alltid i helskärm" if wdg.kind == "alarms" else "visas i helskärm tills mindre storlekar stöds (etapp 6)"
                         problems.append((loc, f"'{wdg.kind}': {why} – x 0, y 0, w {GRID_COLS}, h {GRID_ROWS} och ensamt på skärmen"))
-                    problems += builtin_tag_problems(wdg.kind, tags, (*loc, "kind"))
+                    if wdg.connection is None:
+                        problems.append(((*loc, "connection"), f"'{wdg.kind}' behöver connection (vilken PLC/linje den visar)"))
+                    elif wdg.connection not in doc.connections:
+                        conn_problem(wdg.connection, (*loc, "connection"))
+                    else:
+                        problems += builtin_tag_problems(wdg.kind, set(doc.connections[wdg.connection].tags), (*loc, "kind"))
                 else:
+                    if wdg.connection is not None:
+                        problems.append(((*loc, "connection"), "connection används bara på inbyggda skärmar – skriv anslutningen i tag (plc1.OEE)"))
                     for f in ("label", "tag"):
                         if getattr(wdg, f) is None:
                             problems.append(((*loc, f), "saknas (obligatorisk)"))
                     if wdg.w < MIN_VALUE_W or wdg.h < MIN_VALUE_H:
                         problems.append((loc, f"för liten ruta {wdg.w}×{wdg.h} (minst {MIN_VALUE_W}×{MIN_VALUE_H} tills editorns läsbarhetskontroll finns)"))
                     if wdg.tag is not None:
-                        problems += item_problems(wdg, tags, loc)
+                        problems += _ref_problems(doc, d, wdg.tag, (*loc, "tag"))
+                        if isinstance(wdg.target, str):
+                            problems += _ref_problems(doc, d, wdg.target, (*loc, "target"))
+                        # value rules shared with dashboard.yaml; tag existence is checked above
+                        problems += [p for p in item_problems(wdg, _AnyTags(), loc) if p[0][-1] not in ("tag", "target")]
     return problems
 
 
+class _AnyTags(set):
+    """Tag set that contains everything: item_problems' tag checks are replaced by _ref_problems."""
+
+    def __contains__(self, item: object) -> bool:
+        return True
+
+
 def runtime_problems(doc: LayoutDocument) -> list[str]:
-    """What today's backend can run (etapp 1): one connection and one display. The model allows more."""
+    """What today's backend can run (until etapp 4): one connection and one display. The model allows
+    more (shared connections, displays reading several PLCs)."""
     out = []
     if len(doc.connections) > 1:
         out.append(f"connections: {len(doc.connections)} anslutningar – drift med flera PLC:er kommer i etapp 4, en stöds idag")
@@ -337,23 +491,35 @@ def _widget_json(w: Widget) -> dict[str, Any]:
 
 
 def layout_view(doc: LayoutDocument, display_id: str | None = None, version: int | None = None) -> dict[str, Any]:
-    """Screens, header and tag types for one display. No node ids, no URLs."""
+    """Screens, header and tag types for one display. Tag references are qualified (plc1.OEE) so the
+    display can tell PLCs apart; only the connections it uses are included. No node ids, no URLs."""
     did = display_id or next(iter(doc.displays))
     d = doc.displays[did]
-    conn = doc.connections[d.connection]
+
+    def widget(w: Widget) -> dict[str, Any]:
+        data = _widget_json(w)
+        if w.tag:
+            data["tag"] = qualify(doc, d, w.tag)
+        if isinstance(w.target, str):
+            data["target"] = qualify(doc, d, w.target)
+        return data
+
+    used = display_connections(doc, did)
     return {
         "schema_version": SCHEMA_VERSION,
         "version": version,
-        "display": {"id": did, "name": d.name, "theme": d.theme, "header": d.header.model_dump(exclude_none=True)},
+        "display": {"id": did, "name": d.name, "theme": d.theme, "header": d.header.model_dump()},
         "displays": [{"id": k, "name": v.name} for k, v in doc.displays.items()],
+        "connections": {cid: {"name": doc.connections[cid].name} for cid in used},
         "grid": {"cols": GRID_COLS, "rows": GRID_ROWS},
-        "screens": {str(nr): {"title": s.title, "items": [_widget_json(w) for w in s.items]} for nr, s in sorted(d.screens.items())},
+        "screens": {str(nr): {"title": s.title, "items": [widget(w) for w in s.items]} for nr, s in sorted(d.screens.items())},
         "tags": {
-            name: {
-                **{k: v for k, v in conn.tag(name).model_dump(exclude={"node"}).items() if v is not None},
-                "placeholder": not conn.tag(name).node.strip(),  # TODO(PLC) tag without node id
+            f"{cid}.{name}": {
+                **{k: v for k, v in doc.connections[cid].tag(name).model_dump(exclude={"node"}).items() if v is not None},
+                "placeholder": not doc.connections[cid].tag(name).node.strip(),  # TODO(PLC) tag without node id
             }
-            for name in conn.tags
+            for cid in used
+            for name in doc.connections[cid].tags
         },
     }
 

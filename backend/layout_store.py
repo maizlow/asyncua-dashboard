@@ -1,9 +1,11 @@
 """Layout document with versions in SQLite (table layout_versions), the source of truth.
 
 At startup ``bootstrap`` publishes dashboard.yaml as version 1 the first time. Later the file is
-imported again only when it has changed since the last import (sha256 in the meta table) and
-LAYOUT_YAML_IMPORT=auto (default), because until the editor exists (etapp 2) the file is the only
-way to change anything. Every import or publish is a new version; nothing is ever deleted.
+imported again only when it has changed since the last import (sha256 in the meta table):
+LAYOUT_YAML_IMPORT=auto (default) does that until the first publish from the editor, after which
+the editor is the way to change the layout (a changed file is only logged); always keeps importing
+a changed file, off never reads it again. Every import or publish is a new version; nothing is
+ever deleted.
 
 The running backend reads the published document through ``get_runtime()``.
 """
@@ -107,6 +109,12 @@ class LayoutStore:
 
         return await self.db.run_async(_ins)
 
+    async def editor_used(self) -> bool:
+        """True once anything has been published from the editor: from then on the database is edited
+        in the editor and LAYOUT_YAML_IMPORT=auto no longer imports dashboard.yaml."""
+        row = await self.db.run_async(lambda c: c.execute("SELECT 1 FROM layout_versions WHERE source = 'editor' LIMIT 1").fetchone())
+        return row is not None
+
     async def version(self, vid: int) -> dict[str, Any] | None:
         row = await self.db.run_async(lambda c: c.execute("SELECT doc FROM layout_versions WHERE id = ?", (vid,)).fetchone())
         return json.loads(row[0]) if row else None
@@ -126,7 +134,9 @@ class LayoutStore:
 
 
 class Runtime:
-    """The published document as the running backend sees it: one connection and one display (etapp 1)."""
+    """The published document as the running backend sees it: one connection and one display until
+    etapp 4. The data store keys values by the short tag name; WebSocket messages carry the
+    connection id so the displays (which reference plc1.OEE) can tell PLCs apart."""
 
     def __init__(self, doc: LayoutDocument, version: int | None = None):
         problems = runtime_problems(doc)
@@ -135,7 +145,7 @@ class Runtime:
         self.doc = doc
         self.version = version
         self.display_id, self.display = next(iter(doc.displays.items()))
-        self.connection_id = self.display.connection
+        self.connection_id = next(iter(doc.connections))  # the only one until etapp 4
         self.connection: Connection = doc.connections[self.connection_id]
 
     @property
@@ -212,12 +222,23 @@ async def bootstrap(store: LayoutStore, path: str | Path | None = None, yaml_imp
         doc = load_document(path)
         vid = await store.add_version(doc, "yaml", author=path.name, comment=f"första import av {path.name}", yaml_sha256=sha)
         logger.info("Layout: %s importerad och publicerad som version %d", path.name, vid)
-    elif yaml_import == "auto" and sha is not None and sha != await store.get_meta("layout_yaml_sha256"):
+    elif (
+        yaml_import in ("auto", "always")
+        and sha is not None
+        and sha != await store.get_meta("layout_yaml_sha256")
+        and not (yaml_import == "auto" and await store.editor_used())
+    ):
         doc = load_document(path)
         vid = await store.add_version(doc, "yaml", author=path.name, comment=f"{path.name} ändrad", yaml_sha256=sha)
         logger.info("Layout: %s har ändrats sedan senaste importen – publicerad som version %d (version %d kan återställas)", path.name, vid, pub[0])
     else:
         vid, raw = pub
+        if yaml_import == "auto" and sha is not None and sha != await store.get_meta("layout_yaml_sha256"):
+            logger.warning(
+                "Layout: %s har ändrats men importeras inte: layouten har publicerats i editorn (källan är databasen). "
+                "Importera filen i editorn, eller sätt LAYOUT_YAML_IMPORT=always för en omstart",
+                path.name,
+            )
         doc = validate_document(raw, f"databasen (layoutversion {vid})")
         logger.info("Layout: version %d från databasen", vid)
     rt = Runtime(doc, vid)

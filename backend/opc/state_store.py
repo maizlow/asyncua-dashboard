@@ -16,13 +16,35 @@ from backend.opc.data_logger import data_logger
 logger = logging.getLogger(__name__)
 
 
+def connection_id() -> str:
+    """Id of the connection this store holds values for (the runtime's only one until etapp 4)."""
+    try:
+        from backend.layout_store import get_runtime
+
+        return get_runtime().connection_id
+    except Exception:
+        return "plc1"
+
+
 class DataStore:
     def __init__(self):
         self._data: dict[str, Any] = {}
         self._on_change_callbacks: list[Callable] = []
         # True while the OPC UA data subscription is up (set by opc_client.main); the highscore
         # tracker ends an ongoing run when the connection is lost instead of extending it
-        self.connected = False
+        self._connected = False
+
+    @property
+    def connected(self) -> bool:
+        return self._connected
+
+    @connected.setter
+    def connected(self, value: bool) -> None:
+        """Displays show '–' for elements bound to a connection that is down (connection_status)."""
+        changed = value != self._connected
+        self._connected = value
+        if changed:
+            broadcaster.publish({"type": "connection_status", "connection": connection_id(), "connected": value})
 
     def set(self, key: str, value: Any):
         self._data[key] = value
@@ -32,7 +54,7 @@ class DataStore:
             data_logger.log_value(key, value)
         except Exception:
             logger.exception("Failed to queue history point for %s", key)
-        broadcaster.publish({"type": "data_update", "key": key, "value": value})
+        broadcaster.publish({"type": "data_update", "connection": connection_id(), "key": key, "value": value})
 
         for callback in self._on_change_callbacks:
             try:

@@ -31,11 +31,13 @@ def make_json_safe(obj: Any) -> Any:
 
 
 async def _build_snapshot() -> dict:
-    from backend.opc.state_store import data_store
+    from backend.opc.state_store import connection_id, data_store
 
     data = dict(data_store._data)  # copy: the OPC thread may mutate it concurrently
     histories = {key: await data_store.get_history(key, limit=150) for key in data}
-    return {"type": "full_snapshot", "data": data, "histories": histories}
+    # Values are keyed by tag name within `connection`; the displays qualify them (plc1.OEE)
+    conn = connection_id()
+    return {"type": "full_snapshot", "connection": conn, "connected": {conn: data_store.connected}, "data": data, "histories": histories}
 
 
 @router.websocket("/ws")
