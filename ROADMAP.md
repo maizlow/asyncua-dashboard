@@ -152,7 +152,7 @@ Lägg till nya punkter som checklistor under rätt rubrik och flytta dem till **
 - [x] Utan `OPC_USERNAME` ansluter dashboarden anonymt med bara certifikatet, som bläddringen; tidigare återanslutning i all oändlighet med "Password must be a string"
 - [x] Test mot en asyncua-server med Basic256Sha256 Sign & Encrypt
 
-### Drift: backend serverar TV och editor på en port ([PR #32](https://github.com/maizlow/asyncua-dashboard/pull/32))
+### Drift: backend serverar TV och editor på en port ([PR #33](https://github.com/maizlow/asyncua-dashboard/pull/33))
 - [x] FastAPI serverar det byggda gränssnittet: TV-vyn på `/`, editorn på `/editor/` (med fallback för klientsidans sökvägar), samma port som `/api` och `/ws`
 - [x] `Cache-Control`: hashade `assets/` ett år (`immutable`), sidor och logotyper `no-cache`; saknade filer och okända `/api/…` ger 404, aldrig HTML
 - [x] `HTTP_HOST`, `HTTP_PORT`, `FRONTEND_DIST`, `FORWARDED_ALLOW_IPS`, `GET /api/health`
