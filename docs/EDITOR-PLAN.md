@@ -404,20 +404,30 @@ Editor-delen, med inloggning, under `/api/editor`:
 
 ## Etapper
 
-Storlekarna är grova och räknade i arbetsdagar.
+Uppskattningen utgår från hur vi arbetar: en AI implementerar och varje funktion hittills (t.ex. 7 dagar, skiftloggen,
+highscore) har tagit cirka 30–60 min inklusive tester, CI och merge. Därför anges PR-iterationer och ungefärliga timmar
+implementation, inte arbetsdagar.
 
-| Etapp | Innehåll | Storlek |
-|---|---|---|
-| 0. Spik och beslut | react-grid-layout v2 i den skalade canvasen (reserv gridstack), Puck-test för panelen, mätning av typsnittsmått, beslut om källan | 2–3 |
-| 1. Dokument och renderare | ny dokumentmodell (pydantic, JSON Schema, TS), migrering från `dashboard.yaml`, rutnätsrenderare med `x, y, w, h` i stället för `GridScreen`, tema-tokens med dagens utseende som standardtema, `layout_versions`, publicering, omladdning och `layout_changed`. **TV:n ser likadan ut som idag** | 5–8 |
-| 2. **MVP-editor** | `/editor` med inloggning, skärmlista, canvas (dra, släpp, storlek, ordning), dagens 5 elementtyper + inbyggda skärmar som helskärm, egenskapspanel, taggväljare från alias (och manuellt nod-id), läsbarhetsspärrar med live `fitAudit`, ångra/gör om, kopiera/klistra, utkast, validering, publicering, återställning, YAML-export, demoläge | 8–12 |
-| 3. OPC-bläddring | träd, sök, livevärde, typförslag, skapa alias från nod | 4–6 |
-| 4. Tema och varumärke | temaeditor, kontrast- och bländningsspärrar, uppladdning av logotyper, bilder och typsnitt, tema per kund och skärm, header-layout | 5–7 |
-| 5. Nya elementtyper | `bar`, `gauge`, `sparkline`, `text`, `image`, `clock`, inbyggda skärmar placerbara i mindre storlek med minsta storlek | 5–8 |
-| 6. Finputs | förhandsvisning på TV via länk, användare och roller, editor i Pages-demon, full Playwright-svit, dokumentation | 3–5 |
+| Etapp | Innehåll | PR | Implementation |
+|---|---|---|---|
+| 0. Spik och beslut | react-grid-layout v2 i den skalade canvasen (reserv gridstack), Puck-test för panelen, mätning av typsnittsmått | 1 | ca 1 h |
+| 1. Dokument och renderare | ny dokumentmodell (pydantic, JSON Schema, TS), migrering från `dashboard.yaml`, rutnätsrenderare med `x, y, w, h`, tema-tokens med dagens utseende som standardtema, `layout_versions`, publicering, omladdning och `layout_changed`. **TV:n ser likadan ut som idag** | 2–3 | 2–4 h |
+| 2. **MVP-editor** | `/editor` med inloggning, skärmlista, canvas (dra, släpp, storlek, ordning), dagens 5 elementtyper + inbyggda skärmar som helskärm, egenskapspanel, taggväljare (alias och manuellt nod-id), läsbarhetsspärrar med live `fitAudit`, ångra/gör om, kopiera/klistra, utkast, validering, publicering, återställning, YAML-export, demoläge | 3–5 | 4–8 h |
+| 3. OPC-bläddring | träd, sök, livevärde, typförslag, skapa alias från nod | 1–2 | 2–3 h |
+| 4. Tema och varumärke | temaeditor, kontrast- och bländningsspärrar, uppladdning av logotyper, bilder och typsnitt, tema per kund och skärm | 2–3 | 3–5 h |
+| 5. Nya elementtyper | `bar`, `gauge`, `sparkline`, `text`, `image`, `clock`, inbyggda skärmar placerbara i mindre storlek | 2–4 | 3–5 h |
+| 6. Finputs | förhandsvisning på TV via länk, användare och roller, editor i Pages-demon, full Playwright-svit, dokumentation | 2–3 | 2–4 h |
 
-Totalt cirka 32–49 arbetsdagar. MVP:n (etapp 0–2) är cirka 15–23 dagar och är användbar ensam: man kan bygga om dagens
-skärmar fritt och publicera utan att röra YAML.
+Totalt cirka 13–21 PR och 17–30 h implementation. MVP:n (etapp 0–2) är cirka 6–9 PR och 7–13 h.
+
+**Flaskhalsen är inte koden** utan:
+
+- Johans granskning av varje PR;
+- UX-beslut (hur editorn ska kännas, standardstorlekar, vad som är varning och vad som är spärr);
+- test mot verklig utrustning: bläddring i S7-1500, att dra och släppa känns rätt på editordatorn, och läsbarhet på TV:n
+  på 8–10 m.
+
+Räkna därför med en avstämning efter varje etapp. Kalendertiden styrs av när den kan ske.
 
 ## Risker
 
