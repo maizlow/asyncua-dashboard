@@ -7,6 +7,7 @@ import type { Doc } from "./backend";
 import { documentView } from "@/layout/doc";
 import { normaliseLayout, type Layout } from "@/layout/layout";
 import { findWidget, portableCopy, screenNumbers, type Widget } from "./ops";
+import type { ItemAudit } from "./audit";
 
 const MAX_HISTORY = 200;
 
@@ -32,11 +33,20 @@ interface EditorStore {
   screenNr: number | null;
   selected: string | null;
   clipboard: Widget | null;
+  /** Legibility audit of the current screen (worst-case values), per element id */
+  audit: Record<string, ItemAudit>;
+  /** Merge key of the last edit: typing in one field is one undo step */
+  lastMerge: string | null;
   /** Last message for the status line (e.g. why a drop was refused) */
   notice: { text: string; kind: "info" | "error" } | null;
   setLoaded: (doc: Doc, version: number | null) => void;
   /** Apply a change to a copy of the draft; throw Error(msg) inside fn to refuse it (shown as notice) */
-  edit: (fn: (doc: Doc) => void, after?: Partial<Pick<EditorStore, "screenNr" | "selected">> | ((doc: Doc) => Partial<Pick<EditorStore, "screenNr" | "selected">>)) => boolean;
+  edit: (
+    fn: (doc: Doc) => void,
+    after?: Partial<Pick<EditorStore, "screenNr" | "selected">> | ((doc: Doc) => Partial<Pick<EditorStore, "screenNr" | "selected">>),
+    merge?: string,
+  ) => boolean;
+  setAudit: (audit: Record<string, ItemAudit>) => void;
   undo: () => void;
   redo: () => void;
   selectDisplay: (id: string) => void;
@@ -67,6 +77,8 @@ export const useEditorStore = create<EditorStore>((set, get) => ({
   selected: null,
   clipboard: null,
   notice: null,
+  audit: {},
+  lastMerge: null,
 
   setLoaded: (doc, version) => {
     const want = new URLSearchParams(window.location.search).get("display");
@@ -82,8 +94,8 @@ export const useEditorStore = create<EditorStore>((set, get) => ({
     });
   },
 
-  edit: (fn, after) => {
-    const { doc, past, displayId, screenNr, selected } = get();
+  edit: (fn, after, merge) => {
+    const { doc, past, displayId, screenNr, selected, lastMerge } = get();
     if (!doc) return false;
     const next = structuredClone(doc);
     try {
@@ -94,7 +106,8 @@ export const useEditorStore = create<EditorStore>((set, get) => ({
     }
     const extra = typeof after === "function" ? after(next) : (after ?? {});
     const sel = fixSelection(next, displayId, extra.screenNr ?? screenNr, extra.selected !== undefined ? extra.selected : selected);
-    set({ doc: next, past: [...past, doc].slice(-MAX_HISTORY), future: [], notice: null, ...sel });
+    const same = merge !== undefined && merge === lastMerge && past.length > 0;
+    set({ doc: next, past: same ? past : [...past, doc].slice(-MAX_HISTORY), future: [], notice: null, lastMerge: merge ?? null, ...sel });
     return true;
   },
 
@@ -102,22 +115,22 @@ export const useEditorStore = create<EditorStore>((set, get) => ({
     const { doc, past, future, displayId, screenNr, selected } = get();
     if (!doc || !past.length) return;
     const prev = past[past.length - 1];
-    set({ doc: prev, past: past.slice(0, -1), future: [doc, ...future], notice: null, ...fixSelection(prev, displayId, screenNr, selected) });
+    set({ doc: prev, past: past.slice(0, -1), future: [doc, ...future], notice: null, lastMerge: null, ...fixSelection(prev, displayId, screenNr, selected) });
   },
 
   redo: () => {
     const { doc, past, future, displayId, screenNr, selected } = get();
     if (!doc || !future.length) return;
     const next = future[0];
-    set({ doc: next, past: [...past, doc], future: future.slice(1), notice: null, ...fixSelection(next, displayId, screenNr, selected) });
+    set({ doc: next, past: [...past, doc], future: future.slice(1), notice: null, lastMerge: null, ...fixSelection(next, displayId, screenNr, selected) });
   },
 
   selectDisplay: (id) => {
     const { doc } = get();
     if (doc) set({ ...fixSelection(doc, id, null, null), notice: null });
   },
-  selectScreen: (nr) => set({ screenNr: nr, selected: null, notice: null }),
-  select: (id) => set({ selected: id }),
+  selectScreen: (nr) => set({ screenNr: nr, selected: null, notice: null, lastMerge: null }),
+  select: (id) => set({ selected: id, lastMerge: null }),
 
   copy: () => {
     const { doc, displayId, screenNr, selected } = get();
@@ -127,4 +140,5 @@ export const useEditorStore = create<EditorStore>((set, get) => ({
   },
 
   notify: (text, kind = "info") => set({ notice: { text, kind } }),
+  setAudit: (audit) => set({ audit }),
 }));

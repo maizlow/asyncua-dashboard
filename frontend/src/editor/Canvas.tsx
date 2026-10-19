@@ -51,7 +51,7 @@ interface Ghost {
 }
 
 export function Canvas({ layout }: { layout: Layout }) {
-  const { doc, displayId, screenNr, selected, edit, select } = useEditorStore();
+  const { doc, displayId, screenNr, selected, edit, select, audit } = useEditorStore();
   const [scale, setScale] = useState(0);
   const [areaH, setAreaH] = useState(0);
   const [ghost, setGhost] = useState<Ghost | null>(null);
@@ -218,6 +218,17 @@ export function Canvas({ layout }: { layout: Layout }) {
                           targetValue={target ? target.value : item.target}
                           offline={down}
                         />
+                        {audit[item.id] && (
+                          <div
+                            data-testid={`audit-${item.id}`}
+                            data-level={audit[item.id].level}
+                            className={`pointer-events-none absolute -bottom-[26px] left-12 z-[4] whitespace-nowrap rounded-full px-6 text-[44px] font-medium leading-[52px] ${
+                              audit[item.id].level === "error" ? "bg-red-600 text-white" : audit[item.id].level === "warn" ? "bg-amber-500 text-black" : "bg-zinc-800/90 text-zinc-300"
+                            }`}
+                          >
+                            {audit[item.id].level === "error" ? "✖ " : audit[item.id].level === "warn" ? "⚠ " : ""}värde {audit[item.id].hero ?? "–"} px · text {audit[item.id].minText ?? "–"} px
+                          </div>
+                        )}
                         {selected === item.id && (
                           <div className="pointer-events-none absolute -inset-[16px] rounded-[56px] border-[12px] border-sky-400" />
                         )}

@@ -5,6 +5,10 @@ import { Canvas } from "./Canvas";
 import { Inspector } from "./Inspector";
 import { Sidebar } from "./Sidebar";
 import { onEditorKey } from "./actions";
+import { AuditFrame } from "./AuditFrame";
+import { ProblemsBar } from "./Problems";
+import { collectIssues } from "./issues";
+import { validateDocument } from "./validate";
 import { displaysOf, previewLayout, useEditorStore } from "./store";
 
 
@@ -65,8 +69,15 @@ function TopBar({ user, onLogout }: { user: string; onLogout: () => void }) {
 }
 
 function Workspace({ user, onLogout }: { user: string; onLogout: () => void }) {
-  const { doc, displayId, version } = useEditorStore();
+  const { doc, displayId, version, screenNr, audit, setAudit } = useEditorStore();
   const layout = useMemo(() => (doc && displayId ? previewLayout(doc, displayId, version) : null), [doc, displayId, version]);
+  const problems = useMemo(() => (doc ? validateDocument(doc) : []), [doc]);
+  const screen = layout?.screens.find((s) => s.nr === screenNr);
+  const auditScreen = screen && screen.type === "grid" ? screen : null;
+  useEffect(() => {
+    if (!auditScreen) setAudit({});
+  }, [auditScreen, setAudit]);
+  const issues = useMemo(() => collectIssues(problems, audit, displayId, screenNr), [problems, audit, displayId, screenNr]);
   useEffect(() => {
     window.addEventListener("keydown", onEditorKey);
     return () => window.removeEventListener("keydown", onEditorKey);
@@ -81,9 +92,11 @@ function Workspace({ user, onLogout }: { user: string; onLogout: () => void }) {
           <div className="min-h-0 flex-1 p-6">
             <Canvas layout={layout} />
           </div>
+          <ProblemsBar issues={issues} />
           <StatusLine />
         </main>
-        <Inspector layout={layout} />
+        <Inspector layout={layout} problems={problems} />
+        {auditScreen && <AuditFrame layout={layout} screen={auditScreen} onResult={setAudit} />}
       </div>
     </div>
   );

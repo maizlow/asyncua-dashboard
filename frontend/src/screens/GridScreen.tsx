@@ -4,13 +4,28 @@ import { bound } from "@/lib/connection";
 import { useMetricsStore } from "@/stores/useMetricsStore";
 import type { ScreenConfig } from "@/layout/layout";
 import { GRID_COLS, GRID_ROWS } from "@/layout/doc";
+import type { MetricValue } from "@/data/types";
+
+const NONE: Record<string, boolean> = {};
 
 // Elements placed on the fixed 24 x 12 grid (x, y, w, h in cells). With the 48 px gap this gives exactly
 // the sizes of the earlier 2-column grid: w 12 = half width, h 4/6/12 = 3/2/1 rows. Minimum size
 // 12 x 4 (backend validation) keeps the 290 px hero values (incl. "00:00:00" and 6-digit counts) fitting.
-export function GridScreen({ screen }: { screen: ScreenConfig }) {
-  const { metrics, histories } = useLiveMetrics();
-  const connected = useMetricsStore((s) => s.connected);
+// `values`/`valueHistories` replace the live values (the editor's legibility audit renders worst-case values).
+export function GridScreen({
+  screen,
+  values,
+  valueHistories,
+}: {
+  screen: ScreenConfig;
+  values?: Record<string, MetricValue>;
+  valueHistories?: Record<string, MetricValue[]>;
+}) {
+  const live = useLiveMetrics();
+  const liveConnected = useMetricsStore((s) => s.connected);
+  const metrics = values ?? live.metrics;
+  const histories = valueHistories ?? live.histories;
+  const connected = values ? NONE : liveConnected;
 
   return (
     <div
@@ -27,6 +42,7 @@ export function GridScreen({ screen }: { screen: ScreenConfig }) {
         return (
         <div
           key={item.id}
+          data-item={item.id}
           className="min-w-0 min-h-0 grid"
           style={{
             gridColumn: `${item.x + 1} / span ${item.w}`,

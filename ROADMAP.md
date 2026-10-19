@@ -122,6 +122,12 @@ Lägg till nya punkter som checklistor under rätt rubrik och flytta dem till **
 - [x] Ångra/gör om, kopiera/klistra in/duplicera (även mellan skärmar och displayer), pilar flyttar och Shift+pilar ändrar storlek
 - [x] Playwright-test i CI (dra, storlek, krockar, ångra vid tre fönsterstorlekar, kopiera, tangentbord, skärmnummer)
 
+### Editor etapp 2d: egenskaper, taggar och läsbarhet ([PR #25](https://github.com/maizlow/asyncua-dashboard/pull/25))
+- [x] Egenskapspanel genererad från elementschemat (`elements.ts`), fel vid fältet; textfält ångras som ett steg
+- [x] Taggväljare grupperad per PLC (kort namn för standard-PLC:n), ny tagg från nod-id
+- [x] Validering i webbläsaren som speglar backend (okänd PLC/tagg med förslag, storlek, överlapp, tillstånd, inbyggda skärmars taggar); lista med fel och varningar
+- [x] Läsbarhet live: skärmen mäts utanför bild med värsta fallets värden och uppmätt versalhöjd; under 37 px eller värde som inte får plats = fel, hjälte under 90 px = varning
+
 ## Nästa
 
 ### Docker för drift på Fitlet3 (Linux, x86-64)
