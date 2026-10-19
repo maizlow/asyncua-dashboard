@@ -44,6 +44,16 @@ Commands:
 See [docs/CONFIG.md](docs/CONFIG.md#var-layouten-sparas-databasen) and the planned editor in
 [docs/EDITOR-PLAN.md](docs/EDITOR-PLAN.md).
 
+### Layout editor (`/editor/`)
+
+The editor is under construction ([docs/EDITOR-PLAN.md](docs/EDITOR-PLAN.md)). It needs a login: two local accounts,
+stored as argon2 hashes in `data.db` and created on the server with `python -m backend.users add <name>`, which prompts
+for the password. There is no signup page.
+
+The editor never writes to the PLC; its previews use simulated values. The demo editor at
+https://maizlow.github.io/asyncua-dashboard/editor/ has no login and no backend and uses fake node ids. See
+[docs/CONFIG.md](docs/CONFIG.md#editorn-konton-och-inloggning).
+
 ## Demo mode / preview
 
 The frontend can run without backend or PLC using built-in simulated data:
