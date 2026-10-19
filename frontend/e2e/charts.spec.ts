@@ -117,3 +117,15 @@ test("diagramfel i egenskapspanelen och läsbarheten spärrar publicering", asyn
   await page.getByTestId("prop-count").fill("14");
   await expect(page.getByTestId("audit-d-table")).toHaveAttribute("data-level", "error");
 });
+
+test("exempellayouterna klarar läsbarheten i värsta fallet (kan publiceras från editorn)", async ({ page }) => {
+  for (const [layout, screens] of [["diagram", [1, 2, 3, 4]], ["oee-element", [1]], ["7dagar-element", [1]]] as const) {
+    await page.goto(`editor/?layout=${layout}`);
+    for (const nr of screens) {
+      await page.getByTestId(`screen-${nr}`).click();
+      await expect(page.locator('[data-testid^="audit-"]').first()).toBeVisible();
+      const levels = await page.locator('[data-testid^="audit-"][data-level]').evaluateAll((els) => els.map((e) => `${e.getAttribute("data-testid")}:${e.getAttribute("data-level")}`));
+      expect(levels.filter((l) => l.endsWith(":error")), `${layout} skärm ${nr}`).toEqual([]);
+    }
+  }
+});

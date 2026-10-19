@@ -112,7 +112,8 @@ python -m backend.users remove johan
   sker vid 1080p:
   - **Fel (✖), som spärrar publicering:** text under 37 px versalhöjd, eller ett värde som inte får plats.
   - **Varning (⚠):** värdet under 90 px.
-  - I diagram och KPI spärrar även text som kortas med …, och värden som inte får plats. Värsta fallet där är sexsiffriga
+  - I diagram och KPI spärrar även text som kortas med … (utom raden under KPI-värdet, som bara varnar), och värden som
+    inte får plats. Värsta fallet där är sexsiffriga
     tal, 100,0 % och 999 stopp i varje period.
   - Värsta fallet är 999 999 för räknare och mål, 100,0 % och femsiffriga negativa tal (eller taggens `demo`-intervall),
     den längsta statustexten och en vanlig trendändring.

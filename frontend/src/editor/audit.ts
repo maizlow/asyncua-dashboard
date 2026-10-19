@@ -5,7 +5,8 @@
  * - any text with a cap height under 37 px blocks publishing (error);
  * - a hero value (the big number) under 90 px is a warning;
  * - clipped overflow or a value that doesn't fit blocks; text shortened with … is a warning, except in
- *   charts and KPI tiles, where it blocks (as in scripts/check-fit.mjs: the chart text is all there is);
+ *   charts and KPI tiles, where it blocks (the chart text is all there is) – but not on a KPI's secondary
+ *   line under the value ([data-secondary], e.g. "99 h 59 min totalt" in a 6-wide tile), which warns;
  * - every [data-fit-value] (chart values, which shrink to fit) must fit.
  * Cap heights come from the real fonts (canvas measureText of "H"), not a fixed factor.
  */
@@ -80,7 +81,7 @@ export function auditItem(itemEl: HTMLElement): ItemAudit {
     const ellipsis = cs.textOverflow === "ellipsis";
     const clamp = cs.webkitLineClamp && cs.webkitLineClamp !== "none";
     if ((overX && !ellipsis) || (overY && !clamp)) messages.push({ level: "error", text: `”${text}” klipps av` });
-    else messages.push({ level: chart ? "error" : "warn", text: `”${text}” kortas med …${chart ? " (gör rutan större eller rubriken kortare)" : ""}` });
+    else messages.push({ level: chart && !el.closest("[data-secondary]") ? "error" : "warn", text: `”${text}” kortas med …${chart ? " (gör rutan större eller rubriken kortare)" : ""}` });
   }
   const level: Level = messages.some((m) => m.level === "error") ? "error" : messages.length ? "warn" : "ok";
   return { id, hero, minText, level, messages };

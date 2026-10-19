@@ -285,7 +285,9 @@ OEE-skärmen och 7 dagar är numera byggda av samma element.
   beräknat), gränser, bättre-riktning, färg, rad under värdet, rubrikradens PÅ MÅL/STÅR, skalans max och kolumner.
   Fält som inte gäller döljs; ett byte av datakälla tar bort den andra källans fält.
 - **Läsbarheten:** värsta fallet är sexsiffriga tal, 100,0 % och 999 stopp i varje period. Ett `[data-fit-value]` som inte
-  får plats spärrar, och i diagram spärrar även text som kortas med …, samma regel som `check-fit.mjs`.
+  får plats spärrar. I diagram spärrar även text som kortas med …, samma regel som `check-fit.mjs`. Raden under KPI-värdet
+  varnar bara: med värsta fallets stopptid får "99 h 59 min totalt" inte plats i en ruta som är 6 rutor bred, och så
+  ser även den inbyggda OEE-skärmen ut.
 
 **Egenskapspanel:**
 

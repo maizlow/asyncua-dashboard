@@ -172,7 +172,8 @@ export function newChartWidget(doc: Doc, did: string, kind: ChartKind, at: Rect)
   // As many bars/rows as the size has room for with six-digit counts (7 bars on the full width, 3 on half)
   if (kind === "bars") {
     w.count = Math.max(1, Math.min(7, Math.floor((at.w * 7) / GRID_COLS)));
-    w.label = `${w.count} dagar · OEE % · st`;
+    // the label shares its row with the "— dagsmål" legend: units only where there is room
+    w.label = at.w >= 18 ? `${w.count} dagar · OEE % · st` : `${w.count} dagar`;
   }
   if (kind === "table") w.count = at.h >= 8 ? 5 : 3;
   return w;
