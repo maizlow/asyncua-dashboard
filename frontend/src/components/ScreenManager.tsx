@@ -114,6 +114,17 @@ export function ScreenManager() {
     } else if (type === "grid") {
       // Ask for a fresh snapshot for a better grid screen experience (non-blocking, read-only)
       dataSource.requestSnapshot();
+      // Chart/KPI elements: calculated values and history (also pushed: oee_details, aggregates)
+      const items = current ? (resolveScreen(current, newScreen)?.items ?? []) : [];
+      if (items.some((i) => i.chart)) {
+        const [details, aggregates] = await Promise.all([
+          dataSource.getOeeDetails().catch((e) => console.error("Failed to fetch OEE details:", e)),
+          dataSource.getAggregates().catch((e) => console.error("Failed to fetch aggregates:", e)),
+        ]);
+        if (details) useMetricsStore.getState().setOeeDetails(details);
+        if (aggregates) useMetricsStore.getState().setAggregates(aggregates);
+        if (seq !== switchSeq.current) return;
+      }
     }
 
     // 3. Show the new screen

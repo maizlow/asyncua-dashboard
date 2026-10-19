@@ -9,6 +9,7 @@
  * part is simulated at start-up and then continues live, second by second.
  */
 import type {
+  Aggregates,
   Alarm,
   ConnectionStatus,
   DailyHistory,
@@ -24,12 +25,17 @@ import { demoScreenOrder, normaliseLayout, type Layout } from "@/layout/layout";
 import { displayViews } from "@/layout/doc";
 import { demoKey, publishedDemoDoc } from "./demoStore";
 import { aggregateShifts, type ShiftRow } from "@/lib/shifts";
+import { buildAggregates, isoDate, simulatedShiftLog, teamFor, worstAggregates } from "@/lib/history";
 // Built from the same dashboard.yaml as the real installation (vite.config.ts: dashboard-yaml plugin)
 import dashboardYaml from "../../../dashboard.yaml";
 // ?layout=stress: worst-case layout (long labels/units, 6-digit/negative values) for the fit check
 import stressYaml from "../../../docs/examples/stress.yaml";
 // ?layout=multi: two PLCs, two displays (?display=tv2 shows the packing line's own header text)
 import multiYaml from "../../../docs/examples/flera-displayer.yaml";
+// ?layout=oee-element / 7dagar-element / diagram: chart elements (the OEE and 7-day screens rebuilt, every element type)
+import oeeElementYaml from "../../../docs/examples/oee-element.yaml";
+import weekElementYaml from "../../../docs/examples/7dagar-element.yaml";
+import diagramYaml from "../../../docs/examples/diagram.yaml";
 
 const TICK_MS = 1000;
 const SNAPSHOT_EVERY_MS = 10_000;
@@ -37,6 +43,7 @@ const SHIFT_PATTERN_EVERY_MS = 30_000;
 const OEE_EVERY_MS = 2_000;
 const HISTORY_EVERY_MS = 30_000;
 const HIGHSCORE_EVERY_MS = 15_000;
+const AGGREGATES_EVERY_MS = 10_000;
 const SCREEN_CYCLE_MS = 15_000;
 const HISTORY_POINTS = 150;
 
@@ -110,6 +117,8 @@ class LineSim {
   stopS = 0;
   stops: number[] = []; // durations; the last one may be ongoing
   hours: HourBucket[] = Array.from({ length: SHIFT_HOURS }, () => ({ running: 0, stopped: 0, good: 0 }));
+  /** Run/stop segments of the shift (from = s since shift start), for the run/stop timeline */
+  segments: { from: number; running: boolean }[] = [{ from: 0, running: true }];
   /** Called when a stop starts / ends (for alarms) */
   onStop?: () => void;
   onStart?: () => void;
@@ -130,11 +139,13 @@ class LineSim {
         // 1-15 min, mostly short ones
         this.stopRemaining = 60 + 840 * Math.random() ** 2;
         this.stops.push(0);
+        this.segments.push({ from: this.elapsed, running: false });
         this.onStop?.();
       }
     } else if (this.stopRemaining <= 0) {
       this.running = true;
       this.runSinceStop = 0;
+      this.segments.push({ from: this.elapsed, running: true });
       this.onStart?.();
     }
 
@@ -230,71 +241,30 @@ class LineSim {
   }
 }
 
-/** Deterministic 0..1 pseudo-random per (date, salt), so the simulated past days stay stable across reloads. */
-function seeded(key: string, salt: number) {
-  let h = 2166136261 ^ salt;
-  for (let i = 0; i < key.length; i++) h = Math.imul(h ^ key.charCodeAt(i), 16777619);
-  return ((h >>> 0) % 100000) / 100000;
-}
-
-const isoDate = (d: Date) => `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
-
-/**
- * Simulated shift log (same rows as the backend's `shifts` table) for the past 7 days: Mon-Fri three
- * 8 h shifts 06/14/22 (team A/B/C, rotating weekly), Saturday 06 and 14, Sunday no production.
- * PlannedTime 450 min (30 min break), OEE ~80-88 %. The current shift is the live simulation; earlier
- * slots that overlap it are cut at its start.
- */
-const TEAMS = ["A", "B", "C"];
-const SLOT_HOURS = [6, 14, 22];
-const SLOT_PLANNED_MIN = 450;
-
-function teamFor(ms: number) {
-  const d = new Date(ms);
-  const week = Math.floor((Date.UTC(d.getFullYear(), d.getMonth(), d.getDate()) / 86_400_000 + 3) / 7);
-  const h = d.getHours();
-  const slot = h >= 22 ? 2 : h >= 14 ? 1 : h >= 6 ? 0 : 2;
-  return TEAMS[(slot + week) % 3];
-}
-
+/** Simulated shift log (lib/history.ts) with the live simulation as the current, open shift. */
 function demoShifts(sim: LineSim, nowMs: number): ShiftRow[] {
-  const rows: ShiftRow[] = [];
-  const today = new Date(nowMs);
-  for (let i = 8; i >= 0; i--) {
-    const day = new Date(today.getFullYear(), today.getMonth(), today.getDate() - i);
-    const weekday = (day.getDay() + 6) % 7;
-    if (weekday === 6) continue;
-    for (const [slot, hour] of SLOT_HOURS.entries()) {
-      if (weekday === 5 && slot === 2) continue;
-      const start = new Date(day.getFullYear(), day.getMonth(), day.getDate(), hour).getTime();
-      const end = new Date(day.getFullYear(), day.getMonth(), day.getDate(), hour + 8).getTime();
-      if (start >= sim.startMs) continue;
-      const cut = Math.min(end, sim.startMs);
-      const frac = (cut - start) / (end - start);
-      const key = `${isoDate(day)}-${hour}`;
-      const plannedS = SLOT_PLANNED_MIN * 60 * frac;
-      const a = (weekday === 5 ? 0.82 : 0.87) + seeded(key, 1) * 0.07;
-      const p = 0.93 + seeded(key, 2) * 0.05;
-      const q = 0.975 + seeded(key, 3) * 0.01;
-      const runS = plannedS * a;
-      const total = Math.round((runS / 60) * NOMINAL_TPM * p);
-      const good = Math.round(total * q);
-      rows.push({
-        start, end: cut, closed: cut, team: teamFor(start), oeeTarget: 85,
-        target: Math.round(SLOT_PLANNED_MIN * NOMINAL_TPM * DEMO_OEE_TARGET * frac),
-        plannedS, plannedSource: "PlannedTime", good, reject: total - good, total, runS,
-        stopS: plannedS - runS, stopCount: Math.round(3 + seeded(key, 4) * 6),
-      });
-    }
-  }
   const t = sim.details();
-  rows.push({
+  const current: ShiftRow = {
     start: sim.startMs, end: sim.startMs + SHIFT_S * 1000, closed: null, team: teamFor(sim.startMs),
     target: PLC_TARGET, oeeTarget: DEMO_OEE_TARGET * 100, plannedS: SHIFT_S, plannedSource: "schedule",
     good: t.counts.good, reject: t.counts.reject, total: t.counts.total, runS: sim.runS, stopS: sim.stopS,
     stopCount: sim.stops.length,
+  };
+  return simulatedShiftLog(nowMs, sim.startMs, current, NOMINAL_TPM, DEMO_OEE_TARGET);
+}
+
+/** Chart aggregates (GET /api/aggregates) from the simulated shift log; ?count=N: widest values */
+function demoAggregates(sim: LineSim, countOverride: number | null): Aggregates {
+  const nowMs = sim.startMs + sim.elapsed * 1000;
+  const agg = buildAggregates(demoShifts(sim, nowMs), nowMs, NOMINAL_TPM, DEMO_OEE_TARGET * 100, {
+    window: { start: sim.startMs, end: sim.startMs + SHIFT_S * 1000 },
+    segments: sim.segments.map((s, i, all) => ({
+      start: sim.startMs + s.from * 1000,
+      end: sim.startMs + (i + 1 < all.length ? all[i + 1].from : sim.elapsed) * 1000,
+      running: s.running,
+    })),
   });
-  return rows;
+  return countOverride !== null ? worstAggregates(agg, countOverride) : agg;
 }
 
 /** 7-day history (screen type: week) aggregated from the simulated shift log, like the backend. */
@@ -396,7 +366,7 @@ export function createDemoDataSource(): DataSource {
   const params = new URLSearchParams(window.location.search);
   // A version published in the demo editor (same browser) replaces the bundled example
   const stored = publishedDemoDoc(params.get("layout"));
-  const views = (stored ? displayViews(stored) : null) ?? { stress: stressYaml, multi: multiYaml }[params.get("layout") ?? ""] ?? dashboardYaml;
+  const views = (stored ? displayViews(stored) : null) ?? { stress: stressYaml, multi: multiYaml, "oee-element": oeeElementYaml, "7dagar-element": weekElementYaml, diagram: diagramYaml }[params.get("layout") ?? ""] ?? dashboardYaml;
   window.addEventListener("storage", (e) => {
     if (e.key === demoKey(params.get("layout"))) window.location.reload();
   });
@@ -433,6 +403,10 @@ export function createDemoDataSource(): DataSource {
   const demoStartMs = Date.now();
   let lastRunning = true;
   const scores = () => demoHighscores(sim, demoStartMs, countOverride);
+  const aggregates = () => {
+    const a = demoAggregates(sim, countOverride);
+    return forceStopped && a.current_shift ? { ...a, current_shift: { ...a.current_shift, stop_count: 999 } } : a;
+  };
 
   const alarms = new Map<string, Alarm>();
   const metrics: Record<string, MetricValue> = {};
@@ -591,6 +565,7 @@ export function createDemoDataSource(): DataSource {
       emit({ type: "shift_pattern_data", data: sim.shiftPattern() });
       emit({ type: "oee_details", data: details() });
       emit({ type: "daily_history", data: demoWeek(sim, countOverride) });
+      emit({ type: "aggregates", data: aggregates() });
       emit({ type: "highscores", data: scores() });
     }, 400);
 
@@ -599,6 +574,8 @@ export function createDemoDataSource(): DataSource {
     setInterval(() => emit({ type: "shift_pattern_data", data: sim.shiftPattern() }), SHIFT_PATTERN_EVERY_MS);
     setInterval(() => emit({ type: "oee_details", data: details() }), OEE_EVERY_MS);
     setInterval(() => emit({ type: "daily_history", data: demoWeek(sim, countOverride) }), HISTORY_EVERY_MS);
+    // The backend refreshes every HISTORY_INTERVAL_S (60 s); the demo more often so the timeline moves
+    setInterval(() => emit({ type: "aggregates", data: aggregates() }), AGGREGATES_EVERY_MS);
     setInterval(() => emit({ type: "highscores", data: scores() }), HIGHSCORE_EVERY_MS);
     if (pinnedScreen === null) {
       setInterval(() => {
@@ -626,6 +603,7 @@ export function createDemoDataSource(): DataSource {
     getOeeDetails: async () => details(),
     getDailyHistory: async () => demoWeek(sim, countOverride),
     getHighscores: async () => scores(),
+    getAggregates: async () => aggregates(),
     getLayout: async () => layout,
     requestSnapshot: () => {
       setTimeout(() => emit(snapshot()), 0);

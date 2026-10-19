@@ -1,4 +1,4 @@
-import type { Alarm, ConnectionStatus, DailyHistory, DataSource, Highscores, OeeDetails, ServerMessage, ShiftPatternRow } from "./types";
+import type { Aggregates, Alarm, ConnectionStatus, DailyHistory, DataSource, Highscores, OeeDetails, ServerMessage, ShiftPatternRow } from "./types";
 import { LayoutError } from "./types";
 import { normaliseLayout } from "@/layout/layout";
 
@@ -101,6 +101,9 @@ export function createLiveDataSource(): DataSource {
     },
     async getDailyHistory() {
       return await getJson<DailyHistory>("/api/history/days?n=7");
+    },
+    async getAggregates() {
+      return await getJson<Aggregates>("/api/aggregates");
     },
     async getHighscores() {
       return await getJson<Highscores>("/api/highscores?n=5");

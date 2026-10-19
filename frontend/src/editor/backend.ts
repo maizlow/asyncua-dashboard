@@ -144,12 +144,15 @@ function demoBackend(): EditorBackend {
   const which = new URLSearchParams(window.location.search).get("layout");
   const now = () => new Date().toISOString().slice(0, 19) + "+00:00";
   const bundled = async (): Promise<Doc> => {
-    const mod =
-      which === "multi"
-        ? await import("../../../docs/examples/flera-displayer.yaml?doc")
-        : which === "stress"
-          ? await import("../../../docs/examples/stress.yaml?doc")
-          : await import("../../../dashboard.yaml?doc");
+    const examples: Record<string, () => Promise<{ default: Doc }>> = {
+      multi: () => import("../../../docs/examples/flera-displayer.yaml?doc"),
+      stress: () => import("../../../docs/examples/stress.yaml?doc"),
+      // Chart elements: the OEE and 7-day screens rebuilt from elements, and every element type
+      "oee-element": () => import("../../../docs/examples/oee-element.yaml?doc"),
+      "7dagar-element": () => import("../../../docs/examples/7dagar-element.yaml?doc"),
+      diagram: () => import("../../../docs/examples/diagram.yaml?doc"),
+    };
+    const mod = await (examples[which ?? ""] ?? (() => import("../../../dashboard.yaml?doc")))();
     return structuredClone(mod.default);
   };
   /** Versions in localStorage; version 1 = the bundled example */

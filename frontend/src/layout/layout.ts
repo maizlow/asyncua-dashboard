@@ -5,9 +5,12 @@
  * view JSON; normaliseLayout() turns it into what the screens use.
  */
 import { BUILTIN_KINDS, GRID_COLS, GRID_ROWS, documentView, toDocument, type LogoAsset } from "./doc";
+import { isChartKind, type ChartItem, type ChartKind } from "@/charts/metrics";
 
 export type ColorName = "white" | "green" | "amber" | "red" | "grey";
-export type ItemType = "number" | "percent" | "counter" | "time" | "status";
+export type ValueType = "number" | "percent" | "counter" | "time" | "status";
+/** Value tiles (ItemCard) and chart/KPI elements (src/charts, `chart` holds their fields) */
+export type ItemType = ValueType | ChartKind;
 export type BuiltinKind = (typeof BUILTIN_KINDS)[number];
 export type ScreenType = "grid" | BuiltinKind;
 export type { LogoAsset };
@@ -32,6 +35,8 @@ export interface ItemConfig {
   thresholds?: [number, number];
   better: "high" | "low";
   states?: Record<string, { text: string; color: ColorName }>;
+  /** Chart/KPI elements only: the element's fields (src/charts/metrics.ts) */
+  chart?: ChartItem;
 }
 
 export interface ScreenConfig {
@@ -131,8 +136,21 @@ export function normaliseLayout(raw: unknown): Layout {
   };
 }
 
+const CHART_FIELDS = ["label", "source", "metric", "period", "tag", "unit", "decimals", "target", "target_metric", "thresholds", "better",
+  "color", "sub_metric", "sub_text", "aside", "max", "stats", "series", "count", "top_metric", "columns"] as const;
+
+function normaliseChart(i: Raw, kind: ChartKind): ChartItem {
+  const out: Record<string, unknown> = { id: String(i.id ?? ""), kind, x: Number(i.x ?? 0), y: Number(i.y ?? 0), w: Number(i.w ?? GRID_COLS), h: Number(i.h ?? GRID_ROWS) };
+  for (const f of CHART_FIELDS) if (i[f] !== undefined && i[f] !== null) out[f] = i[f];
+  return out as unknown as ChartItem;
+}
+
 function normaliseItem(i: Raw): ItemConfig {
   const type = ((i.kind as ItemType) ?? "number") as ItemType;
+  if (isChartKind(type)) {
+    const chart = normaliseChart(i, type);
+    return { id: chart.id, type, x: chart.x, y: chart.y, w: chart.w, h: chart.h, label: String(i.label ?? ""), tag: String(i.tag ?? ""), trend: false, better: "high", chart };
+  }
   const states = isObj(i.states)
     ? Object.fromEntries(
         Object.entries(i.states).map(([k, v]) => {

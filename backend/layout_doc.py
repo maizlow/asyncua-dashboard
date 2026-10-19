@@ -46,6 +46,13 @@ SCHEMA_VERSION = 2
 GRID_COLS, GRID_ROWS = 24, 12
 VALUE_KINDS = ("number", "percent", "counter", "time", "status")
 BUILTIN_KINDS = ("alarms", "shift", "oee", "week", "highscore")
+# Chart and KPI elements (kpi, gauge, bars, ...): kinds, fields, metrics and minimum sizes are shared
+# with the frontend (frontend/src/charts/catalog.ts) in chart_catalog.json
+CHART_CATALOG = json.loads((Path(__file__).parent / "chart_catalog.json").read_text(encoding="utf-8"))
+CHART_KINDS = tuple(CHART_CATALOG["kinds"])
+MAX_CHART_LABEL = 40  # chart titles span the element (value tiles: MAX_LABEL = 20)
+CHART_FIELDS = ("source", "metric", "period", "series", "count", "target_metric", "top_metric", "sub_metric",
+                "sub_text", "aside", "max", "stats", "columns")
 # Smallest value tile until the editor's live fit check exists (etapp 2): today's smallest tile
 # (2 columns x 3 rows) is 12x4, which is what every hero size and the 6-digit counts are laid out for.
 MIN_VALUE_W, MIN_VALUE_H = 12, 4
@@ -102,13 +109,16 @@ class Widget(_Strict):
     """One element on a screen: position + size in grid cells, and the element's properties."""
 
     id: str = Field(..., min_length=1, max_length=40)
-    kind: Literal["number", "percent", "counter", "time", "status", "alarms", "shift", "oee", "week", "highscore"]
+    kind: Literal[
+        "number", "percent", "counter", "time", "status", "alarms", "shift", "oee", "week", "highscore",
+        "kpi", "gauge", "breakdown", "progress", "bars", "trend", "timeline", "table",
+    ]
     x: int = Field(..., ge=0, lt=GRID_COLS)
     y: int = Field(..., ge=0, lt=GRID_ROWS)
     w: int = Field(..., ge=1, le=GRID_COLS)
     h: int = Field(..., ge=1, le=GRID_ROWS)
     # Value elements (same meaning as the items in dashboard.yaml, see docs/CONFIG.md)
-    label: str | None = Field(None, min_length=1, max_length=MAX_LABEL)
+    label: str | None = Field(None, min_length=1, max_length=MAX_CHART_LABEL, description=f"Etikett/rubrik: högst {MAX_LABEL} tecken på värdeobjekt, {MAX_CHART_LABEL} på diagram")
     tag: str | None = Field(None, description="Tagg: plc1.OEE (anslutning.alias), eller bara OEE med displayens default_connection")
     unit: str | None = Field(None, max_length=MAX_UNIT)
     decimals: int | None = Field(None, ge=0, le=3)
@@ -118,6 +128,21 @@ class Widget(_Strict):
     thresholds: list[float] | None = Field(None, min_length=2, max_length=2)
     better: Literal["high", "low"] | None = None
     states: dict[int, State] | None = None
+    # Chart/KPI elements (chart_catalog.json, docs/CONFIG.md "Diagram och KPI"). History and calculated
+    # values are the display's default connection until etapp 4 (multi-PLC history).
+    source: Literal["calc", "tag"] | None = Field(None, description="calc = beräknat värde (metric), tag = en tagg (tag)")
+    metric: str | None = Field(None, description="Beräknat värde, t.ex. oee, good, scrap_pct (chart_catalog.json)")
+    period: Literal["shift", "today", "yesterday", "7d", "14d", "30d"] | None = None
+    series: Literal["days", "shifts"] | None = Field(None, description="Diagram: en stapel/punkt/rad per dag eller per skift")
+    count: int | None = Field(None, ge=1, le=30, description="Antal dagar (högst 30) eller skift (högst 14)")
+    target_metric: str | None = Field(None, description="Mål som beräknat värde, t.ex. oee_target eller target")
+    top_metric: str | None = Field(None, description="Stapeldiagram: värdet ovanför stapeln (none = inget)")
+    sub_metric: str | None = Field(None, description="KPI: värde på raden under")
+    sub_text: str | None = Field(None, max_length=MAX_LABEL, description="KPI: text före värdet på raden under, t.ex. 'av'")
+    aside: Literal["target", "stopped"] | None = Field(None, description="KPI: PÅ/UNDER MÅL eller STÅR i rubrikraden")
+    max: float | None = Field(None, gt=0, description="Skalans maxvärde (OEE-ring: 100)")
+    stats: bool | None = Field(None, description="Mot mål: visa Mål hittills, Skiftmål och Prognos")
+    columns: list[str] | None = Field(None, min_length=1, max_length=5, description="Tabell: kolumner (chart_catalog.json)")
     # Built-in screens: which PLC (line) they show; shift log, OEE, 7 days and highscore are per connection
     connection: Id | None = Field(None, description="Inbyggda skärmar: anslutningen (linjen) de visar, t.ex. plc1")
 
@@ -356,7 +381,7 @@ def document_problems(doc: LayoutDocument) -> list[tuple[tuple, str]]:
                         problems.append((loc, f"överlappar objekt {j + 1} ('{other.id}')"))
                 full = (wdg.x, wdg.y, wdg.w, wdg.h) == (0, 0, GRID_COLS, GRID_ROWS)
                 if wdg.kind in BUILTIN_KINDS:
-                    extra = [f for f in _VALUE_FIELDS if getattr(wdg, f) is not None]
+                    extra = [f for f in (*_VALUE_FIELDS, *CHART_FIELDS) if getattr(wdg, f) is not None]
                     if extra:
                         problems.append((loc, f"'{wdg.kind}' har inga egna fält – ta bort {', '.join(extra)}"))
                     if not full or len(screen.items) > 1:
@@ -368,9 +393,16 @@ def document_problems(doc: LayoutDocument) -> list[tuple[tuple, str]]:
                         conn_problem(wdg.connection, (*loc, "connection"))
                     else:
                         problems += builtin_tag_problems(wdg.kind, set(doc.connections[wdg.connection].tags), (*loc, "kind"))
+                elif wdg.kind in CHART_KINDS:
+                    problems += chart_problems(doc, d, wdg, loc)
                 else:
                     if wdg.connection is not None:
                         problems.append(((*loc, "connection"), "connection används bara på inbyggda skärmar – skriv anslutningen i tag (plc1.OEE)"))
+                    extra = [f for f in CHART_FIELDS if getattr(wdg, f) is not None]
+                    if extra:
+                        problems.append((loc, f"'{wdg.kind}' har inte fälten {', '.join(extra)} (bara diagram och KPI)"))
+                    if wdg.label is not None and len(wdg.label) > MAX_LABEL:
+                        problems.append(((*loc, "label"), f"för lång text ({len(wdg.label)} tecken, max {MAX_LABEL} för att få plats på TV:n)"))
                     for f in ("label", "tag"):
                         if getattr(wdg, f) is None:
                             problems.append(((*loc, f), "saknas (obligatorisk)"))
@@ -382,6 +414,72 @@ def document_problems(doc: LayoutDocument) -> list[tuple[tuple, str]]:
                             problems += _ref_problems(doc, d, wdg.target, (*loc, "target"))
                         # value rules shared with dashboard.yaml; tag existence is checked above
                         problems += [p for p in item_problems(wdg, _AnyTags(), loc) if p[0][-1] not in ("tag", "target")]
+    return problems
+
+
+def chart_min_size(kind: str) -> tuple[int, int]:
+    w, h = CHART_CATALOG["kinds"][kind]["min"]
+    return w, h
+
+
+def chart_problems(doc: LayoutDocument, d: Display, wdg: Widget, loc: tuple) -> list[tuple[tuple, str]]:
+    """Rules for one chart/KPI element (fields per kind, metrics and periods from chart_catalog.json)."""
+    spec = CHART_CATALOG["kinds"][wdg.kind]
+    metrics = CHART_CATALOG["metrics"]
+    allowed = set(spec["fields"])
+    problems: list[tuple[tuple, str]] = []
+    if wdg.connection is not None:
+        problems.append(((*loc, "connection"), "connection används bara på inbyggda skärmar – historik och beräknade värden gäller displayens standardanslutning"))
+    extra = [f for f in (*_VALUE_FIELDS, *CHART_FIELDS) if getattr(wdg, f) is not None and f not in allowed]
+    if extra:
+        problems.append((loc, f"'{wdg.kind}' har inte fälten {', '.join(extra)}"))
+    mw, mh = chart_min_size(wdg.kind)
+    if wdg.w < mw or wdg.h < mh:
+        problems.append((loc, f"för liten ruta {wdg.w}×{wdg.h} (minst {mw}×{mh} för '{wdg.kind}')"))
+    source = wdg.source or "calc"
+    uses_source = "source" in allowed
+    if uses_source and source == "tag":
+        if wdg.tag is None:
+            problems.append(((*loc, "tag"), "saknas (obligatorisk med source: tag)"))
+        if wdg.metric is not None or wdg.period is not None:
+            problems.append((loc, "source: tag använder tag – ta bort metric/period"))
+    elif "tag" in allowed and wdg.tag is not None and uses_source:
+        problems.append(((*loc, "tag"), "tag används bara med source: tag"))
+    if wdg.tag is not None:
+        problems += _ref_problems(doc, d, wdg.tag, (*loc, "tag"))
+    if isinstance(wdg.target, str):
+        problems += _ref_problems(doc, d, wdg.target, (*loc, "target"))
+    if wdg.target is not None and wdg.target_metric is not None:
+        problems.append(((*loc, "target"), "ange target eller target_metric, inte båda"))
+    need_metric = wdg.kind in ("kpi", "gauge", "trend") and source == "calc"
+    if need_metric and wdg.metric is None:
+        problems.append(((*loc, "metric"), "saknas (obligatorisk med beräknat värde)"))
+    period = wdg.period or "shift"
+    for f in ("metric", "target_metric", "sub_metric", "top_metric"):
+        m = getattr(wdg, f)
+        if m is None or (f == "top_metric" and m == "none"):
+            continue
+        if m not in metrics:
+            problems.append(((*loc, f), f"okänt värde '{m}'{_suggest(m, metrics)}"))
+            continue
+        periods = metrics[m].get("periods")
+        series_kind = wdg.kind in ("bars", "trend", "table")
+        if periods and (series_kind or period not in periods):
+            where = "per dag/skift" if series_kind else CHART_CATALOG["periods"][period].lower()
+            problems.append(((*loc, f), f"'{m}' finns bara för pågående skift (inte {where})"))
+    if wdg.kind == "gauge" and wdg.metric in metrics and metrics[wdg.metric]["format"] not in ("pct", "dec1") and wdg.max is None:
+        problems.append(((*loc, "max"), f"'{wdg.metric}' är inte en procentsats – ange max (skalans maxvärde)"))
+    if wdg.series is not None and wdg.series not in spec.get("series", ()):
+        problems.append(((*loc, "series"), f"'{wdg.kind}' stöder inte series"))
+    if wdg.count is not None and wdg.series in CHART_CATALOG["max_count"] and wdg.count > CHART_CATALOG["max_count"][wdg.series]:
+        problems.append(((*loc, "count"), f"högst {CHART_CATALOG['max_count'][wdg.series]} för series: {wdg.series}"))
+    if wdg.kind == "trend" and source == "tag" and wdg.series is not None:
+        problems.append(((*loc, "series"), "trend med source: tag visar taggens senaste värden – ta bort series"))
+    for i, col in enumerate(wdg.columns or []):
+        if col not in CHART_CATALOG["columns"]:
+            problems.append(((*loc, "columns", i), f"okänd kolumn '{col}'{_suggest(col, CHART_CATALOG['columns'])}"))
+    if wdg.thresholds and wdg.thresholds[0] > wdg.thresholds[1]:
+        problems.append(((*loc, "thresholds"), "skriv [varning, bra] med det lägre värdet först"))
     return problems
 
 
