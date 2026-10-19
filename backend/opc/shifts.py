@@ -121,6 +121,25 @@ def shift_shares(row: dict, lo: datetime, hi: datetime, now: datetime) -> tuple[
     return sec / (end_eff - start).total_seconds(), sec / (end - start).total_seconds()
 
 
+def factors_from_sums(
+    good: float, total: float, run_s: float, planned_s: float, nominal_tpm: float, have_counts: bool, q_known: bool
+) -> dict:
+    """A, P, Q and OEE (fractions) recomputed from summed raw totals of any period (shifts, days):
+    A = run / planned, P = total / (run x R), Q = good / total, OEE = good / (planned x R), each
+    capped at 1. Without counts P is unknown; without RejectCount (q_known False) Q and OEE are."""
+    rate_s = nominal_tpm / 60.0
+    oee = {"availability": None, "performance": None, "quality": None, "oee": None}
+    if planned_s > 0:
+        oee["availability"] = min(1.0, run_s / planned_s)
+    if have_counts and run_s > 0 and rate_s > 0:
+        oee["performance"] = min(1.0, total / (run_s * rate_s))
+    if q_known and total > 0:
+        oee["quality"] = good / total
+    if q_known and planned_s > 0 and rate_s > 0 and oee["performance"] is not None:
+        oee["oee"] = min(1.0, good / (planned_s * rate_s))
+    return oee
+
+
 def aggregate_shifts(rows: list[dict], lo: datetime, hi: datetime, now: datetime, nominal_tpm: float) -> dict:
     """Sum the shifts' raw totals in [lo, hi) (time share) and recompute A, P, Q, OEE from the sums.
 
@@ -168,16 +187,7 @@ def aggregate_shifts(rows: list[dict], lo: datetime, hi: datetime, now: datetime
             target += r["target"] * p
             target_known = True
     q_known = have_counts and reject_known and not reject_missing
-    rate_s = nominal_tpm / 60.0
-    oee = {"availability": None, "performance": None, "quality": None, "oee": None}
-    if planned > 0:
-        oee["availability"] = min(1.0, run / planned)
-    if have_counts and run > 0 and rate_s > 0:
-        oee["performance"] = min(1.0, total / (run * rate_s))
-    if q_known and total > 0:
-        oee["quality"] = good / total
-    if q_known and planned > 0 and rate_s > 0 and oee["performance"] is not None:
-        oee["oee"] = min(1.0, good / (planned * rate_s))
+    oee = factors_from_sums(good, total, run, planned, nominal_tpm, have_counts, q_known)
     return {
         "shifts": n,
         "has_data": n > 0,
@@ -641,6 +651,7 @@ __all__ = [
     "ShiftStore",
     "ShiftTracker",
     "aggregate_shifts",
+    "factors_from_sums",
     "first_reset",
     "get_shift_store",
     "get_shift_tracker",
