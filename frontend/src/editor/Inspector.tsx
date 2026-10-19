@@ -4,6 +4,8 @@ import { BUILTIN_NAMES, TYPE_NAMES } from "./names";
 import { connectionIds, deleteScreen, duplicateScreen, findWidget, isBuiltin, moveScreen, removeWidget, renumberScreen, screen as screenOf } from "./ops";
 import { useEditorStore } from "./store";
 import { pasteClipboard } from "./actions";
+import { PropsPanel } from "./PropsPanel";
+import type { Problem } from "./validate";
 
 const btn = "rounded-md border border-zinc-700 px-2.5 py-1 text-sm hover:bg-zinc-800 disabled:opacity-40";
 const input = "w-full rounded-md border border-zinc-700 bg-zinc-950 px-2 py-1 text-sm text-zinc-100 outline-none focus:border-sky-500";
@@ -175,12 +177,25 @@ function ItemPanel({ id }: { id: string }) {
   );
 }
 
-export function Inspector({ layout }: { layout: Layout }) {
+/** Problems of one element by field ("" = the element itself), from the document validation */
+function fieldProblems(problems: Problem[], item: string): Record<string, string> {
+  const out: Record<string, string> = {};
+  for (const p of problems) {
+    if (p.item !== item) continue;
+    const at = p.path.indexOf("items");
+    const key = at >= 0 && p.path.length > at + 2 ? String(p.path[at + 2]) : "";
+    out[key] = out[key] ? `${out[key]}; ${p.message}` : p.message;
+  }
+  return out;
+}
+
+export function Inspector({ layout, problems }: { layout: Layout; problems: Problem[] }) {
   const { doc, displayId, screenNr, selected } = useEditorStore();
   const w = doc && displayId && screenNr !== null && selected ? findWidget(doc, displayId, screenNr, selected) : undefined;
   return (
     <aside className="w-80 shrink-0 overflow-y-auto border-l border-zinc-800 bg-zinc-900">
-      {w ? <ItemPanel id={w.id} /> : null}
+      {w && !isBuiltin(w.kind) ? <PropsPanel id={w.id} problems={fieldProblems(problems, w.id)} /> : null}
+      {w && isBuiltin(w.kind) ? <ItemPanel id={w.id} /> : null}
       {!w || isBuiltin(w.kind) ? <ScreenPanel layout={layout} /> : null}
     </aside>
   );

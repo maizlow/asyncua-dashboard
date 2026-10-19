@@ -93,6 +93,20 @@ python -m backend.users remove johan
   - **Numret är det `ActiveScreenNr` som PLC:n skickar.** Det kan bytas, men dubbletter spärras. Flytta upp/ned byter
     nummer med grannen.
   - Skärmar kan också dupliceras och tas bort.
+- **Egenskaper:** välj ett element för att ändra etikett, tagg, enhet, decimaler, mål, trend, gränser, bättre-riktning,
+  färg och tillstånd (status). Panelen visar bara de egenskaper elementtypen har. Fel visas direkt vid fältet.
+- **Taggväljaren:**
+  - Taggarna är grupperade per PLC. Displayens standard-PLC skrivs kort (`OEE`) och andra PLC:er med anslutningen
+    (`plc2.GlazeLevel`).
+  - **Ny tagg från nod-id** lägger till ett namn och ett nod-id på en PLC. Backend läser nya taggar efter omstart, tills
+    etapp 4.
+- **Läsbarhet:** varje element mäts med värsta fallets värden, och resultatet visas på elementet och i panelen. Mätningen
+  sker vid 1080p:
+  - **Fel (✖), som spärrar publicering:** text under 37 px versalhöjd, eller ett värde som inte får plats.
+  - **Varning (⚠):** värdet under 90 px.
+  - Värsta fallet är 999 999 för räknare och mål, 100,0 % och femsiffriga negativa tal (eller taggens `demo`-intervall),
+    den längsta statustexten och en vanlig trendändring.
+  - Alla fel och varningar listas under duken, och ett klick väljer elementet.
 - **Display:** logotyp till vänster och höger (kundens, ABECE eller ingen) och standard-PLC för korta taggnamn. Klockan
   sitter alltid i mitten.
 - **Kortkommandon:**

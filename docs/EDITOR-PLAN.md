@@ -6,7 +6,8 @@
 >   - modellen för flera PLC:er per display och den förenklade headern (PR #20)
 >   - inloggning och editorns skal på `/editor/` med display, skärmlista och förhandsvisning (PR #23)
 >   - duken med dra och släpp, palett, skärmhantering, ångra, kopiera och klistra in (PR #24)
->   - sedan egenskapspanelen, läsbarhetskontrollen och publiceringen
+>   - egenskapspanel, taggväljare per PLC och läsbarhetskontroll (PR #25)
+>   - sedan publiceringen
 > - **Driften** stöder fortfarande en PLC och en display tills etapp 4. Se
 >   [CONFIG.md](CONFIG.md#layoutdokumentet-schema_version-2).
 
@@ -286,6 +287,19 @@ under **37 px**, aldrig overflow eller scroll.
   fallets värden.
 - **Uppmätta typsnittsmått:** versalhöjden räknas från uppmätta typsnittsmått (versalhöjd per typsnitt, mätt när typsnittet
   laddas), inte en fast faktor. Uppladdade typsnitt ger då korrekta värden.
+
+**Byggt i etapp 2d (PR #25):**
+- **Mätningen:** `frontend/src/editor/AuditFrame.tsx` renderar skärmen utanför bild i full storlek, med samma
+  komponenter som TV:n och värsta fallets värden (`worst.ts`). `audit.ts` mäter sedan varje element.
+  - Versalhöjden tas från det riktiga typsnittet (`measureText("H")`).
+  - Klippt overflow räknas med samma regel som `check-fit.mjs`.
+- **Hjälte:** hjältesiffran är elementets `data-hero`, en per element. Att markera ett hjälteelement per skärm är inte
+  byggt.
+- **Fynd:** värsta fallet hittar mer än fit-checken. Stresslayouten (−99 999,9 med enheten `mmmmmm` och trend på 12 × 4)
+  får inte plats med en trendändring på två siffror. Fit-checken klarar den bara för att demons ändringar är små
+  (`▲ 0,6`).
+- **Fem upplösningar och ett eget läge för värsta fallet** i förhandsvisningen är inte byggt. Mätningen sker på canvasen
+  3840×2160, som är lika vid alla upplösningar.
 
 ## Tema och varumärke
 
