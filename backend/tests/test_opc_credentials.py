@@ -4,6 +4,7 @@ Before the fix the runtime client always called set_password(settings.opc_passwo
 rejects for None ("Password must be a string"), so the dashboard reconnected forever."""
 
 import asyncio
+import secrets
 import socket
 import threading
 from pathlib import Path
@@ -101,7 +102,7 @@ def test_no_username_means_no_credentials(monkeypatch):
 
 def test_password_alone_is_ignored(monkeypatch, caplog):
     monkeypatch.setattr(settings, "opc_username", None)
-    monkeypatch.setattr(settings, "opc_password", "hemligt")
+    monkeypatch.setattr(settings, "opc_password", secrets.token_urlsafe(16))  # throwaway, per run
     client = Client("opc.tcp://127.0.0.1:4840/")
     apply_credentials(client)
     assert client._username is None and client._password is None
