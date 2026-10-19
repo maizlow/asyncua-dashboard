@@ -10,6 +10,11 @@ export function worstValues(screen: ScreenConfig, tags: Layout["tags"] = {}): { 
   const values: Record<string, MetricValue> = {};
   const histories: Record<string, MetricValue[]> = {};
   for (const item of screen.items) {
+    // Charts on calculated values get worst-case aggregates/details (AuditFrame); tags as numbers below
+    if (item.chart && !item.tag) {
+      if (typeof item.chart.target === "string") values[item.chart.target] = 999999;
+      continue;
+    }
     let v: MetricValue;
     switch (item.type) {
       case "counter":
@@ -40,6 +45,7 @@ export function worstValues(screen: ScreenConfig, tags: Layout["tags"] = {}): { 
     values[item.tag] = v;
     if (typeof item.target === "string") values[item.target] = 999999;
     // Trend: a typical change (the value's width is the worst case; the fit check uses the same)
+    if (item.chart?.kind === "trend" && typeof v === "number") histories[item.tag] = Array.from({ length: 30 }, (_, i) => (i % 2 ? v : (v as number) / 2));
     if (item.trend && typeof v === "number") histories[item.tag] = [v + (item.type === "counter" ? 1 : item.type === "percent" ? 1.2 : 12.3), v];
   }
   return { values, histories };

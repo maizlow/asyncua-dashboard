@@ -16,6 +16,8 @@ import "./editor.css";
 import { CANVAS_WIDTH } from "@/components/ScaledCanvas";
 import { Header } from "@/components/Header";
 import { ItemCard } from "@/components/ItemCard";
+import { ChartElement } from "@/charts/Elements";
+import { sampleChartData } from "@/lib/history";
 import { GRID_COLS, GRID_ROWS } from "@/layout/doc";
 import type { Layout } from "@/layout/layout";
 import { bound } from "@/lib/connection";
@@ -23,8 +25,8 @@ import { useMetricsStore } from "@/stores/useMetricsStore";
 import { BuiltinPlaceholder, ScaledBox } from "./TvPreview";
 import { simulatedMetrics } from "./sim";
 import { useEditorStore } from "./store";
-import { DRAG_MIME } from "./dnd";
-import { MIN_H, MIN_W, addValueWidget, inGrid, overlaps, setRect, type ValueKind } from "./ops";
+import { DRAG_MIME, dragKind } from "./dnd";
+import { addWidget, defaultSizeOf, inGrid, minSizeOf, overlaps, setRect, type ElementKind } from "./ops";
 
 const PAD_X = 64;
 const PAD_TOP = 48;
@@ -47,6 +49,8 @@ function createCanvasStrategy(scale: number, grid: { current: HTMLElement | null
 interface Ghost {
   x: number;
   y: number;
+  w: number;
+  h: number;
   ok: boolean;
 }
 
@@ -63,7 +67,9 @@ export function Canvas({ layout }: { layout: Layout }) {
   const connected = useMetricsStore((s) => s.connected);
 
   useLayoutEffect(() => {
-    useMetricsStore.setState({ metrics: simulatedMetrics(layout), connected: {}, histories: {} });
+    // Charts show the same simulated shift and history as the demo (the editor never reads the PLC)
+    const sample = sampleChartData(Date.now());
+    useMetricsStore.setState({ metrics: simulatedMetrics(layout), connected: {}, histories: {}, oeeDetails: sample.details, aggregates: sample.aggregates });
   }, [layout]);
 
   useLayoutEffect(() => {
@@ -83,7 +89,10 @@ export function Canvas({ layout }: { layout: Layout }) {
 
   const rgl: RglLayout = useMemo(
     () =>
-      (screen?.items ?? []).map((it) => ({ i: it.id, x: it.x, y: it.y, w: it.w, h: it.h, minW: MIN_W, minH: MIN_H, maxW: GRID_COLS, maxH: GRID_ROWS })),
+      (screen?.items ?? []).map((it) => {
+        const [minW, minH] = minSizeOf(it.type);
+        return { i: it.id, x: it.x, y: it.y, w: it.w, h: it.h, minW, minH, maxW: GRID_COLS, maxH: GRID_ROWS };
+      }),
     [screen],
   );
 
@@ -97,37 +106,48 @@ export function Canvas({ layout }: { layout: Layout }) {
     [edit, displayId, screenNr],
   );
 
-  /** Grid cell for a drop at client (x, y): the new element (12 × 4) centred under the pointer */
-  const cellAt = (clientX: number, clientY: number) => {
+  /** Grid cell for a drop at client (x, y): the new element (w × h) centred under the pointer */
+  const cellAt = (clientX: number, clientY: number, w: number, h: number) => {
     const r = areaRef.current!.getBoundingClientRect();
     const cx = (clientX - r.left) / scale;
     const cy = (clientY - r.top) / scale;
-    const col = (cx - PAD_X) / (COL_W + GAP) - MIN_W / 2;
-    const row = (cy - PAD_TOP) / (rowH + GAP) - MIN_H / 2;
+    const col = (cx - PAD_X) / (COL_W + GAP) - w / 2;
+    const row = (cy - PAD_TOP) / (rowH + GAP) - h / 2;
     return {
-      x: Math.max(0, Math.min(GRID_COLS - MIN_W, Math.round(col))),
-      y: Math.max(0, Math.min(GRID_ROWS - MIN_H, Math.round(row))),
+      x: Math.max(0, Math.min(GRID_COLS - w, Math.round(col))),
+      y: Math.max(0, Math.min(GRID_ROWS - h, Math.round(row))),
     };
+  };
+
+  /** Where a dragged kind would land: its default size if free there, else its minimum size */
+  const dropRect = (kind: string, clientX: number, clientY: number) => {
+    const items = screen?.items ?? [];
+    const free = (r: { x: number; y: number; w: number; h: number }) => inGrid(r) && !items.some((o) => overlaps(r, o));
+    let rect = { w: 0, h: 0, x: 0, y: 0 };
+    for (const [w, h] of [defaultSizeOf(kind), minSizeOf(kind)]) {
+      rect = { ...cellAt(clientX, clientY, w, h), w, h };
+      if (free(rect)) return { ...rect, ok: true };
+    }
+    return { ...rect, ok: false };
   };
 
   const onDragOver = (e: DragEvent) => {
     if (!e.dataTransfer.types.includes(DRAG_MIME) || builtin || !scale) return;
     e.preventDefault();
     e.dataTransfer.dropEffect = "copy";
-    const c = cellAt(e.clientX, e.clientY);
-    const rect = { ...c, w: MIN_W, h: MIN_H };
-    const ok = inGrid(rect) && !(screen?.items ?? []).some((o) => overlaps(rect, o));
-    if (!ghost || ghost.x !== c.x || ghost.y !== c.y || ghost.ok !== ok) setGhost({ ...c, ok });
+    const g = dropRect(dragKind(e.dataTransfer.types) ?? "number", e.clientX, e.clientY);
+    if (!ghost || ghost.x !== g.x || ghost.y !== g.y || ghost.w !== g.w || ghost.h !== g.h || ghost.ok !== g.ok) setGhost(g);
   };
 
   const onDrop = (e: DragEvent) => {
-    const kind = e.dataTransfer.getData(DRAG_MIME) as ValueKind;
+    const kind = e.dataTransfer.getData(DRAG_MIME) as ElementKind;
     setGhost(null);
     if (!kind || !displayId || screenNr === null) return;
     e.preventDefault();
     let id = "";
     edit((d) => {
-      id = addValueWidget(d, displayId, screenNr, kind, cellAt(e.clientX, e.clientY));
+      const g = dropRect(kind, e.clientX, e.clientY);
+      id = addWidget(d, displayId, screenNr, kind, { x: g.x, y: g.y });
     }, () => ({ selected: id }));
   };
 
@@ -212,12 +232,11 @@ export function Canvas({ layout }: { layout: Layout }) {
                         style={{ gridTemplate: "minmax(0, 1fr) / minmax(0, 1fr)" }}
                         onPointerDown={() => select(item.id)}
                       >
-                        <ItemCard
-                          item={item}
-                          value={value}
-                          targetValue={target ? target.value : item.target}
-                          offline={down}
-                        />
+                        {item.chart ? (
+                          <ChartElement item={item.chart} />
+                        ) : (
+                          <ItemCard item={item} value={value} targetValue={target ? target.value : item.target} offline={down} />
+                        )}
                         {audit[item.id] && (
                           <div
                             data-testid={`audit-${item.id}`}
@@ -245,8 +264,8 @@ export function Canvas({ layout }: { layout: Layout }) {
                   style={{
                     left: PAD_X + ghost.x * (COL_W + GAP),
                     top: PAD_TOP + ghost.y * (rowH + GAP),
-                    width: MIN_W * COL_W + (MIN_W - 1) * GAP,
-                    height: MIN_H * rowH + (MIN_H - 1) * GAP,
+                    width: ghost.w * COL_W + (ghost.w - 1) * GAP,
+                    height: ghost.h * rowH + (ghost.h - 1) * GAP,
                   }}
                 />
               )}

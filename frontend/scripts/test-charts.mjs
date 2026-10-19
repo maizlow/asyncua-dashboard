@@ -132,3 +132,54 @@ test("layout normalisation keeps the chart fields", () => {
   assert.equal(item.type, "kpi");
   assert.deepEqual(item.chart, { id: "k", kind: "kpi", x: 0, y: 0, w: 6, h: 4, label: "OEE", metric: "oee", period: "7d", thresholds: [75, 85] });
 });
+
+const ops = await loadTs("editor/ops.ts");
+const val = await loadTs("editor/validate.ts");
+const exampleDoc = (file) => parse(readFileSync(new URL(`../../docs/examples/${file}`, import.meta.url), "utf8"));
+
+test("editor: the example chart layouts pass the browser's mirror of the backend rules", () => {
+  for (const f of ["diagram.yaml", "oee-element.yaml", "7dagar-element.yaml"]) assert.deepEqual(val.validateDocument(exampleDoc(f)), [], f);
+});
+
+test("editor: new charts get their default size, else their minimum, with valid defaults", () => {
+  const doc = exampleDoc("diagram.yaml");
+  const nr = ops.addScreen(doc, "tv1", "grid");
+  const kpi = ops.addWidget(doc, "tv1", nr, "kpi", { x: 0, y: 0 });
+  const bars = ops.addWidget(doc, "tv1", nr, "bars");
+  const s = ops.screen(doc, "tv1", nr);
+  const r = (id) => (({ x, y, w, h }) => ({ x, y, w, h }))(s.items.find((w) => w.id === id));
+  assert.deepEqual(r(kpi), { x: 0, y: 0, w: 6, h: 4 });
+  assert.deepEqual(r(bars), { x: 6, y: 0, w: 12, h: 6 }); // 24 x 12 has no room
+  assert.equal(s.items.find((w) => w.id === bars).count, 3); // as many bars as fit with 6-digit counts
+  for (const k of m.CHART_KINDS) {
+    const d = exampleDoc("diagram.yaml");
+    const n = ops.addScreen(d, "tv1", "grid");
+    ops.addWidget(d, "tv1", n, k);
+    assert.deepEqual(val.validateDocument(d), [], k);
+  }
+  assert.equal(ops.placementProblem(doc, "tv1", nr, kpi, "kpi", { x: 0, y: 6, w: 5, h: 4 }), "minst 6×4 rutor för kpi-ruta");
+  assert.equal(ops.placementProblem(doc, "tv1", nr, kpi, "kpi", { x: 0, y: 6, w: 6, h: 4 }), null);
+});
+
+test("editor: switching a chart's source drops the other source's fields", () => {
+  const doc = exampleDoc("diagram.yaml");
+  const w = { id: "k", kind: "kpi", x: 0, y: 0, w: 6, h: 4, metric: "oee", period: "7d" };
+  ops.setChartSource(doc, "tv1", w, "tag");
+  assert.equal(w.source, "tag");
+  assert.ok(w.tag && w.metric === undefined && w.period === undefined);
+  ops.setChartSource(doc, "tv1", w, undefined);
+  assert.deepEqual(Object.keys(w).sort(), ["h", "id", "kind", "metric", "w", "x", "y"]);
+});
+
+test("editor: chart rules mirror the backend messages", () => {
+  const doc = exampleDoc("diagram.yaml");
+  const items = doc.displays.tv1.screens["1"].items;
+  items[2].period = "7d";
+  items[2].metric = "prognosis";
+  items[3].w = 5;
+  items[1].count = 31;
+  const msgs = val.validateDocument(doc).map((p) => p.message);
+  assert.ok(msgs.includes("'prognosis' finns bara för pågående skift (inte 7 dagar)"), msgs.join("\n"));
+  assert.ok(msgs.some((x) => x.startsWith("för liten ruta 5×4 (minst 6×4 för 'kpi')")));
+  assert.ok(msgs.includes("ett heltal 1–30"));
+});

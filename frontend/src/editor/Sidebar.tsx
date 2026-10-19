@@ -2,9 +2,10 @@ import { useState } from "react";
 import { BUILTIN_KINDS } from "@/layout/doc";
 import type { Layout, LogoAsset, ScreenConfig } from "@/layout/layout";
 import type { Doc } from "./backend";
-import { DRAG_MIME } from "./dnd";
+import { setDragKind } from "./dnd";
+import { CHART_KINDS, KINDS } from "@/charts/metrics";
 import { BUILTIN_NAMES, TYPE_NAMES } from "./names";
-import { addScreen, addValueWidget, connectionIds, display, VALUE_KINDS, type ValueKind } from "./ops";
+import { addScreen, addWidget, connectionIds, display, minSizeOf, VALUE_KINDS, type ElementKind } from "./ops";
 import { displaysOf, useEditorStore } from "./store";
 
 const LOGOS: [LogoAsset, string][] = [
@@ -155,16 +156,36 @@ function ScreenList({ layout, displayId }: { layout: Layout; displayId: string }
   );
 }
 
+function PaletteButton({ kind, name, disabled, onAdd }: { kind: ElementKind; name: string; disabled: boolean; onAdd: (k: ElementKind) => void }) {
+  const [w, h] = minSizeOf(kind);
+  return (
+    <button
+      data-testid={`palette-${kind}`}
+      draggable={!disabled}
+      disabled={disabled}
+      onDragStart={(e) => {
+        setDragKind(e.dataTransfer, kind);
+        e.dataTransfer.effectAllowed = "copy";
+      }}
+      onClick={() => onAdd(kind)}
+      title={`Dra till skärmen eller klicka för att lägga till på första lediga plats (minst ${w}×${h} rutor)`}
+      className="cursor-grab rounded-md border border-zinc-700 bg-zinc-950 px-2 py-2 text-left text-sm hover:border-sky-600 disabled:cursor-not-allowed disabled:opacity-40"
+    >
+      {name}
+    </button>
+  );
+}
+
 function Palette({ displayId, layout }: { displayId: string; layout: Layout }) {
   const { screenNr, edit } = useEditorStore();
   const screen = layout.screens.find((s) => s.nr === screenNr);
   const disabled = !screen || screen.type !== "grid";
-  const add = (kind: ValueKind) => {
+  const add = (kind: ElementKind) => {
     if (screenNr === null) return;
     let id = "";
     edit(
       (d) => {
-        id = addValueWidget(d, displayId, screenNr, kind);
+        id = addWidget(d, displayId, screenNr, kind);
       },
       () => ({ selected: id }),
     );
@@ -174,27 +195,19 @@ function Palette({ displayId, layout }: { displayId: string; layout: Layout }) {
       <div className="px-2 pb-2 pt-1 text-xs font-medium uppercase tracking-wide text-zinc-500">Element</div>
       <div className="grid grid-cols-2 gap-1">
         {VALUE_KINDS.map((k) => (
-          <button
-            key={k}
-            data-testid={`palette-${k}`}
-            draggable={!disabled}
-            disabled={disabled}
-            onDragStart={(e) => {
-              e.dataTransfer.setData(DRAG_MIME, k);
-              e.dataTransfer.effectAllowed = "copy";
-            }}
-            onClick={() => add(k)}
-            title="Dra till skärmen eller klicka för att lägga till på första lediga plats"
-            className="cursor-grab rounded-md border border-zinc-700 bg-zinc-950 px-2 py-2 text-left text-sm hover:border-sky-600 disabled:cursor-not-allowed disabled:opacity-40"
-          >
-            {TYPE_NAMES[k]}
-          </button>
+          <PaletteButton key={k} kind={k} name={TYPE_NAMES[k]} disabled={disabled} onAdd={add} />
+        ))}
+      </div>
+      <div className="px-2 pb-2 pt-3 text-xs font-medium uppercase tracking-wide text-zinc-500">Diagram och KPI</div>
+      <div className="grid grid-cols-2 gap-1">
+        {CHART_KINDS.map((k) => (
+          <PaletteButton key={k} kind={k} name={KINDS[k].name} disabled={disabled} onAdd={add} />
         ))}
       </div>
       <p className="mt-2 px-1 text-xs text-zinc-500">
         {disabled
           ? "Egna element läggs på en rutnätsskärm. Inbyggda skärmar fyller hela ytan: lägg till dem med + Ny skärm."
-          : "Minst 12×4 rutor per element (läsbart på 8–10 m)."}
+          : "Värden minst 12×4 rutor, diagram enligt typen (läsbart på 8–10 m). Diagrammen visar displayens standard-PLC."}
       </p>
     </div>
   );

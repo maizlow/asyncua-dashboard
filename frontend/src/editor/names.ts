@@ -1,3 +1,5 @@
+import { KINDS } from "@/charts/metrics";
+
 /** Swedish names in the editor UI */
 export const BUILTIN_NAMES: Record<string, string> = {
   alarms: "Larm",
@@ -13,4 +15,5 @@ export const TYPE_NAMES: Record<string, string> = {
   counter: "Räknare",
   time: "Tid",
   status: "Status",
+  ...Object.fromEntries(Object.entries(KINDS).map(([k, v]) => [k, v.name])),
 };

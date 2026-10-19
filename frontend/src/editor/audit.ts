@@ -4,7 +4,9 @@
  * scaled 0.5, so cap heights are reported in 1080p px:
  * - any text with a cap height under 37 px blocks publishing (error);
  * - a hero value (the big number) under 90 px is a warning;
- * - clipped overflow or a value that doesn't fit blocks; text shortened with … is a warning.
+ * - clipped overflow or a value that doesn't fit blocks; text shortened with … is a warning, except in
+ *   charts and KPI tiles, where it blocks (as in scripts/check-fit.mjs: the chart text is all there is);
+ * - every [data-fit-value] (chart values, which shrink to fit) must fit.
  * Cap heights come from the real fonts (canvas measureText of "H"), not a fixed factor.
  */
 export const MIN_TEXT_PX = 37;
@@ -64,6 +66,9 @@ export function auditItem(itemEl: HTMLElement): ItemAudit {
   if (minText !== null && minText < MIN_TEXT_PX) messages.push({ level: "error", text: `text ${minText} px – under ${MIN_TEXT_PX} px vid 1080p` });
   if (hero !== null && hero < MIN_HERO_PX) messages.push({ level: "warn", text: `värdet ${hero} px – under ${MIN_HERO_PX} px vid 1080p (gör rutan större)` });
   if (heroEl && heroEl.scrollWidth > heroEl.clientWidth + 1) messages.push({ level: "error", text: "värdet får inte plats i rutan" });
+  for (const el of itemEl.querySelectorAll<HTMLElement>("[data-fit-value]"))
+    if (el.scrollWidth > el.clientWidth + 1) messages.push({ level: "error", text: `”${(el.textContent ?? "").trim().slice(0, 24)}” får inte plats (gör rutan större)` });
+  const chart = itemEl.querySelector("[data-chart]") !== null;
   // Overflow where it is clipped (same rule as scripts/check-fit.mjs): … is a warning, cut text an error
   for (const el of itemEl.querySelectorAll("*")) {
     if (el instanceof SVGElement) continue;
@@ -75,7 +80,7 @@ export function auditItem(itemEl: HTMLElement): ItemAudit {
     const ellipsis = cs.textOverflow === "ellipsis";
     const clamp = cs.webkitLineClamp && cs.webkitLineClamp !== "none";
     if ((overX && !ellipsis) || (overY && !clamp)) messages.push({ level: "error", text: `”${text}” klipps av` });
-    else messages.push({ level: "warn", text: `”${text}” kortas med …` });
+    else messages.push({ level: chart ? "error" : "warn", text: `”${text}” kortas med …${chart ? " (gör rutan större eller rubriken kortare)" : ""}` });
   }
   const level: Level = messages.some((m) => m.level === "error") ? "error" : messages.length ? "warn" : "ok";
   return { id, hero, minText, level, messages };

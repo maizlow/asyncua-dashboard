@@ -267,6 +267,26 @@ Varje elementtyp definieras på ett ställe:
 | `oee`, `week`, `highscore`, `shift` | inbyggda skärmar | backend-beräkning | helskärm tills etapp 6, sedan även mindre (minsta storlek per typ) |
 | `alarms` | larmlistan | larm från PLC:n | **alltid helskärm** |
 
+**Byggt (diagram etapp A–C, PR #29, #34 och editor-PR:n):** diagram- och KPI-element som komponeras fritt i rutnätet.
+OEE-skärmen och 7 dagar är numera byggda av samma element.
+
+- **Typerna:** `kpi`, `gauge` (OEE-ring), `breakdown` (OEE + T/P/K), `progress` (mot mål med prognos), `bars` (per dag/skift
+  med mållinje), `trend` (trend/gnistlinje), `timeline` (kör/stopp) och `table` (per skift/dag).
+- **Katalogen:** `backend/chart_catalog.json` anger fält, minsta storlek, standardstorlek och mätvärden. Den läses av både
+  backendens validering (`layout_doc.chart_problems`), TV:n och editorn (palett, panel, `validate.ts`), så reglerna finns på
+  ett ställe.
+- **Data:** live-tagg eller beräknade värden från backend (`oee_details`, `GET /api/aggregates`); TV:n har inga egna formler.
+  Beräknade värden gäller displayens standard-PLC tills etapp 4.
+- **Paletten:** gruppen "Diagram och KPI". Ett nytt diagram får standardstorleken där den får plats, annars minsta
+  storleken. Antalet staplar/rader anpassas så att sexsiffriga tal får plats (7 staplar på hel bredd, 3 på halv).
+- **Duken:** samma komponenter som TV:n, med demons simulerade skiftlogg (31 dygn). Handtaget stannar vid typens minsta
+  storlek.
+- **Panelen:** genereras från katalogen. Fälten är datakälla, värde, period, serie och antal, mål (tal, tagg eller
+  beräknat), gränser, bättre-riktning, färg, rad under värdet, rubrikradens PÅ MÅL/STÅR, skalans max och kolumner.
+  Fält som inte gäller döljs; ett byte av datakälla tar bort den andra källans fält.
+- **Läsbarheten:** värsta fallet är sexsiffriga tal, 100,0 % och 999 stopp i varje period. Ett `[data-fit-value]` som inte
+  får plats spärrar, och i diagram spärrar även text som kortas med …, samma regel som `check-fit.mjs`.
+
 **Egenskapspanel:**
 
 - Etikett, bindning (taggväljare), enhet, decimaler, mål, gränser och färger, tillstånd för `status`, och tema-överstyrning
@@ -625,7 +645,7 @@ implementation, inte arbetsdagar.
 | 3. OPC-bläddring | träd, sök, livevärde, typförslag, skapa alias från nod | 1–2 | 2–3 h |
 | 4. Flera PLC:er och displayer i drift | en runtime-kontext per anslutning (OPC-klient, DataStore, skift, OEE, 7 dagar, highscore), `connection`-kolumn i historiken, skärmväxling per display, `.env` per anslutning | 2–4 | 4–8 h |
 | 5. Tema och varumärke | tema-tokens (dagens utseende som standardtema), temaeditor, kontrast- och bländningsspärrar, uppladdning av logotyper, bilder och typsnitt, header-ytans utseende | 2–3 | 3–5 h |
-| 6. Nya elementtyper | `bar`, `gauge`, `sparkline`, `text`, `image`, `clock`, inbyggda skärmar i mindre storlek (utom larm) | 2–4 | 3–5 h |
+| 6. Nya elementtyper | `bar`, `gauge`, `sparkline` **(byggda som diagramelementen, se Elementkatalog)**, `text`, `image`, `clock`, inbyggda skärmar i mindre storlek (utom larm) | 2–4 | 3–5 h |
 | 7. Finputs | förhandsvisning på TV via länk, editor i Pages-demon, full Playwright-svit, dokumentation | 2–3 | 2–4 h |
 
 Totalt cirka 15–25 PR och 21–38 h implementation. MVP:n (etapp 0–2) är cirka 6–9 PR och 7–13 h.
