@@ -18,13 +18,16 @@ import { mkdirSync } from "node:fs";
 const BASE_URL = process.env.BASE_URL ?? "http://localhost:4173/";
 const CHROME = process.env.CHROME ?? "/usr/bin/google-chrome";
 const SHOT_DIR = process.env.SCREENSHOT_DIR;
-const SIZES = [
-  [1280, 720],
-  [1366, 768],
-  [1920, 1080],
-  [2560, 1080],
-  [3840, 2160],
-];
+// SIZES=1536x864,1440x900 overrides the list (the canvas scales uniformly, so other sizes only letterbox)
+const SIZES = process.env.SIZES
+  ? process.env.SIZES.split(",").map((s) => s.split("x").map(Number))
+  : [
+      [1280, 720],
+      [1366, 768],
+      [1920, 1080],
+      [2560, 1080],
+      [3840, 2160],
+    ];
 // [name, query, clamping allowed?] Only alarm texts may be ellipsized; on the other screens a
 // clamped label or number means the layout is too tight and fails the check.
 const CASES = [
@@ -69,6 +72,13 @@ const CASES = [
   ["diagram-shifts-6digit", "layout=diagram&screen=2&count=999999"],
   ["diagram-min1-6digit", "layout=diagram&screen=3&count=999999&stopped=1"],
   ["diagram-min2-6digit", "layout=diagram&screen=4&count=999999&stopped=1"],
+  // Trend lines (docs/examples/trend.yaml): 24 x 12, 12 x 6 and the 8 x 4 minimum, with 30 days, 14 shifts,
+  // one point, a flat and a negative tag, a missing tag, days without production and 6-digit counts
+  ["trend-big", "layout=trend&screen=1"],
+  ["trend-12x6", "layout=trend&screen=2"],
+  ["trend-12x6-6digit", "layout=trend&screen=2&count=999999"],
+  ["trend-min", "layout=trend&screen=3"],
+  ["trend-min-6digit", "layout=trend&screen=3&count=999999&stopped=1"],
 ];
 // Screen switch = 2 s fade out + 3 s fade in
 // ONLY=regex limits the run to matching case names, e.g. ONLY=highscore
@@ -177,6 +187,61 @@ try {
           }
           const cap1080 = Math.round(px * capRatio.get(key) * 0.5);
           if (cap1080 < 37) problems.push(`chart text cap height ${cap1080} px at 1080p (< 37): ${label(el)} ${px}px`);
+        }
+        // SVG shapes in charts: the shape's box including half the stroke width (line caps, the end dot)
+        // must lie inside the SVG's viewport and inside every clipping ancestor up to the chart card, so no
+        // line, marker or target line is cut at an edge.
+        for (const svg of canvas.querySelectorAll("[data-chart] svg")) {
+          const W = svg.width.baseVal.value;
+          const H = svg.height.baseVal.value;
+          const vb = svg.viewBox.baseVal;
+          const [vx, vy, vw, vh] = vb && vb.width ? [vb.x, vb.y, vb.width, vb.height] : [0, 0, W, H];
+          const card = svg.closest("[data-chart]");
+          let clip = card.getBoundingClientRect();
+          for (let a = svg.parentElement; a && a !== card.parentElement; a = a.parentElement) {
+            const cs = getComputedStyle(a);
+            if (cs.overflowX === "visible" && cs.overflowY === "visible") continue;
+            const r = a.getBoundingClientRect();
+            clip = { left: Math.max(clip.left, r.left), top: Math.max(clip.top, r.top), right: Math.min(clip.right, r.right), bottom: Math.min(clip.bottom, r.bottom) };
+          }
+          const m = svg.getScreenCTM();
+          for (const el of svg.querySelectorAll("path, line, circle, rect, polyline, polygon, ellipse")) {
+            const bb = el.getBBox();
+            if (bb.width === 0 && bb.height === 0 && el.tagName !== "circle") continue;
+            const cs = getComputedStyle(el);
+            const sw = cs.stroke === "none" ? 0 : parseFloat(cs.strokeWidth) || 0;
+            // a straight line with butt caps only grows across its direction (a grid line from 0 to the width fits)
+            const butt = el.tagName === "line" && cs.strokeLinecap === "butt";
+            const hx = butt && bb.width > 0 && bb.height === 0 ? 0 : sw / 2;
+            const hy = butt && bb.height > 0 && bb.width === 0 ? 0 : sw / 2;
+            const x0 = bb.x - hx, y0 = bb.y - hy, x1 = bb.x + bb.width + hx, y1 = bb.y + bb.height + hy;
+            const where = [x0 < vx - 0.5 && "left", y0 < vy - 0.5 && "top", x1 > vx + vw + 0.5 && "right", y1 > vy + vh + 0.5 && "bottom"].filter(Boolean);
+            // ... and on screen, against the clipping ancestors (the viewport scale m.a, m.d)
+            const L = m.e + x0 * m.a, T = m.f + y0 * m.d, R = m.e + x1 * m.a, B = m.f + y1 * m.d;
+            if (L < clip.left - 1 || T < clip.top - 1 || R > clip.right + 1 || B > clip.bottom + 1) where.push("container");
+            if (where.length) problems.push(`chart svg ${el.tagName} cut (${[...new Set(where)].join(", ")}): in "${(card.textContent ?? "").trim().slice(0, 30)}"`);
+          }
+        }
+        // Chart labels must not overlap each other (e.g. a y-axis label running into the x-axis labels)
+        for (const card of canvas.querySelectorAll("[data-chart]")) {
+          const leaves = [...card.querySelectorAll("*")].filter(
+            (el) => !(el instanceof SVGElement) && [...el.childNodes].some((n) => n.nodeType === Node.TEXT_NODE && n.textContent.trim()),
+          );
+          const boxes = leaves.map((el) => {
+            const range = document.createRange();
+            range.selectNodeContents(el);
+            return { el, r: range.getBoundingClientRect() };
+          });
+          for (let i = 0; i < boxes.length; i++)
+            for (let j = i + 1; j < boxes.length; j++) {
+              const a = boxes[i], b = boxes[j];
+              if (a.el.contains(b.el) || b.el.contains(a.el)) continue;
+              const ox = Math.min(a.r.right, b.r.right) - Math.max(a.r.left, b.r.left);
+              const oy = Math.min(a.r.bottom, b.r.bottom) - Math.max(a.r.top, b.r.top);
+              // the line boxes include the fonts' ascent/descent around the glyphs: only overlaps over a
+              // third of the smaller box's height are glyphs running into each other
+              if (ox > 4 && oy > 0.35 * Math.min(a.r.height, b.r.height)) problems.push(`chart labels overlap: ${label(a.el)} / ${label(b.el)}`);
+            }
         }
         return { problems, clamped, count: els.length, hero, week, hs, chartMin };
       });

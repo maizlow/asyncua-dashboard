@@ -1,0 +1,70 @@
+# yaml-language-server: $schema=../layout.schema.json
+#
+# Trendlinjer i alla storlekar och med svåra data, för fit-kontrollen (scripts/check-fit.mjs) och för att se efter
+# att linjen, punkterna, målet och etiketterna aldrig klipps: stor (24 × 12), 12 × 6 och minsta storlek 8 × 4.
+# Data: 30 dagar, 14 skift, en enda punkt, konstant värde, negativa tal, saknad tagg, dagar utan produktion
+# (söndag) och sexsiffriga tal (?count=999999).
+#
+# Visa i demon: ?layout=trend&screen=1 … 3
+# Diagram och KPI-element: docs/CONFIG.md (Diagram och KPI). Beräknade värden och historik gäller displayens
+# standardanslutning (default_connection) tills historik per anslutning finns (etapp 4).
+schema_version: 2
+
+connections:
+  plc1:
+    url: opc.tcp://192.168.0.1:4840
+    alarms: ns=3;i=1815
+    tags:
+        TargetCount: ns=3;s="DB Production TV"."dashboardData"."target"
+        ProductionCount: ns=3;s="DB Production TV"."dashboardData"."actual"
+        ProductionDelta: ns=3;s="DB Production TV"."dashboardData"."delta"
+        ProductionState: ns=3;s="DB Production TV"."dashboardData"."prodState"   # 2 = kör
+        OEE: ns=3;s="DB Production TV"."dashboardData"."oee"
+        TPM: ns=3;s="DB Production TV"."dashboardData"."tpm"
+        CurrentRuntime: { node: ns=3;s="DB Production TV"."dashboardData"."runtime", type: time }
+        AccumulatedStoptime: { node: ns=3;s="DB Production TV"."dashboardData"."accStoptime", type: time }
+        ShiftStart: { node: ns=3;s="DB Production TV"."dashboardData"."shiftStart", type: time }
+        ShiftEnd: { node: ns=3;s="DB Production TV"."dashboardData"."shiftEnd", type: time }
+        GoodCount: ""      # TODO(PLC): t.ex. ns=3;s="DB Production TV"."dashboardData"."goodCount"
+        RejectCount: ""    # TODO(PLC): t.ex. ns=3;s="DB Production TV"."dashboardData"."rejectCount"
+        # Mål från PLC:n (OEE-skärmen). Tomt = Mål hittills/Skiftmål visar "–" och inget PÅ/UNDER MÅL.
+        ShiftTarget: ""    # TODO(PLC): skiftmål i st för hela skiftet, t.ex. ns=3;s="DB Production TV"."dashboardData"."shiftTarget"
+        OeeTarget: ""      # TODO(PLC): OEE-mål i % (tomt = 85), t.ex. ns=3;s="DB Production TV"."dashboardData"."oeeTarget"
+        # Skiftlogg (tabellen shifts): PLC:n visar bara pågående skift; backend sparar en rad per skift.
+        PlannedTime: ""    # TODO(PLC): planerad tid i minuter exkl. raster för hela skiftet (tomt = ShiftEnd − ShiftStart), t.ex. ns=3;s="DB Production TV"."dashboardData"."plannedTime"
+        Flat: { node: ns=3;s="DB"."flat", demo: 42 }
+        Negative: { node: ns=3;s="DB"."neg", demo: [-99999.9, -95000] }
+        Missing: ""        # ingen nod: ingen historik, "–"
+        ShiftTeam: ""      # TODO(PLC): skiftlag, text eller nummer (tomt = "–"), t.ex. ns=3;s="DB Production TV"."dashboardData"."shiftTeam"
+
+displays:
+  tv1:
+    default_connection: plc1
+    screen:
+      connection: plc1
+      active: ns=3;s="DB Production TV"."screenHandler"."activeScreenNr"
+      requested: ns=3;s="DB Production TV"."screenHandler"."requestScreenNr"
+    screens:
+      1:
+        title: Trend stor
+        items:
+          - { id: t-big, kind: trend, x: 0, y: 0, w: 24, h: 12, label: OEE 30 dagar, series: days, count: 30, metric: oee, target_metric: oee_target }
+      2:
+        title: Trend 12 × 6
+        items:
+          - { id: t-good, kind: trend, x: 0, y: 0, w: 12, h: 6, label: Godkända per dag, series: days, count: 7, metric: good, target_metric: target }
+          - { id: t-shifts, kind: trend, x: 12, y: 0, w: 12, h: 6, label: OEE per skift, series: shifts, count: 14, metric: oee, target_metric: oee_target }
+          - { id: t-tpm, kind: trend, x: 0, y: 6, w: 12, h: 6, label: Takt, source: tag, tag: TPM, unit: TPM, target: 140 }
+          - { id: t-neg, kind: trend, x: 12, y: 6, w: 12, h: 6, label: Negativ, source: tag, tag: Negative, unit: "°C" }
+      3:
+        title: Trend minsta
+        items:
+          - { id: m-one, kind: trend, x: 0, y: 0, w: 8, h: 4, label: En dag, series: days, count: 1, metric: oee }
+          - { id: m-flat, kind: trend, x: 8, y: 0, w: 8, h: 4, label: Konstant, source: tag, tag: Flat }
+          - { id: m-neg, kind: trend, x: 16, y: 0, w: 8, h: 4, label: Negativ, source: tag, tag: Negative }
+          - { id: m-scrap, kind: trend, x: 0, y: 4, w: 8, h: 4, label: Kassation, series: shifts, count: 3, metric: scrap_pct, better: low }
+          - { id: m-stop, kind: trend, x: 8, y: 4, w: 8, h: 4, label: Stopptid, series: days, count: 14, metric: stop_time }
+          - { id: m-missing, kind: trend, x: 16, y: 4, w: 8, h: 4, label: Saknas, source: tag, tag: Missing }
+          - { id: m-good, kind: trend, x: 0, y: 8, w: 8, h: 4, label: Godkända, series: days, count: 7, metric: good, target_metric: target }
+          - { id: m-oee30, kind: trend, x: 8, y: 8, w: 8, h: 4, label: OEE 30 d, series: days, count: 30, metric: oee, target: 85 }
+          - { id: m-tpm, kind: trend, x: 16, y: 8, w: 8, h: 4, label: Takt, source: tag, tag: TPM, target: 140 }

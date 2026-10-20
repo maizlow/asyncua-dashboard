@@ -379,6 +379,7 @@ export function TrendElement({ item }: { item: ChartItem }) {
   const vals = points.filter((p): p is number => p !== null);
   const lo = Math.min(...vals, ...(target !== null ? [target] : []));
   const hi = Math.max(...vals, ...(target !== null ? [target] : []));
+  // Headroom above and below the data (and the target), also for a flat line or a single point
   const pad = (hi - lo) * 0.1 || Math.abs(hi) * 0.05 || 1;
   const y0 = lo - pad;
   const y1 = hi + pad;
@@ -387,21 +388,33 @@ export function TrendElement({ item }: { item: ChartItem }) {
   const W = Math.max(1, size.w);
   const H = Math.max(1, size.h);
   const n = points.length;
-  const m = compact ? 18 : 24; // room for the line caps and the end dot
-  const X = (i: number) => (n <= 1 ? W / 2 : m + (i / (n - 1)) * (W - 2 * m));
-  const Y = (v: number) => H - m - ((v - y0) / (y1 - y0)) * (H - 2 * m);
-  const segs: string[] = [];
-  let cur = "";
+  const stroke = compact ? 12 : 14;
+  const dot = compact ? 16 : 22;
+  // Inset for the line caps and the end dot (half the dot plus a little), and vertically also for the
+  // y-axis labels, which are centred on the grid lines at the extremes
+  const mx = dot + 4;
+  const my = compact ? dot + 4 : Math.max(dot + 4, AXIS_PX / 2 + 4);
+  const X = (i: number) => (n <= 1 ? W / 2 : mx + (i / (n - 1)) * (W - 2 * mx));
+  const Y = (v: number) => H - my - ((v - y0) / (y1 - y0)) * (H - 2 * my);
+  // Runs of consecutive values; a gap (no production that day, no value) is bridged with a thin dashed
+  // line so the trend never looks cut off, and a value on its own gets a dot
+  const runs: { i: number; v: number }[][] = [];
   points.forEach((p, i) => {
-    if (p === null) {
-      if (cur) segs.push(cur);
-      cur = "";
-    } else cur += `${cur ? "L" : "M"}${X(i).toFixed(1)},${Y(p).toFixed(1)}`;
+    if (p === null) return;
+    const run = runs[runs.length - 1];
+    if (run && run[run.length - 1].i === i - 1) run.push({ i, v: p });
+    else runs.push([{ i, v: p }]);
   });
-  if (cur) segs.push(cur);
+  const path = (r: { i: number; v: number }[]) => r.map((q, k) => `${k ? "L" : "M"}${X(q.i).toFixed(1)},${Y(q.v).toFixed(1)}`).join("");
+  const bridges = runs.slice(1).map((r, k) => {
+    const a = runs[k][runs[k].length - 1];
+    return `M${X(a.i).toFixed(1)},${Y(a.v).toFixed(1)}L${X(r[0].i).toFixed(1)},${Y(r[0].v).toFixed(1)}`;
+  });
   const color = statusColor(status === null ? null : status) === "var(--accent-neutral)" ? "#e4e4e7" : statusColor(status);
   const lastIdx = points.length - 1 - [...points].reverse().findIndex((p) => p !== null);
-  const fmtAxis = (v: number) => (metric ? fmtFixed(v, METRICS[metric]?.format === "int" ? 0 : 1) : fmtFixed(v, decimals));
+  const fmtAxis = (v: number) => (metric ? formatMetric(metric, METRICS[metric]?.format === "pct" ? v / 100 : v) : fmtFixed(v, decimals));
+  // Grid lines/labels at the top and bottom of the data; one line for a flat series (same label twice)
+  const axis = fmtAxis(hi) === fmtAxis(lo) ? [hi] : [hi, lo];
   return (
     <Card
       title={title(item)}
@@ -413,38 +426,56 @@ export function TrendElement({ item }: { item: ChartItem }) {
         </span>
       }
     >
-      <div className={`flex-1 min-h-0 min-w-0 flex ${compact ? "mt-6" : "mt-8"} gap-6`}>
+      <div
+        className={`flex-1 min-h-0 min-w-0 grid ${compact ? "mt-4" : "mt-6"}`}
+        style={{ gridTemplateColumns: !compact && vals.length > 0 ? "auto minmax(0, 1fr)" : "minmax(0, 1fr)", gridTemplateRows: "minmax(0, 1fr) auto", columnGap: 24 }}
+      >
         {!compact && vals.length > 0 && (
-          <div className="flex flex-col justify-between text-[112px] leading-none text-zinc-300 font-mono tabular-nums whitespace-nowrap shrink-0 text-right">
-            <span>{fmtAxis(y1 - pad)}</span>
-            <span>{fmtAxis(y0 + pad)}</span>
+          // y-axis: the labels sit on the two grid lines (same rows as the plot, so the same height)
+          <div className="relative text-zinc-300 font-mono tabular-nums whitespace-nowrap text-right leading-none" style={{ fontSize: AXIS_PX, width: `${Math.max(...axis.map((v) => fmtAxis(v).length))}ch` }}>
+            {/* monospace: the wider label's length in ch is the column width */}
+            {size.h > 0 &&
+              axis.map((v, k) => (
+                <span key={k} className="absolute right-0 -translate-y-1/2" style={{ top: Y(v) }}>
+                  {fmtAxis(v)}
+                </span>
+              ))}
           </div>
         )}
-        <div className="flex-1 min-w-0 flex flex-col">
-          <div ref={box} className="relative flex-1 min-h-0">
-            {vals.length > 0 && size.w > 0 && (
-              <svg className="absolute inset-0" width={W} height={H} aria-hidden>
-                {!compact && [y0 + pad, y1 - pad].map((v) => <line key={v} x1="0" x2={W} y1={Y(v)} y2={Y(v)} stroke={GRID_LINE} strokeWidth="3" />)}
-                {target !== null && <line x1="0" x2={W} y1={Y(target)} y2={Y(target)} stroke="white" strokeWidth="8" strokeDasharray="28 20" strokeLinecap="round" />}
-                {segs.map((d) => (
-                  <path key={d} d={d} fill="none" stroke={color} strokeWidth={compact ? 12 : 14} strokeLinejoin="round" strokeLinecap="round" />
-                ))}
-                {lastIdx >= 0 && lastIdx < n && points[lastIdx] !== null && <circle cx={X(lastIdx)} cy={Y(points[lastIdx]!)} r={compact ? 16 : 22} fill={color} />}
-              </svg>
-            )}
-            {vals.length === 0 && <NoData px={130} />}
-          </div>
-          {!compact && labels[0] && (
-            <div className="flex justify-between gap-8 mt-6 text-[104px] leading-none text-zinc-300 whitespace-nowrap">
-              <span>{labels[0]}</span>
-              <span>{labels[1]}</span>
-            </div>
+        <div ref={box} className="relative min-h-0 min-w-0">
+          {vals.length > 0 && size.w > 0 && (
+            <svg className="absolute inset-0" width={W} height={H} aria-hidden>
+              {!compact && axis.map((v, k) => <line key={k} x1="0" x2={W} y1={Y(v)} y2={Y(v)} stroke={GRID_LINE} strokeWidth="3" />)}
+              {target !== null && (
+                <line x1={4} x2={W - 4} y1={Y(target)} y2={Y(target)} stroke="white" strokeWidth="8" strokeDasharray="28 20" strokeLinecap="round" />
+              )}
+              {bridges.map((d) => (
+                <path key={`b${d}`} d={d} fill="none" stroke={color} strokeOpacity={0.45} strokeWidth={stroke / 2} strokeDasharray={`${stroke} ${stroke * 1.5}`} />
+              ))}
+              {runs.map((r) =>
+                r.length > 1 ? (
+                  <path key={r[0].i} d={path(r)} fill="none" stroke={color} strokeWidth={stroke} strokeLinejoin="round" strokeLinecap="round" />
+                ) : (
+                  r[0].i !== lastIdx && <circle key={r[0].i} cx={X(r[0].i)} cy={Y(r[0].v)} r={stroke * 0.9} fill={color} />
+                ),
+              )}
+              {lastIdx >= 0 && lastIdx < n && points[lastIdx] !== null && <circle cx={X(lastIdx)} cy={Y(points[lastIdx]!)} r={dot} fill={color} />}
+            </svg>
           )}
+          {vals.length === 0 && <NoData px={130} />}
         </div>
+        {!compact && labels[0] && (
+          <div className="flex justify-between gap-8 mt-6 text-[104px] leading-none text-zinc-300 whitespace-nowrap min-w-0" style={{ gridColumn: vals.length > 0 ? 2 : 1 }}>
+            <span>{labels[0]}</span>
+            <span>{labels[1]}</span>
+          </div>
+        )}
       </div>
     </Card>
   );
 }
+/** y-axis labels: 112 px monospace = 37 px cap height at 1080p */
+const AXIS_PX = 112;
 
 // ------------------------------------------------------------------ run/stop timeline (current shift)
 

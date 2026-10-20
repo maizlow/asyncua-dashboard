@@ -138,7 +138,7 @@ const val = await loadTs("editor/validate.ts");
 const exampleDoc = (file) => parse(readFileSync(new URL(`../../docs/examples/${file}`, import.meta.url), "utf8"));
 
 test("editor: the example chart layouts pass the browser's mirror of the backend rules", () => {
-  for (const f of ["diagram.yaml", "oee-element.yaml", "7dagar-element.yaml"]) assert.deepEqual(val.validateDocument(exampleDoc(f)), [], f);
+  for (const f of ["diagram.yaml", "oee-element.yaml", "7dagar-element.yaml", "trend.yaml"]) assert.deepEqual(val.validateDocument(exampleDoc(f)), [], f);
 });
 
 test("editor: new charts get their default size, else their minimum, with valid defaults", () => {

@@ -151,6 +151,7 @@ function demoBackend(): EditorBackend {
       "oee-element": () => import("../../../docs/examples/oee-element.yaml?doc"),
       "7dagar-element": () => import("../../../docs/examples/7dagar-element.yaml?doc"),
       diagram: () => import("../../../docs/examples/diagram.yaml?doc"),
+      trend: () => import("../../../docs/examples/trend.yaml?doc"),
     };
     const mod = await (examples[which ?? ""] ?? (() => import("../../../dashboard.yaml?doc")))();
     return structuredClone(mod.default);
