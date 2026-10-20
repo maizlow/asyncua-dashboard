@@ -36,6 +36,8 @@ import multiYaml from "../../../docs/examples/flera-displayer.yaml";
 import oeeElementYaml from "../../../docs/examples/oee-element.yaml";
 import weekElementYaml from "../../../docs/examples/7dagar-element.yaml";
 import diagramYaml from "../../../docs/examples/diagram.yaml";
+// ?layout=trend: trend lines in every size with hard data (single point, flat, negative, missing)
+import trendYaml from "../../../docs/examples/trend.yaml";
 
 const TICK_MS = 1000;
 const SNAPSHOT_EVERY_MS = 10_000;
@@ -366,7 +368,7 @@ export function createDemoDataSource(): DataSource {
   const params = new URLSearchParams(window.location.search);
   // A version published in the demo editor (same browser) replaces the bundled example
   const stored = publishedDemoDoc(params.get("layout"));
-  const views = (stored ? displayViews(stored) : null) ?? { stress: stressYaml, multi: multiYaml, "oee-element": oeeElementYaml, "7dagar-element": weekElementYaml, diagram: diagramYaml }[params.get("layout") ?? ""] ?? dashboardYaml;
+  const views = (stored ? displayViews(stored) : null) ?? { stress: stressYaml, multi: multiYaml, "oee-element": oeeElementYaml, "7dagar-element": weekElementYaml, diagram: diagramYaml, trend: trendYaml }[params.get("layout") ?? ""] ?? dashboardYaml;
   window.addEventListener("storage", (e) => {
     if (e.key === demoKey(params.get("layout"))) window.location.reload();
   });

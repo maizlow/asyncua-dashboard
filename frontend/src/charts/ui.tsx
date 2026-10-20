@@ -2,7 +2,7 @@
 // composed of the same elements). Laid out for the 3840x2160 canvas and read from 8-10 m: titles and
 // labels >= 104 px (>= 37 px cap at 1080p), all text in HTML (never inside SVG), so the legibility
 // check and scripts/check-fit.mjs measure chart labels like any other text.
-import { useLayoutEffect, useRef, type ReactNode } from "react";
+import { useLayoutEffect, useRef, useState, type ReactNode } from "react";
 import { useFit } from "@/hooks/useFit";
 
 /** smallest chart text on the 3840x2160 canvas (37 px cap height at 1080p); check-fit.mjs enforces it */
@@ -30,6 +30,42 @@ export function Title({ text }: { text: string }) {
   );
 }
 
+/** Title + value/badge on one row; when even the 104 px title would be shortened next to the aside
+ *  (a narrow trend: "STOPPTID 99 h 59 min"), the aside moves to a row of its own instead. */
+function CardHeader({ title, aside }: { title: string; aside?: ReactNode }) {
+  const head = useRef<HTMLDivElement>(null);
+  const side = useRef<HTMLDivElement>(null);
+  const [stacked, setStacked] = useState(false);
+  // eslint-disable-next-line react-hooks/exhaustive-deps -- every render, see below
+  useLayoutEffect(() => {
+    const h = head.current;
+    const a = side.current;
+    const t = h?.firstElementChild as HTMLElement | null;
+    if (!h || !t) return;
+    // Natural widths (scrollWidth ignores the truncation), so the decision is the same in both layouts
+    const titleAtFloor = (t.scrollWidth * CHART_TEXT_MIN_PX) / parseFloat(getComputedStyle(t).fontSize);
+    const next = !!a && titleAtFloor + a.scrollWidth + HEADER_GAP_PX > h.clientWidth + 1;
+    if (next !== stacked) setStacked(next);
+    // Runs after every render (the aside's width changes with the value). Converges in one step: the
+    // decision uses natural widths, which are the same stacked or not.
+  });
+  return (
+    <div
+      ref={head}
+      className={`flex ${stacked ? "flex-col items-start gap-4" : "items-baseline justify-between"} leading-none whitespace-nowrap min-w-0`}
+      style={stacked ? undefined : { columnGap: HEADER_GAP_PX }}
+    >
+      <Title text={title} />
+      {aside && (
+        <div ref={side} className={`text-[110px] font-bold uppercase shrink-0 ${stacked ? "max-w-full" : ""}`}>
+          {aside}
+        </div>
+      )}
+    </div>
+  );
+}
+const HEADER_GAP_PX = 32;
+
 export function Card({ title, aside, children, className = "" }: { title: string; aside?: ReactNode; children: ReactNode; className?: string }) {
   return (
     <div
@@ -37,10 +73,7 @@ export function Card({ title, aside, children, className = "" }: { title: string
       data-chart
       className={`h-full bg-zinc-900 border border-zinc-800 rounded-[48px] px-14 py-8 flex flex-col min-h-0 min-w-0 overflow-hidden ${className}`}
     >
-      <div className="flex items-baseline justify-between gap-8 leading-none whitespace-nowrap min-w-0">
-        <Title text={title} />
-        {aside && <div className="text-[110px] font-bold uppercase shrink-0">{aside}</div>}
-      </div>
+      <CardHeader title={title} aside={aside} />
       <div className="flex-1 min-h-0 flex flex-col justify-center min-w-0">{children}</div>
     </div>
   );
