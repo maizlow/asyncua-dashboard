@@ -308,7 +308,8 @@ Utöver värdeelementen finns diagram- och KPI-element som kan läggas fritt i r
 samma element**, så de kan byggas om, ändras och kombineras på en egen skärm:
 [`docs/examples/oee-element.yaml`](examples/oee-element.yaml) och [`docs/examples/7dagar-element.yaml`](examples/7dagar-element.yaml)
 (skärm 1 = element, skärm 2 = den inbyggda för jämförelse). Alla typer finns i [`docs/examples/diagram.yaml`](examples/diagram.yaml).
-I demon: `?layout=oee-element`, `?layout=7dagar-element`, `?layout=diagram` (även i demo-editorn).
+I demon: `?layout=oee-element`, `?layout=7dagar-element`, `?layout=diagram`, `?layout=trend` (alla trendstorlekar, platt, negativ, en punkt och saknat värde) (även i demo-editorn).
+Får rubriken och värdet inte plats på samma rad hamnar värdet på en egen rad under rubriken i stället för att rubriken kortas.
 
 | `kind` | Visar | Minst (b × h) | Ny (b × h) | Egna fält |
 |---|---|---|---|---|
@@ -317,7 +318,7 @@ I demon: `?layout=oee-element`, `?layout=7dagar-element`, `?layout=diagram` (äv
 | `breakdown` | OEE med PÅ/UNDER MÅL och staplar för Tillgänglighet, Prestanda, Kvalitet | 10 × 8 | 11 × 8 | `period` |
 | `progress` | Godkända mot mål: stapel, vit markering för mål hittills, Mål hittills / Skiftmål / Prognos | 13 × 6 | 13 × 8 | `source`, `period`, `tag`, `target`, `stats` |
 | `bars` | Staplar per dag eller skift med målet som vit linje, värdet (OEE) ovanför och antalet under | 12 × 6 | 24 × 12 | `series`, `count`, `metric`, `top_metric` |
-| `trend` | Trendlinje (gnistlinje under 6 rader) per dag/skift eller en taggs senaste värden, mål som streckad linje | 8 × 4 | 12 × 6 | `source`, `series`, `count`, `metric`, `tag`, `unit`, `decimals`, `target`, `target_metric`, `better` |
+| `trend` | Trendlinje (gnistlinje under 6 rader) per dag/skift eller en taggs senaste värden, mål som streckad linje; dagar utan värde (t.ex. söndag) överbryggas med en tunn streckad linje, ett ensamt värde visas som en punkt | 8 × 4 | 12 × 6 | `source`, `series`, `count`, `metric`, `tag`, `unit`, `decimals`, `target`, `target_metric`, `better` |
 | `timeline` | Kör/stopp i pågående skift: grönt = kör, rött = stopp, vit linje = nu | 12 × 3 | 24 × 3 | – |
 | `table` | Tabell per skift eller dag (senaste raden markerad) | 12 × 6 | 12 × 8 | `series`, `count`, `columns` |
 
