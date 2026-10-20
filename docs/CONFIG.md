@@ -355,7 +355,8 @@ procentenheter under), A/P/Q 90/80, kassation 2/3 (lägre är bättre), godkänd
 
 **KPI-rutan:** `aside: target` visar PÅ MÅL/UNDER MÅL i rubrikraden (från 10 rutors bredd, smalare rutor visar ▼ och färg),
 `aside: stopped` visar STÅR i rött när linjen står. `sub_metric` ger en rad under värdet; `sub_text` är text före värdet
-(`av`) eller med `{}` där värdet ska stå (`{} totalt`).
+(`av`) eller med `{}` där värdet ska stå (`{} totalt`). I rutor smalare än 8 kolumner med `sub_text` visas statusen på raden
+under bara med färg (utan ▲/▼/●), annars får raden inte plats.
 
 **Serier** (`bars`, `trend`, `table`): `series: days` (standard) = en stapel/punkt/rad per dygn, `count` högst 30;
 `series: shifts` = per skift ur skiftloggen, `count` högst 14. `bars`: `metric` = stapelns höjd (standard `good`, med dagens

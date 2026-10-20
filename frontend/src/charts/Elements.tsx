@@ -78,6 +78,9 @@ export function KpiElement({ item }: { item: ChartItem }) {
 
 function KpiSub({ item, data }: { item: ChartItem; data: ChartData }) {
   const m = item.sub_metric!;
+  // A text before the value ("OEE ▼ 100,0 %") does not fit a 6 wide tile even at the 104 px floor; there the
+  // colour alone shows the status, as for the badges in the title row
+  const showCue = item.w >= 8 || !item.sub_text;
   const spec = METRICS[m];
   let valueNode: ReactNode;
   let fitKey: string;
@@ -92,7 +95,7 @@ function KpiSub({ item, data }: { item: ChartItem; data: ChartData }) {
     valueNode = s ? (
       // 120 px at the full 110 px line; em so it shrinks with the line
       <span className="font-mono font-bold text-[1.09em]" style={{ color: statusColor(s) }}>
-        {cue(s, spec?.status === "scrap" ? "low" : "high")}
+        {showCue && cue(s, spec?.status === "scrap" ? "low" : "high")}
         {text}
       </span>
     ) : (
